@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx --yes create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --no-turbopack)",
+      "Bash(npm --version)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Program Files \\(x86\\)/**)",
+      "Read(//c/Users/chyli/AppData/Roaming/**)",
+      "Read(//c//**)",
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(Test-Path \"C:\\\\Program Files\\\\nodejs\\\\node.exe\"; Test-Path \"$env:APPDATA\\\\nvm\"; Test-Path \"$env:ProgramFiles\\\\nodejs\"; $env:PATH -split ';' | Select-String -Pattern \"node\")",
+      "PowerShell($env:PATH = \"C:\\\\Program Files\\\\nodejs;\" + $env:PATH; node --version; npm --version)",
+      "PowerShell(Get-ChildItem \"H:\\\\Event-Flow\\\\temp-eventflow-app\" -Force | ForEach-Object { Move-Item -Path $_.FullName -Destination \"H:\\\\Event-Flow\\\\\" -Force }; Remove-Item \"H:\\\\Event-Flow\\\\temp-eventflow-app\" -Recurse -Force; Get-ChildItem \"H:\\\\Event-Flow\" -Force)",
+      "Bash(cat src/app/layout.tsx)",
+      "Bash(ls src/lib)",
+      "Bash(git init *)"
+    ]
+  }
+}
