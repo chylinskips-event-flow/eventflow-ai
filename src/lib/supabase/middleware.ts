@@ -32,7 +32,11 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  void user;
+  if (!user && request.nextUrl.pathname.startsWith("/admin")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
 
   // IMPORTANT: you *must* return the supabaseResponse object as it is.
   // If you're creating a new response object, make sure to:

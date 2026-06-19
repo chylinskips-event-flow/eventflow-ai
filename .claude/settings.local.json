@@ -14,7 +14,9 @@
       "PowerShell(Get-ChildItem \"H:\\\\Event-Flow\\\\temp-eventflow-app\" -Force | ForEach-Object { Move-Item -Path $_.FullName -Destination \"H:\\\\Event-Flow\\\\\" -Force }; Remove-Item \"H:\\\\Event-Flow\\\\temp-eventflow-app\" -Recurse -Force; Get-ChildItem \"H:\\\\Event-Flow\" -Force)",
       "Bash(cat src/app/layout.tsx)",
       "Bash(ls src/lib)",
-      "Bash(git init *)"
+      "WebFetch(domain:supabase.com)",
+      "WebSearch",
+      "Bash(git add *)"
     ]
   }
 }
