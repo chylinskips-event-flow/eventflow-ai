@@ -1,9 +1,46 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { getOwnOrganization } from "@/lib/organizations";
+import { getOrganizationEvents, type Event } from "@/lib/events";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
+const STATUS_LABELS: Record<Event["status"], string> = {
+  draft: "Szkic",
+  published: "Opublikowany",
+  live: "Na żywo",
+  completed: "Zakończony",
+  archived: "Zarchiwizowany",
+};
+
+const STATUS_CLASSES: Record<Event["status"], string> = {
+  draft: "bg-muted text-muted-foreground",
+  published: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  live: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 animate-pulse",
+  completed: "bg-muted text-muted-foreground line-through",
+  archived: "bg-muted text-muted-foreground",
+};
+
+function formatDateRange(startsAt: string | null, endsAt: string | null) {
+  if (!startsAt) {
+    return "Termin nieustalony";
+  }
+
+  const formatter = new Intl.DateTimeFormat("pl-PL", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  const start = formatter.format(new Date(startsAt));
+
+  if (!endsAt) {
+    return start;
+  }
+
+  return `${start} – ${formatter.format(new Date(endsAt))}`;
+}
 
 export default async function OrganizerAdminPage() {
   const organization = await getOwnOrganization();
@@ -12,11 +49,7 @@ export default async function OrganizerAdminPage() {
     redirect("/onboarding");
   }
 
-  const supabase = await createClient();
-  const { data: events } = await supabase
-    .from("events")
-    .select("id")
-    .eq("organization_id", organization.id);
+  const events = await getOrganizationEvents(organization.id);
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-6">
@@ -27,7 +60,7 @@ export default async function OrganizerAdminPage() {
         </Button>
       </div>
 
-      {!events || events.length === 0 ? (
+      {events.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
             <p className="text-muted-foreground">
@@ -36,11 +69,25 @@ export default async function OrganizerAdminPage() {
           </CardContent>
         </Card>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {events.map((event) => (
-            <li key={event.id}>{event.id}</li>
+            <Link key={event.id} href={`/admin/events/${event.id}`}>
+              <Card className="transition-colors hover:bg-accent/50">
+                <CardContent className="flex items-center justify-between gap-4 py-4">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium">{event.name}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {formatDateRange(event.starts_at, event.ends_at)}
+                    </span>
+                  </div>
+                  <Badge className={cn(STATUS_CLASSES[event.status])}>
+                    {STATUS_LABELS[event.status]}
+                  </Badge>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
-        </ul>
+        </div>
       )}
     </main>
   );
