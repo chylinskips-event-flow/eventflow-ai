@@ -32,10 +32,26 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && request.nextUrl.pathname.startsWith("/admin")) {
+  const pathname = request.nextUrl.pathname;
+
+  if (!user && (pathname.startsWith("/admin") || pathname === "/onboarding")) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
+  }
+
+  if (user && pathname.startsWith("/admin")) {
+    const { data: organization } = await supabase
+      .from("organizations")
+      .select("id")
+      .eq("owner_user_id", user.id)
+      .maybeSingle();
+
+    if (!organization) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/onboarding";
+      return NextResponse.redirect(url);
+    }
   }
 
   // IMPORTANT: you *must* return the supabaseResponse object as it is.

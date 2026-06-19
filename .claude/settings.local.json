@@ -18,7 +18,9 @@
       "WebSearch",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(node -e ' *)",
+      "PowerShell(npx tsc --noEmit 2>&1)"
     ]
   }
 }
