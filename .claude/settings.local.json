@@ -16,7 +16,9 @@
       "Bash(ls src/lib)",
       "WebFetch(domain:supabase.com)",
       "WebSearch",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }
