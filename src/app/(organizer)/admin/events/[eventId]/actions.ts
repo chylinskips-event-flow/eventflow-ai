@@ -107,11 +107,22 @@ export async function updateEvent(
 
 export async function publishEvent(eventId: string) {
   const supabase = await createClient();
-  await supabase
+  const { data, error } = await supabase
     .from("events")
     .update({ status: "published" })
     .eq("id", eventId)
-    .eq("status", "draft");
+    .eq("status", "draft")
+    .select();
+
+  if (error) {
+    throw new Error(`Publish failed: ${error.message} (code: ${error.code})`);
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error(
+      "Update affected 0 rows — sprawdź RLS lub czy event istnieje",
+    );
+  }
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath("/admin");
