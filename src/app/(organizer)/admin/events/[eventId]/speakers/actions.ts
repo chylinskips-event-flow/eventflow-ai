@@ -184,7 +184,10 @@ export async function uploadSpeakerPhoto(
   return { status: "success", message: "Zdjęcie zapisane." };
 }
 
-export async function deleteSpeaker(eventId: string, speakerId: string) {
+export async function deleteSpeaker(
+  eventId: string,
+  speakerId: string,
+): Promise<SpeakerFormState> {
   const supabase = await createClient();
 
   const { count } = await supabase
@@ -193,9 +196,10 @@ export async function deleteSpeaker(eventId: string, speakerId: string) {
     .eq("speaker_id", speakerId);
 
   if (count && count > 0) {
-    throw new Error(
-      `Ten prelegent jest przypisany do ${count} ${count === 1 ? "sesji" : "sesji"} — usuń lub zmień przypisanie najpierw.`,
-    );
+    return {
+      status: "error",
+      message: `Ten prelegent jest przypisany do ${count} sesji — usuń lub zmień przypisanie najpierw.`,
+    };
   }
 
   const { error } = await supabase
@@ -205,8 +209,12 @@ export async function deleteSpeaker(eventId: string, speakerId: string) {
     .eq("event_id", eventId);
 
   if (error) {
-    throw new Error(`Nie udało się usunąć prelegenta: ${error.message}`);
+    return {
+      status: "error",
+      message: `Nie udało się usunąć prelegenta: ${error.message}`,
+    };
   }
 
   revalidatePath(`/admin/events/${eventId}/speakers`);
+  return { status: "success", message: "Prelegent usunięty." };
 }

@@ -39,14 +39,12 @@ export function SpeakerCard({
   function handleDelete() {
     setDeleteError(null);
     startDeleteTransition(async () => {
-      try {
-        await deleteSpeaker(eventId, speaker.id);
-        setIsDeleteOpen(false);
-      } catch (err) {
-        setDeleteError(
-          err instanceof Error ? err.message : "Nie udało się usunąć prelegenta.",
-        );
+      const result = await deleteSpeaker(eventId, speaker.id);
+      if (result.status === "error") {
+        setDeleteError(result.message ?? "Nie udało się usunąć prelegenta.");
+        return;
       }
+      setIsDeleteOpen(false);
     });
   }
 

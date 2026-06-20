@@ -107,7 +107,10 @@ export async function updateSession(
   return { status: "success", message: "Zapisano zmiany." };
 }
 
-export async function deleteSession(eventId: string, sessionId: string) {
+export async function deleteSession(
+  eventId: string,
+  sessionId: string,
+): Promise<SessionFormState> {
   const supabase = await createClient();
   const { error } = await supabase
     .from("sessions")
@@ -116,8 +119,12 @@ export async function deleteSession(eventId: string, sessionId: string) {
     .eq("event_id", eventId);
 
   if (error) {
-    throw new Error(`Nie udało się usunąć sesji: ${error.message}`);
+    return {
+      status: "error",
+      message: `Nie udało się usunąć sesji: ${error.message}`,
+    };
   }
 
   revalidatePath(`/admin/events/${eventId}/sessions`);
+  return { status: "success", message: "Sesja usunięta." };
 }

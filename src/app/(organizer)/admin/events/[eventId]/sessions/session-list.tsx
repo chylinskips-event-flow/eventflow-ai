@@ -50,14 +50,12 @@ function SessionRow({
   function handleDelete() {
     setDeleteError(null);
     startDeleteTransition(async () => {
-      try {
-        await deleteSession(eventId, session.id);
-        setIsDeleteOpen(false);
-      } catch (err) {
-        setDeleteError(
-          err instanceof Error ? err.message : "Nie udało się usunąć sesji.",
-        );
+      const result = await deleteSession(eventId, session.id);
+      if (result.status === "error") {
+        setDeleteError(result.message ?? "Nie udało się usunąć sesji.");
+        return;
       }
+      setIsDeleteOpen(false);
     });
   }
 
