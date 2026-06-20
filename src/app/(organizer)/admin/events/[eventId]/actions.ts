@@ -128,6 +128,9 @@ export async function publishEvent(eventId: string) {
   revalidatePath("/admin");
 }
 
+const ALLOWED_LOGO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
 export async function uploadEventLogo(
   eventId: string,
   _prevState: EventFormState,
@@ -137,6 +140,20 @@ export async function uploadEventLogo(
 
   if (!(file instanceof File) || file.size === 0) {
     return { status: "error", message: "Wybierz plik logo." };
+  }
+
+  if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
+    return {
+      status: "error",
+      message: "Logo musi być w formacie JPEG, PNG lub WebP.",
+    };
+  }
+
+  if (file.size > MAX_LOGO_SIZE_BYTES) {
+    return {
+      status: "error",
+      message: "Logo nie może być większe niż 5MB.",
+    };
   }
 
   const supabase = await createClient();

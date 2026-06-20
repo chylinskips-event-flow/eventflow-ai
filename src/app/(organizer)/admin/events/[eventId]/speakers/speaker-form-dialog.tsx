@@ -99,7 +99,12 @@ export function SpeakerFormDialog({
           {!speaker && (
             <div className="flex flex-col gap-2">
               <Label htmlFor="photo">Zdjęcie (opcjonalnie)</Label>
-              <Input id="photo" name="photo" type="file" accept="image/*" />
+              <Input
+                id="photo"
+                name="photo"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+              />
             </div>
           )}
           {state.status === "error" && (

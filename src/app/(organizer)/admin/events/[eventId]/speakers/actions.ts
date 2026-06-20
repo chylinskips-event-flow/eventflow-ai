@@ -34,7 +34,15 @@ function readSpeakerFields(formData: FormData) {
   } as const;
 }
 
-type PhotoUploadResult = "ok" | "upload_error" | "update_error";
+const ALLOWED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
+type PhotoUploadResult =
+  | "ok"
+  | "invalid_type"
+  | "too_large"
+  | "upload_error"
+  | "update_error";
 
 async function uploadSpeakerPhotoAndUpdateRecord(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -42,6 +50,14 @@ async function uploadSpeakerPhotoAndUpdateRecord(
   speakerId: string,
   photo: File,
 ): Promise<PhotoUploadResult> {
+  if (!ALLOWED_PHOTO_TYPES.includes(photo.type)) {
+    return "invalid_type";
+  }
+
+  if (photo.size > MAX_PHOTO_SIZE_BYTES) {
+    return "too_large";
+  }
+
   const extension = photo.name.split(".").pop() ?? "jpg";
   const path = `${eventId}/${speakerId}-${Date.now()}.${extension}`;
 
@@ -104,12 +120,13 @@ export async function createSpeaker(
 
     if (result !== "ok") {
       revalidatePath(`/admin/events/${eventId}/speakers`);
-      return {
-        status: "success",
-        warning: true,
-        message:
-          "Prelegent dodany, ale nie udało się zapisać zdjęcia — możesz dodać je później w edycji.",
-      };
+      const message =
+        result === "invalid_type"
+          ? "Prelegent dodany, ale zdjęcie nie zostało zapisane — dozwolone formaty: JPEG, PNG, WebP."
+          : result === "too_large"
+            ? "Prelegent dodany, ale zdjęcie nie zostało zapisane — plik jest większy niż 5MB."
+            : "Prelegent dodany, ale nie udało się zapisać zdjęcia — możesz dodać je później w edycji.";
+      return { status: "success", warning: true, message };
     }
   }
 
@@ -165,6 +182,20 @@ export async function uploadSpeakerPhoto(
     speakerId,
     file,
   );
+
+  if (result === "invalid_type") {
+    return {
+      status: "error",
+      message: "Zdjęcie musi być w formacie JPEG, PNG lub WebP.",
+    };
+  }
+
+  if (result === "too_large") {
+    return {
+      status: "error",
+      message: "Zdjęcie nie może być większe niż 5MB.",
+    };
+  }
 
   if (result === "upload_error") {
     return {

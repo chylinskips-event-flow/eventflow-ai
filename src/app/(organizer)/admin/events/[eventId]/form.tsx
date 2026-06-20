@@ -267,7 +267,12 @@ export function EventEditForm({ event }: { event: Event }) {
             )}
             <div className="flex flex-col gap-2">
               <Label htmlFor="logo">Plik logo</Label>
-              <Input id="logo" name="logo" type="file" accept="image/*" />
+              <Input
+                id="logo"
+                name="logo"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+              />
             </div>
             {logoState.status === "error" && (
               <p className="text-sm text-destructive">{logoState.message}</p>

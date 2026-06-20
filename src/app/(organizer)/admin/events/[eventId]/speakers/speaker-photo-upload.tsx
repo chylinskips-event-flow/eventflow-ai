@@ -28,7 +28,12 @@ export function SpeakerPhotoUpload({
     >
       <Label htmlFor="photo">Zdjęcie</Label>
       <div className="flex gap-2">
-        <Input id="photo" name="photo" type="file" accept="image/*" />
+        <Input
+          id="photo"
+          name="photo"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+        />
         <Button type="submit" variant="outline" disabled={isPending}>
           {isPending ? "Wgrywanie..." : "Wgraj"}
         </Button>
