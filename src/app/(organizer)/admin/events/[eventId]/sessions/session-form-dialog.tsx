@@ -48,16 +48,12 @@ export function SessionFormDialog({
   session,
   speakers,
   existingSessions,
-  eventStartsAt,
-  eventEndsAt,
   trigger,
 }: {
   eventId: string;
   session?: Session;
   speakers: Speaker[];
   existingSessions: Session[];
-  eventStartsAt: string | null;
-  eventEndsAt: string | null;
   trigger: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -159,8 +155,6 @@ export function SessionFormDialog({
                 type="datetime-local"
                 value={startsAt}
                 onChange={(e) => setStartsAt(e.target.value)}
-                min={toDatetimeLocal(eventStartsAt)}
-                max={toDatetimeLocal(eventEndsAt)}
                 required
               />
             </div>
@@ -172,8 +166,6 @@ export function SessionFormDialog({
                 type="datetime-local"
                 value={endsAt}
                 onChange={(e) => setEndsAt(e.target.value)}
-                min={toDatetimeLocal(eventStartsAt)}
-                max={toDatetimeLocal(eventEndsAt)}
                 required
               />
             </div>

@@ -8,7 +8,15 @@ export type SessionFormState = {
   message?: string;
 };
 
-function readSessionFields(formData: FormData) {
+const dateRangeFormatter = new Intl.DateTimeFormat("pl-PL", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+function readSessionFields(
+  formData: FormData,
+  eventRange: { starts_at: string | null; ends_at: string | null },
+) {
   const title = formData.get("title");
   const description = formData.get("description");
   const track = formData.get("track");
@@ -29,10 +37,24 @@ function readSessionFields(formData: FormData) {
     return { error: "Podaj datę i godzinę zakończenia." } as const;
   }
 
-  if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
+  const startsAtTime = new Date(startsAt).getTime();
+  const endsAtTime = new Date(endsAt).getTime();
+
+  if (endsAtTime <= startsAtTime) {
     return {
       error: "Czas zakończenia musi być późniejszy niż czas rozpoczęcia.",
     } as const;
+  }
+
+  if (eventRange.starts_at && eventRange.ends_at) {
+    const eventStart = new Date(eventRange.starts_at).getTime();
+    const eventEnd = new Date(eventRange.ends_at).getTime();
+
+    if (startsAtTime < eventStart || endsAtTime > eventEnd) {
+      return {
+        error: `Data sesji musi mieścić się w terminie eventu: ${dateRangeFormatter.format(new Date(eventRange.starts_at))} – ${dateRangeFormatter.format(new Date(eventRange.ends_at))}.`,
+      } as const;
+    }
   }
 
   return {
@@ -52,17 +74,35 @@ function readSessionFields(formData: FormData) {
   } as const;
 }
 
+async function getEventDateRange(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  eventId: string,
+) {
+  const { data } = await supabase
+    .from("events")
+    .select("starts_at, ends_at")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  return {
+    starts_at: data?.starts_at ?? null,
+    ends_at: data?.ends_at ?? null,
+  };
+}
+
 export async function createSession(
   eventId: string,
   _prevState: SessionFormState,
   formData: FormData,
 ): Promise<SessionFormState> {
-  const parsed = readSessionFields(formData);
+  const supabase = await createClient();
+  const eventRange = await getEventDateRange(supabase, eventId);
+
+  const parsed = readSessionFields(formData, eventRange);
   if ("error" in parsed) {
     return { status: "error", message: parsed.error };
   }
 
-  const supabase = await createClient();
   const { error } = await supabase
     .from("sessions")
     .insert({ event_id: eventId, ...parsed.fields });
@@ -84,12 +124,14 @@ export async function updateSession(
   _prevState: SessionFormState,
   formData: FormData,
 ): Promise<SessionFormState> {
-  const parsed = readSessionFields(formData);
+  const supabase = await createClient();
+  const eventRange = await getEventDateRange(supabase, eventId);
+
+  const parsed = readSessionFields(formData, eventRange);
   if ("error" in parsed) {
     return { status: "error", message: parsed.error };
   }
 
-  const supabase = await createClient();
   const { error } = await supabase
     .from("sessions")
     .update(parsed.fields)
