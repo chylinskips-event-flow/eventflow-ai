@@ -25,7 +25,9 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(curl -s \"https://api.github.com/search/code?q=repo:shadcn-ui/ui+slate+filename:registry-base-colors\")",
       "WebFetch(domain:v3.shadcn.com)",
-      "WebFetch(domain:cloudfour.com)"
+      "WebFetch(domain:cloudfour.com)",
+      "Bash(sed 's/=.*/=<hidden, exists>/')",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }

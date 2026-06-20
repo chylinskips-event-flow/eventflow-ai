@@ -1,8 +1,11 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getOrigin } from "@/lib/request-origin";
+import { sendAttendeeConfirmationEmail } from "@/lib/email/attendee-confirmation";
+import type { Event } from "@/lib/events";
 
 export type RegisterAttendeeState = {
   status: "idle" | "error";
@@ -52,13 +55,16 @@ export async function registerAttendee(
   }
 
   const supabase = createAdminClient();
+  const trimmedEmail = email.trim();
+  const trimmedFirstName = firstName.trim();
+
   const { data: attendee, error } = await supabase
     .from("attendees")
     .insert({
       event_id: eventId,
-      first_name: firstName.trim(),
+      first_name: trimmedFirstName,
       last_name: lastName.trim(),
-      email: email.trim(),
+      email: trimmedEmail,
       company: typeof company === "string" && company.trim() ? company.trim() : null,
       job_title: typeof jobTitle === "string" && jobTitle.trim() ? jobTitle.trim() : null,
       industry: typeof industry === "string" && industry.trim() ? industry.trim() : null,
@@ -75,6 +81,28 @@ export async function registerAttendee(
       status: "error",
       message: "Nie udało się zarejestrować. Spróbuj ponownie.",
     };
+  }
+
+  const { data: event } = await supabase
+    .from("events")
+    .select("*")
+    .eq("id", eventId)
+    .maybeSingle<Event>();
+
+  if (event) {
+    try {
+      const headersList = await headers();
+      const origin = getOrigin(headersList);
+      await sendAttendeeConfirmationEmail({
+        to: trimmedEmail,
+        firstName: trimmedFirstName,
+        event,
+        qrCodeToken: attendee.qr_code_token,
+        origin,
+      });
+    } catch (emailError) {
+      console.error("Failed to send attendee confirmation email:", emailError);
+    }
   }
 
   const cookieStore = await cookies();
