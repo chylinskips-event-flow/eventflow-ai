@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type EventStatus =
   | "draft"
@@ -37,6 +38,22 @@ export function parseRoomNames(value: FormDataEntryValue | null): string[] {
   );
 }
 
+export function getRegistrationUnavailableReason(
+  event: Pick<Event, "status" | "registration_open">,
+): string | null {
+  const isPublic = event.status === "published" || event.status === "live";
+
+  if (!isPublic) {
+    return "Wydarzenie nie zostało jeszcze opublikowane.";
+  }
+
+  if (!event.registration_open) {
+    return "Rejestracja na to wydarzenie jest obecnie zamknięta.";
+  }
+
+  return null;
+}
+
 export async function getOrganizationEvents(
   organizationId: string,
 ): Promise<Event[]> {
@@ -56,6 +73,30 @@ export async function getOwnEvent(eventId: string): Promise<Event | null> {
     .from("events")
     .select("*")
     .eq("id", eventId)
+    .maybeSingle();
+
+  if (error) {
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Pobiera event po slug, niezależnie od statusu/registration_open —
+ * używa klienta service_role, bo strona rejestracji musi rozróżnić
+ * "event nie istnieje" od "event istnieje, ale nie jest dostępny do
+ * rejestracji" (RLS dla anon ukrywa nieopublikowane eventy całkowicie,
+ * co uniemożliwiłoby to rozróżnienie).
+ */
+export async function getEventBySlugForRegistration(
+  slug: string,
+): Promise<Event | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .eq("slug", slug)
     .maybeSingle();
 
   if (error) {

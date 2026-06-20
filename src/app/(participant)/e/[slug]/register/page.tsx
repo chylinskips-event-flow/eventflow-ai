@@ -1,17 +1,11 @@
-import Link from "next/link";
 import {
   getEventBySlugForRegistration,
   getRegistrationUnavailableReason,
 } from "@/lib/events";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RegisterForm } from "./register-form";
 
-const dateRangeFormatter = new Intl.DateTimeFormat("pl-PL", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
-export default async function ParticipantEventPage({
+export default async function RegisterPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
@@ -48,28 +42,5 @@ export default async function ParticipantEventPage({
     );
   }
 
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>{event.name}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {event.starts_at && (
-            <p className="text-sm text-muted-foreground">
-              {dateRangeFormatter.format(new Date(event.starts_at))}
-              {event.ends_at &&
-                ` – ${dateRangeFormatter.format(new Date(event.ends_at))}`}
-            </p>
-          )}
-          {event.location && (
-            <p className="text-sm text-muted-foreground">{event.location}</p>
-          )}
-          <Button asChild size="lg">
-            <Link href={`/e/${slug}/register`}>Zarejestruj się</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    </main>
-  );
+  return <RegisterForm event={event} />;
 }
