@@ -25,6 +25,13 @@ const dayFormatter = new Intl.DateTimeFormat("pl-PL", {
 });
 const timeFormatter = new Intl.DateTimeFormat("pl-PL", { timeStyle: "short" });
 
+function formatTimeRange(startsAt: string | null, endsAt: string | null) {
+  if (!startsAt) return null;
+  const start = timeFormatter.format(new Date(startsAt));
+  if (!endsAt) return start;
+  return `${start} – ${timeFormatter.format(new Date(endsAt))}`;
+}
+
 function speakerName(speaker: Speaker | undefined) {
   if (!speaker) return "Brak prelegenta";
   return [speaker.first_name, speaker.last_name].filter(Boolean).join(" ") || "Brak prelegenta";
@@ -65,7 +72,9 @@ function SessionRow({
     <Card>
       <CardContent className="flex items-center gap-4 py-3">
         <div className="flex w-28 flex-col text-sm text-muted-foreground">
-          {session.starts_at && <span>{timeFormatter.format(new Date(session.starts_at))}</span>}
+          {formatTimeRange(session.starts_at, session.ends_at) && (
+            <span>{formatTimeRange(session.starts_at, session.ends_at)}</span>
+          )}
           {session.room && <span>{session.room}</span>}
         </div>
         <div className="flex flex-1 flex-col">
