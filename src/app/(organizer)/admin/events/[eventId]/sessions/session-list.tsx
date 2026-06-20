@@ -35,12 +35,16 @@ function SessionRow({
   session,
   speakers,
   existingSessions,
+  eventStartsAt,
+  eventEndsAt,
   speaker,
 }: {
   eventId: string;
   session: Session;
   speakers: Speaker[];
   existingSessions: Session[];
+  eventStartsAt: string | null;
+  eventEndsAt: string | null;
   speaker?: Speaker;
 }) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -77,6 +81,8 @@ function SessionRow({
           session={session}
           speakers={speakers}
           existingSessions={existingSessions}
+          eventStartsAt={eventStartsAt}
+          eventEndsAt={eventEndsAt}
           trigger={<Button variant="outline" size="sm">Edytuj</Button>}
         />
         <AlertDialog
@@ -118,10 +124,14 @@ export function SessionList({
   eventId,
   sessions,
   speakers,
+  eventStartsAt,
+  eventEndsAt,
 }: {
   eventId: string;
   sessions: Session[];
   speakers: Speaker[];
+  eventStartsAt: string | null;
+  eventEndsAt: string | null;
 }) {
   const speakerMap = new Map(speakers.map((speaker) => [speaker.id, speaker]));
 
@@ -151,6 +161,8 @@ export function SessionList({
               session={session}
               speakers={speakers}
               existingSessions={sessions}
+              eventStartsAt={eventStartsAt}
+              eventEndsAt={eventEndsAt}
               speaker={session.speaker_id ? speakerMap.get(session.speaker_id) : undefined}
             />
           ))}

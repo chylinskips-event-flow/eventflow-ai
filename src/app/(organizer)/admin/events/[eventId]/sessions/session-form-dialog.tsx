@@ -48,12 +48,16 @@ export function SessionFormDialog({
   session,
   speakers,
   existingSessions,
+  eventStartsAt,
+  eventEndsAt,
   trigger,
 }: {
   eventId: string;
   session?: Session;
   speakers: Speaker[];
   existingSessions: Session[];
+  eventStartsAt: string | null;
+  eventEndsAt: string | null;
   trigger: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -69,13 +73,6 @@ export function SessionFormDialog({
   const [startsAt, setStartsAt] = useState(toDatetimeLocal(session?.starts_at ?? null));
   const [endsAt, setEndsAt] = useState(toDatetimeLocal(session?.ends_at ?? null));
   const [speakerId, setSpeakerId] = useState(session?.speaker_id ?? NO_SPEAKER_VALUE);
-
-  if (state.status !== lastStatus) {
-    setLastStatus(state.status);
-    if (state.status === "success" && !session) {
-      setOpen(false);
-    }
-  }
 
   const collisionWarning = useMemo(() => {
     if (!room || !startsAt || !endsAt) return null;
@@ -99,6 +96,13 @@ export function SessionFormDialog({
       ? `Kolizja: sesja „${conflict.title}” w sali „${room}” pokrywa się czasowo.`
       : null;
   }, [room, startsAt, endsAt, existingSessions, session]);
+
+  if (state.status !== lastStatus) {
+    setLastStatus(state.status);
+    if (state.status === "success" && !session && !collisionWarning) {
+      setOpen(false);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -155,6 +159,8 @@ export function SessionFormDialog({
                 type="datetime-local"
                 value={startsAt}
                 onChange={(e) => setStartsAt(e.target.value)}
+                min={toDatetimeLocal(eventStartsAt)}
+                max={toDatetimeLocal(eventEndsAt)}
                 required
               />
             </div>
@@ -166,6 +172,8 @@ export function SessionFormDialog({
                 type="datetime-local"
                 value={endsAt}
                 onChange={(e) => setEndsAt(e.target.value)}
+                min={toDatetimeLocal(eventStartsAt)}
+                max={toDatetimeLocal(eventEndsAt)}
                 required
               />
             </div>
@@ -195,7 +203,7 @@ export function SessionFormDialog({
           {state.status === "error" && (
             <p className="text-sm text-destructive">{state.message}</p>
           )}
-          {state.status === "success" && session && (
+          {state.status === "success" && (session || collisionWarning) && (
             <p className="text-sm text-muted-foreground">{state.message}</p>
           )}
           <Button type="submit" disabled={isPending}>
