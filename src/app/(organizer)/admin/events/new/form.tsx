@@ -7,6 +7,7 @@ import { TIMEZONES, DEFAULT_TIMEZONE } from "@/lib/timezones";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
   CardContent,
@@ -33,6 +34,7 @@ export function NewEventForm() {
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
+  const [roomNamesText, setRoomNamesText] = useState("");
 
   function handleNameChange(value: string) {
     setName(value);
@@ -119,6 +121,19 @@ export function NewEventForm() {
             <div className="flex flex-col gap-2">
               <Label htmlFor="location">Lokalizacja (opcjonalnie)</Label>
               <Input id="location" name="location" placeholder="Warszawa" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="room_names">Sale (opcjonalnie)</Label>
+              <Textarea
+                id="room_names"
+                name="room_names"
+                value={roomNamesText}
+                onChange={(e) => setRoomNamesText(e.target.value)}
+                placeholder={"Sala A\nSala B\nSala konferencyjna"}
+              />
+              <p className="text-xs text-muted-foreground">
+                Jedna nazwa sali w linii — przyda się przy planowaniu agendy.
+              </p>
             </div>
             {state.status === "error" && (
               <p className="text-sm text-destructive">{state.message}</p>

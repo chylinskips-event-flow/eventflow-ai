@@ -13,6 +13,7 @@ import { TIMEZONES } from "@/lib/timezones";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -73,6 +74,9 @@ export function EventEditForm({ event }: { event: Event }) {
   const [slug, setSlug] = useState(event.slug);
   const [slugTouched, setSlugTouched] = useState(true);
   const [timezone, setTimezone] = useState(event.timezone ?? "Europe/Warsaw");
+  const [roomNamesText, setRoomNamesText] = useState(
+    (event.room_names ?? []).join("\n"),
+  );
 
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [isPublishing, startPublishTransition] = useTransition();
@@ -222,6 +226,19 @@ export function EventEditForm({ event }: { event: Event }) {
                 name="location"
                 defaultValue={event.location ?? ""}
               />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="room_names">Sale (opcjonalnie)</Label>
+              <Textarea
+                id="room_names"
+                name="room_names"
+                value={roomNamesText}
+                onChange={(e) => setRoomNamesText(e.target.value)}
+                placeholder={"Sala A\nSala B\nSala konferencyjna"}
+              />
+              <p className="text-xs text-muted-foreground">
+                Jedna nazwa sali w linii — przyda się przy planowaniu agendy.
+              </p>
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="primary_color">Kolor podstawowy</Label>

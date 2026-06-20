@@ -32,6 +32,7 @@ export default async function EventSessionsPage({
           eventId={eventId}
           speakers={speakers}
           existingSessions={sessions}
+          roomNames={event.room_names ?? []}
           trigger={<Button>Dodaj sesję</Button>}
         />
       </div>
@@ -45,7 +46,12 @@ export default async function EventSessionsPage({
           </CardContent>
         </Card>
       ) : (
-        <SessionList eventId={eventId} sessions={sessions} speakers={speakers} />
+        <SessionList
+          eventId={eventId}
+          sessions={sessions}
+          speakers={speakers}
+          roomNames={event.room_names ?? []}
+        />
       )}
     </main>
   );

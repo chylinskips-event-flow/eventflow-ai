@@ -26,6 +26,7 @@ import {
 
 const initialState: SessionFormState = { status: "idle" };
 const NO_SPEAKER_VALUE = "__none__";
+const NO_ROOM_VALUE = "__no_room__";
 
 function toDatetimeLocal(value: string | null) {
   if (!value) return "";
@@ -48,12 +49,14 @@ export function SessionFormDialog({
   session,
   speakers,
   existingSessions,
+  roomNames,
   trigger,
 }: {
   eventId: string;
   session?: Session;
   speakers: Speaker[];
   existingSessions: Session[];
+  roomNames: string[];
   trigger: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -68,13 +71,13 @@ export function SessionFormDialog({
   const [title, setTitle] = useState(session?.title ?? "");
   const [description, setDescription] = useState(session?.description ?? "");
   const [track, setTrack] = useState(session?.track ?? "");
-  const [room, setRoom] = useState(session?.room ?? "");
+  const [room, setRoom] = useState(session?.room ?? NO_ROOM_VALUE);
   const [startsAt, setStartsAt] = useState(toDatetimeLocal(session?.starts_at ?? null));
   const [endsAt, setEndsAt] = useState(toDatetimeLocal(session?.ends_at ?? null));
   const [speakerId, setSpeakerId] = useState(session?.speaker_id ?? NO_SPEAKER_VALUE);
 
   const collisionWarning = useMemo(() => {
-    if (!room || !startsAt || !endsAt) return null;
+    if (!room || room === NO_ROOM_VALUE || !startsAt || !endsAt) return null;
     const start = new Date(startsAt).getTime();
     const end = new Date(endsAt).getTime();
     if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return null;
@@ -148,12 +151,30 @@ export function SessionFormDialog({
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="room">Sala (opcjonalnie)</Label>
-              <Input
-                id="room"
+              <input
+                type="hidden"
                 name="room"
-                value={room}
-                onChange={(e) => setRoom(e.target.value)}
+                value={room === NO_ROOM_VALUE ? "" : room}
               />
+              <Select value={room} onValueChange={setRoom}>
+                <SelectTrigger id="room" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_ROOM_VALUE}>Brak sali</SelectItem>
+                  {roomNames.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {roomNames.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Nie masz jeszcze zdefiniowanych sal — dodaj je w Ustawieniach
+                  eventu.
+                </p>
+              )}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -163,6 +184,7 @@ export function SessionFormDialog({
                 id="starts_at"
                 name="starts_at"
                 type="datetime-local"
+                step={300}
                 value={startsAt}
                 onChange={(e) => setStartsAt(e.target.value)}
                 required
@@ -174,6 +196,7 @@ export function SessionFormDialog({
                 id="ends_at"
                 name="ends_at"
                 type="datetime-local"
+                step={300}
                 value={endsAt}
                 onChange={(e) => setEndsAt(e.target.value)}
                 required

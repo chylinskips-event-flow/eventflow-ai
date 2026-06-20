@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOwnOrganization } from "@/lib/organizations";
+import { parseRoomNames } from "@/lib/events";
 import { SLUG_PATTERN } from "@/lib/slug";
 
 export type CreateEventState = {
@@ -20,6 +21,7 @@ export async function createEvent(
   const endsAt = formData.get("ends_at");
   const timezone = formData.get("timezone");
   const location = formData.get("location");
+  const roomNames = parseRoomNames(formData.get("room_names"));
 
   if (typeof name !== "string" || !name.trim()) {
     return { status: "error", message: "Podaj nazwę eventu." };
@@ -82,6 +84,7 @@ export async function createEvent(
       ends_at: new Date(endsAt).toISOString(),
       timezone,
       location: typeof location === "string" && location.trim() ? location.trim() : null,
+      room_names: roomNames,
       status: "draft",
     })
     .select("id")

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { parseRoomNames } from "@/lib/events";
 import { SLUG_PATTERN } from "@/lib/slug";
 
 export type EventFormState = {
@@ -21,6 +22,7 @@ export async function updateEvent(
   const timezone = formData.get("timezone");
   const location = formData.get("location");
   const primaryColor = formData.get("primary_color");
+  const roomNames = parseRoomNames(formData.get("room_names"));
 
   if (typeof name !== "string" || !name.trim()) {
     return { status: "error", message: "Podaj nazwę eventu." };
@@ -85,6 +87,7 @@ export async function updateEvent(
         typeof primaryColor === "string" && primaryColor.trim()
           ? primaryColor.trim()
           : null,
+      room_names: roomNames,
     })
     .eq("id", eventId);
 
