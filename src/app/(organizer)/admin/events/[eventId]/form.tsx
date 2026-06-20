@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import {
   updateEvent,
   publishEvent,
@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/select";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -75,6 +74,26 @@ export function EventEditForm({ event }: { event: Event }) {
   const [slugTouched, setSlugTouched] = useState(true);
   const [timezone, setTimezone] = useState(event.timezone ?? "Europe/Warsaw");
 
+  const [isPublishOpen, setIsPublishOpen] = useState(false);
+  const [isPublishing, startPublishTransition] = useTransition();
+  const [publishError, setPublishError] = useState<string | null>(null);
+
+  function handlePublish() {
+    setPublishError(null);
+    startPublishTransition(async () => {
+      try {
+        await publishEvent(event.id);
+        setIsPublishOpen(false);
+      } catch (err) {
+        setPublishError(
+          err instanceof Error
+            ? err.message
+            : "Nie udało się opublikować eventu.",
+        );
+      }
+    });
+  }
+
   function handleNameChange(value: string) {
     setName(value);
     if (!slugTouched) {
@@ -92,7 +111,13 @@ export function EventEditForm({ event }: { event: Event }) {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">{event.name}</h1>
         {event.status === "draft" ? (
-          <AlertDialog>
+          <AlertDialog
+            open={isPublishOpen}
+            onOpenChange={(open) => {
+              if (isPublishing) return;
+              setIsPublishOpen(open);
+            }}
+          >
             <AlertDialogTrigger asChild>
               <Button>Opublikuj event</Button>
             </AlertDialogTrigger>
@@ -104,13 +129,16 @@ export function EventEditForm({ event }: { event: Event }) {
                   się jeszcze wycofać z panelu.
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              {publishError && (
+                <p className="text-sm text-destructive">{publishError}</p>
+              )}
               <AlertDialogFooter>
-                <AlertDialogCancel>Anuluj</AlertDialogCancel>
-                <form action={publishEvent.bind(null, event.id)}>
-                  <AlertDialogAction type="submit">
-                    Opublikuj
-                  </AlertDialogAction>
-                </form>
+                <AlertDialogCancel disabled={isPublishing}>
+                  Anuluj
+                </AlertDialogCancel>
+                <Button onClick={handlePublish} disabled={isPublishing}>
+                  {isPublishing ? "Publikowanie..." : "Opublikuj"}
+                </Button>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
