@@ -13,9 +13,52 @@ const dateRangeFormatter = new Intl.DateTimeFormat("pl-PL", {
   timeStyle: "short",
 });
 
-function readSessionFields(
+function rangesOverlap(
+  startA: number,
+  endA: number,
+  startB: number,
+  endB: number,
+) {
+  return startA < endB && startB < endA;
+}
+
+async function findRoomCollision(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  eventId: string,
+  room: string,
+  startsAtTime: number,
+  endsAtTime: number,
+  excludeSessionId?: string,
+) {
+  let query = supabase
+    .from("sessions")
+    .select("id, title, starts_at, ends_at")
+    .eq("event_id", eventId)
+    .eq("room", room);
+
+  if (excludeSessionId) {
+    query = query.neq("id", excludeSessionId);
+  }
+
+  const { data } = await query;
+
+  return (data ?? []).find((other) => {
+    if (!other.starts_at || !other.ends_at) return false;
+    return rangesOverlap(
+      startsAtTime,
+      endsAtTime,
+      new Date(other.starts_at).getTime(),
+      new Date(other.ends_at).getTime(),
+    );
+  });
+}
+
+async function readSessionFields(
   formData: FormData,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  eventId: string,
   eventRange: { starts_at: string | null; ends_at: string | null },
+  excludeSessionId?: string,
 ) {
   const title = formData.get("title");
   const description = formData.get("description");
@@ -57,6 +100,26 @@ function readSessionFields(
     }
   }
 
+  const trimmedRoom =
+    typeof room === "string" && room.trim() ? room.trim() : null;
+
+  if (trimmedRoom) {
+    const collision = await findRoomCollision(
+      supabase,
+      eventId,
+      trimmedRoom,
+      startsAtTime,
+      endsAtTime,
+      excludeSessionId,
+    );
+
+    if (collision) {
+      return {
+        error: `Kolizja: sesja „${collision.title}” w sali „${trimmedRoom}” pokrywa się czasowo.`,
+      } as const;
+    }
+  }
+
   return {
     fields: {
       title: title.trim(),
@@ -65,7 +128,7 @@ function readSessionFields(
           ? description.trim()
           : null,
       track: typeof track === "string" && track.trim() ? track.trim() : null,
-      room: typeof room === "string" && room.trim() ? room.trim() : null,
+      room: trimmedRoom,
       starts_at: new Date(startsAt).toISOString(),
       ends_at: new Date(endsAt).toISOString(),
       speaker_id:
@@ -98,7 +161,7 @@ export async function createSession(
   const supabase = await createClient();
   const eventRange = await getEventDateRange(supabase, eventId);
 
-  const parsed = readSessionFields(formData, eventRange);
+  const parsed = await readSessionFields(formData, supabase, eventId, eventRange);
   if ("error" in parsed) {
     return { status: "error", message: parsed.error };
   }
@@ -127,7 +190,13 @@ export async function updateSession(
   const supabase = await createClient();
   const eventRange = await getEventDateRange(supabase, eventId);
 
-  const parsed = readSessionFields(formData, eventRange);
+  const parsed = await readSessionFields(
+    formData,
+    supabase,
+    eventId,
+    eventRange,
+    sessionId,
+  );
   if ("error" in parsed) {
     return { status: "error", message: parsed.error };
   }

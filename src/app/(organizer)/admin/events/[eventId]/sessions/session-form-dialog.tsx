@@ -65,6 +65,9 @@ export function SessionFormDialog({
 
   const [state, formAction, isPending] = useActionState(action, initialState);
 
+  const [title, setTitle] = useState(session?.title ?? "");
+  const [description, setDescription] = useState(session?.description ?? "");
+  const [track, setTrack] = useState(session?.track ?? "");
   const [room, setRoom] = useState(session?.room ?? "");
   const [startsAt, setStartsAt] = useState(toDatetimeLocal(session?.starts_at ?? null));
   const [endsAt, setEndsAt] = useState(toDatetimeLocal(session?.ends_at ?? null));
@@ -89,13 +92,13 @@ export function SessionFormDialog({
     });
 
     return conflict
-      ? `Kolizja: sesja „${conflict.title}” w sali „${room}” pokrywa się czasowo.`
+      ? `Ta sala jest zajęta w tym czasie przez sesję „${conflict.title}” — zapis zostanie zablokowany.`
       : null;
   }, [room, startsAt, endsAt, existingSessions, session]);
 
   if (state.status !== lastStatus) {
     setLastStatus(state.status);
-    if (state.status === "success" && !session && !collisionWarning) {
+    if (state.status === "success" && !session) {
       setOpen(false);
     }
   }
@@ -119,7 +122,8 @@ export function SessionFormDialog({
             <Input
               id="title"
               name="title"
-              defaultValue={session?.title ?? ""}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               required
             />
           </div>
@@ -128,13 +132,19 @@ export function SessionFormDialog({
             <Textarea
               id="description"
               name="description"
-              defaultValue={session?.description ?? ""}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="track">Ścieżka (opcjonalnie)</Label>
-              <Input id="track" name="track" defaultValue={session?.track ?? ""} />
+              <Input
+                id="track"
+                name="track"
+                value={track}
+                onChange={(e) => setTrack(e.target.value)}
+              />
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="room">Sala (opcjonalnie)</Label>
@@ -195,7 +205,7 @@ export function SessionFormDialog({
           {state.status === "error" && (
             <p className="text-sm text-destructive">{state.message}</p>
           )}
-          {state.status === "success" && (session || collisionWarning) && (
+          {state.status === "success" && session && (
             <p className="text-sm text-muted-foreground">{state.message}</p>
           )}
           <Button type="submit" disabled={isPending}>
