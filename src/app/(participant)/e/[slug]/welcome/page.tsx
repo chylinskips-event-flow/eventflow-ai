@@ -6,22 +6,37 @@ export default async function WelcomePage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ name?: string }>;
+  searchParams: Promise<{ name?: string; status?: string }>;
 }) {
   const { slug } = await params;
-  const { name } = await searchParams;
+  const { name, status } = await searchParams;
   const event = await getEventBySlugForRegistration(slug);
+
+  const eventName = event ? event.name : "tym wydarzeniu";
+  const isPending = status === "pending";
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Zarejestrowano!</CardTitle>
+          <CardTitle>
+            {isPending ? "Zgłoszenie przyjęte!" : "Zarejestrowano!"}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">
-            {name ? `${name}, ` : ""}cieszymy się, że będziesz z nami na{" "}
-            {event ? event.name : "tym wydarzeniu"}.
+            {isPending ? (
+              <>
+                Dziękujemy za zgłoszenie! Twoja rejestracja na {eventName}{" "}
+                oczekuje na zatwierdzenie przez organizatora. Otrzymasz email,
+                gdy zostanie zaakceptowana.
+              </>
+            ) : (
+              <>
+                {name ? `${name}, ` : ""}cieszymy się, że będziesz z nami na{" "}
+                {eventName}.
+              </>
+            )}
           </p>
         </CardContent>
       </Card>

@@ -134,5 +134,8 @@ export async function registerAttendee(
   // TODO (Krok 2.3): dostęp przez token (/e/[slug]/a/[token]) musi sprawdzać
   // attendee.status === 'approved' — token istnieje od razu po rejestracji,
   // niezależnie od tego, czy organizator jeszcze nie zatwierdził zgłoszenia.
-  redirect(`/e/${slug}/welcome?name=${encodeURIComponent(firstName.trim())}`);
+  const status = event.requires_approval ? "pending" : "approved";
+  redirect(
+    `/e/${slug}/welcome?name=${encodeURIComponent(firstName.trim())}&status=${status}`,
+  );
 }
