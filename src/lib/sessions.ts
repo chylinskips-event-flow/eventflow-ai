@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type Session = {
   id: string;
@@ -16,6 +17,25 @@ export type Session = {
 
 export async function getEventSessions(eventId: string): Promise<Session[]> {
   const supabase = await createClient();
+  const { data } = await supabase
+    .from("sessions")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("starts_at", { ascending: true });
+
+  return data ?? [];
+}
+
+/**
+ * Wariant dla stron uczestnika (service_role) — autoryzacja jest już
+ * ustalona przez getCurrentAttendee() przed wywołaniem tej funkcji, więc nie
+ * ograniczamy się do publicznej polityki RLS "tylko published/live"; dawni
+ * uczestnicy zachowują wgląd w agendę także po zakończeniu eventu.
+ */
+export async function getEventSessionsForParticipant(
+  eventId: string,
+): Promise<Session[]> {
+  const supabase = createAdminClient();
   const { data } = await supabase
     .from("sessions")
     .select("*")

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { deleteSession } from "./actions";
 import type { Session } from "@/lib/sessions";
+import { formatTimeRange } from "@/lib/format";
 import type { Speaker } from "@/lib/speakers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,15 +24,6 @@ const dayFormatter = new Intl.DateTimeFormat("pl-PL", {
   day: "numeric",
   month: "long",
 });
-const timeFormatter = new Intl.DateTimeFormat("pl-PL", { timeStyle: "short" });
-
-function formatTimeRange(startsAt: string | null, endsAt: string | null) {
-  if (!startsAt) return null;
-  const start = timeFormatter.format(new Date(startsAt));
-  if (!endsAt) return start;
-  return `${start} – ${timeFormatter.format(new Date(endsAt))}`;
-}
-
 function speakerName(speaker: Speaker | undefined) {
   if (!speaker) return "Brak prelegenta";
   return [speaker.first_name, speaker.last_name].filter(Boolean).join(" ") || "Brak prelegenta";

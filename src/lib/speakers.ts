@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type Speaker = {
   id: string;
@@ -15,6 +16,20 @@ export type Speaker = {
 
 export async function getEventSpeakers(eventId: string): Promise<Speaker[]> {
   const supabase = await createClient();
+  const { data } = await supabase
+    .from("speakers")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("last_name", { ascending: true });
+
+  return data ?? [];
+}
+
+/** Wariant dla stron uczestnika (service_role) — patrz getEventSessionsForParticipant. */
+export async function getEventSpeakersForParticipant(
+  eventId: string,
+): Promise<Speaker[]> {
+  const supabase = createAdminClient();
   const { data } = await supabase
     .from("speakers")
     .select("*")
