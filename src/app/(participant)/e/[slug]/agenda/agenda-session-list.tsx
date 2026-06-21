@@ -22,12 +22,14 @@ export function AgendaSessionList({
   speakerMap,
   agendaSessionIds,
   isLive,
+  readOnly = false,
 }: {
   slug: string;
   sessions: Session[];
   speakerMap: Map<string, Speaker>;
-  agendaSessionIds: Set<string>;
+  agendaSessionIds?: Set<string>;
   isLive: boolean;
+  readOnly?: boolean;
 }) {
   const now = getCurrentTimestamp();
 
@@ -92,11 +94,13 @@ export function AgendaSessionList({
                       </span>
                     )}
                   </div>
-                  <AgendaToggleButton
-                    slug={slug}
-                    sessionId={session.id}
-                    initialInAgenda={agendaSessionIds.has(session.id)}
-                  />
+                  {!readOnly && (
+                    <AgendaToggleButton
+                      slug={slug}
+                      sessionId={session.id}
+                      initialInAgenda={agendaSessionIds?.has(session.id) ?? false}
+                    />
+                  )}
                 </CardContent>
               </Card>
             );

@@ -4,10 +4,15 @@ import {
   getRegistrationUnavailableReason,
 } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
-import { getEventSessionsForParticipant } from "@/lib/sessions";
+import { getEventSessions, getEventSessionsForParticipant } from "@/lib/sessions";
+import { getEventSpeakers } from "@/lib/speakers";
+import { getEventContentSections } from "@/lib/event-content";
 import { formatTimeRange } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AgendaSessionList } from "./agenda/agenda-session-list";
+import { SpeakerList } from "./speaker-list";
+import { ContentSections } from "./content-sections";
 
 const dateRangeFormatter = new Intl.DateTimeFormat("pl-PL", {
   dateStyle: "medium",
@@ -136,28 +141,78 @@ export default async function ParticipantEventPage({
     );
   }
 
+  const [sections, sessions, speakers] = await Promise.all([
+    getEventContentSections(event.id),
+    getEventSessions(event.id),
+    getEventSpeakers(event.id),
+  ]);
+
+  const speakerMap = new Map(speakers.map((speaker) => [speaker.id, speaker]));
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>{event.name}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {event.starts_at && (
-            <p className="text-sm text-muted-foreground">
-              {dateRangeFormatter.format(new Date(event.starts_at))}
-              {event.ends_at &&
-                ` – ${dateRangeFormatter.format(new Date(event.ends_at))}`}
-            </p>
-          )}
-          {event.location && (
-            <p className="text-sm text-muted-foreground">{event.location}</p>
-          )}
-          <Button asChild size="lg">
-            <Link href={`/e/${slug}/register`}>Zarejestruj się</Link>
-          </Button>
-        </CardContent>
-      </Card>
+    <main className="flex flex-col">
+      {event.banner_url ? (
+        <img
+          src={event.banner_url}
+          alt={event.name}
+          className="h-48 w-full object-cover sm:h-64"
+        />
+      ) : (
+        <div className="flex h-48 w-full items-center justify-center bg-primary sm:h-64">
+          <span className="px-4 text-center text-2xl font-semibold text-primary-foreground">
+            {event.name}
+          </span>
+        </div>
+      )}
+
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4">
+        <h1 className="text-2xl font-semibold">{event.name}</h1>
+        {event.starts_at && (
+          <p className="text-sm text-muted-foreground">
+            {dateRangeFormatter.format(new Date(event.starts_at))}
+            {event.ends_at &&
+              ` – ${dateRangeFormatter.format(new Date(event.ends_at))}`}
+          </p>
+        )}
+        {event.location && (
+          <p className="text-sm text-muted-foreground">{event.location}</p>
+        )}
+        <Button asChild size="lg">
+          <Link href={`/e/${slug}/register`}>Zarejestruj się</Link>
+        </Button>
+      </div>
+
+      {sections.length > 0 && (
+        <div className="mx-auto w-full max-w-2xl p-4">
+          <ContentSections sections={sections} />
+        </div>
+      )}
+
+      {speakers.length > 0 && (
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4">
+          <h2 className="text-xl font-semibold">Prelegenci</h2>
+          <SpeakerList speakers={speakers} />
+        </div>
+      )}
+
+      {sessions.length > 0 && (
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4">
+          <h2 className="text-xl font-semibold">Agenda</h2>
+          <AgendaSessionList
+            slug={slug}
+            sessions={sessions}
+            speakerMap={speakerMap}
+            isLive={event.status === "live"}
+            readOnly
+          />
+        </div>
+      )}
+
+      <div className="mx-auto w-full max-w-2xl p-4">
+        <Button asChild size="lg" className="w-full">
+          <Link href={`/e/${slug}/register`}>Zarejestruj się</Link>
+        </Button>
+      </div>
     </main>
   );
 }
