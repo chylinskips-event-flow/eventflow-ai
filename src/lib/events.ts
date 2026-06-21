@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -90,7 +91,7 @@ export async function getOwnEvent(eventId: string): Promise<Event | null> {
  * rejestracji" (RLS dla anon ukrywa nieopublikowane eventy całkowicie,
  * co uniemożliwiłoby to rozróżnienie).
  */
-export async function getEventBySlugForRegistration(
+export const getEventBySlugForRegistration = cache(async function (
   slug: string,
 ): Promise<Event | null> {
   const supabase = createAdminClient();
@@ -105,4 +106,4 @@ export async function getEventBySlugForRegistration(
   }
 
   return data;
-}
+});
