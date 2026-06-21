@@ -19,6 +19,7 @@ export type Event = {
   timezone: string | null;
   status: EventStatus;
   logo_url: string | null;
+  banner_url: string | null;
   primary_color: string | null;
   location: string | null;
   room_names: string[] | null;
