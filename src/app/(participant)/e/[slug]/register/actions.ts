@@ -4,7 +4,10 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrigin } from "@/lib/request-origin";
-import { sendAttendeeConfirmationEmail } from "@/lib/email/attendee-confirmation";
+import {
+  sendAttendeeConfirmationEmail,
+  sendAttendeePendingApprovalEmail,
+} from "@/lib/email/attendee-confirmation";
 import type { Event } from "@/lib/events";
 
 export type RegisterAttendeeState = {
@@ -58,6 +61,19 @@ export async function registerAttendee(
   const trimmedEmail = email.trim();
   const trimmedFirstName = firstName.trim();
 
+  const { data: event } = await supabase
+    .from("events")
+    .select("*")
+    .eq("id", eventId)
+    .maybeSingle<Event>();
+
+  if (!event) {
+    return {
+      status: "error",
+      message: "Nie udało się zarejestrować. Spróbuj ponownie.",
+    };
+  }
+
   const { data: attendee, error } = await supabase
     .from("attendees")
     .insert({
@@ -72,6 +88,7 @@ export async function registerAttendee(
       goal: typeof goal === "string" && goal.trim() ? goal.trim() : null,
       gdpr_consent_at: new Date().toISOString(),
       marketing_consent: marketingConsent === "on",
+      status: event.requires_approval ? "pending" : "approved",
     })
     .select("qr_code_token")
     .single();
@@ -83,14 +100,14 @@ export async function registerAttendee(
     };
   }
 
-  const { data: event } = await supabase
-    .from("events")
-    .select("*")
-    .eq("id", eventId)
-    .maybeSingle<Event>();
-
-  if (event) {
-    try {
+  try {
+    if (event.requires_approval) {
+      await sendAttendeePendingApprovalEmail({
+        to: trimmedEmail,
+        firstName: trimmedFirstName,
+        event,
+      });
+    } else {
       const headersList = await headers();
       const origin = getOrigin(headersList);
       await sendAttendeeConfirmationEmail({
@@ -100,9 +117,9 @@ export async function registerAttendee(
         qrCodeToken: attendee.qr_code_token,
         origin,
       });
-    } catch (emailError) {
-      console.error("Failed to send attendee confirmation email:", emailError);
     }
+  } catch (emailError) {
+    console.error("Failed to send attendee registration email:", emailError);
   }
 
   const cookieStore = await cookies();
@@ -114,5 +131,8 @@ export async function registerAttendee(
     maxAge: THIRTY_DAYS_SECONDS,
   });
 
+  // TODO (Krok 2.3): dostęp przez token (/e/[slug]/a/[token]) musi sprawdzać
+  // attendee.status === 'approved' — token istnieje od razu po rejestracji,
+  // niezależnie od tego, czy organizator jeszcze nie zatwierdził zgłoszenia.
   redirect(`/e/${slug}/welcome?name=${encodeURIComponent(firstName.trim())}`);
 }

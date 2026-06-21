@@ -22,6 +22,7 @@ export async function createEvent(
   const timezone = formData.get("timezone");
   const location = formData.get("location");
   const roomNames = parseRoomNames(formData.get("room_names"));
+  const requiresApproval = formData.get("requires_approval") === "on";
 
   if (typeof name !== "string" || !name.trim()) {
     return { status: "error", message: "Podaj nazwę eventu." };
@@ -85,6 +86,7 @@ export async function createEvent(
       timezone,
       location: typeof location === "string" && location.trim() ? location.trim() : null,
       room_names: roomNames,
+      requires_approval: requiresApproval,
       status: "draft",
     })
     .select("id")

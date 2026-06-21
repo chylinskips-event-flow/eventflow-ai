@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -35,6 +36,7 @@ export function NewEventForm() {
   const [slugTouched, setSlugTouched] = useState(false);
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
   const [roomNamesText, setRoomNamesText] = useState("");
+  const [requiresApproval, setRequiresApproval] = useState(false);
 
   function handleNameChange(value: string) {
     setName(value);
@@ -134,6 +136,25 @@ export function NewEventForm() {
               <p className="text-xs text-muted-foreground">
                 Jedna nazwa sali w linii — przyda się przy planowaniu agendy.
               </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="requires_approval"
+                name="requires_approval"
+                checked={requiresApproval}
+                onCheckedChange={(checked) => setRequiresApproval(checked === true)}
+                className="mt-1"
+              />
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="requires_approval" className="font-normal">
+                  Wymagaj zatwierdzenia rejestracji
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Każda rejestracja będzie wymagać Twojej akceptacji, zanim
+                  uczestnik otrzyma dostęp i QR kod. Przydatne np. dla eventów
+                  z ograniczeniem dostępu dla konkurencji.
+                </p>
+              </div>
             </div>
             {state.status === "error" && (
               <p className="text-sm text-destructive">{state.message}</p>

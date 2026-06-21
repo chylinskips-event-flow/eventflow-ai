@@ -87,3 +87,82 @@ export async function sendAttendeeConfirmationEmail(params: {
     throw new Error(`Resend error: ${error.message}`);
   }
 }
+
+function buildPendingApprovalEmailHtml(params: {
+  firstName: string;
+  event: Event;
+}) {
+  const { firstName, event } = params;
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #171717;">
+      <h1 style="font-size: 20px;">Witaj, ${escapeHtml(firstName)}!</h1>
+      <p>Otrzymaliśmy Twoje zgłoszenie na <strong>${escapeHtml(event.name)}</strong>.</p>
+      <p>Organizator musi jeszcze zatwierdzić Twoją rejestrację. Gdy to się stanie,
+      otrzymasz kolejny email z dostępem i kodem QR.</p>
+    </div>
+  `;
+}
+
+export async function sendAttendeePendingApprovalEmail(params: {
+  to: string;
+  firstName: string;
+  event: Event;
+}) {
+  const { to, firstName, event } = params;
+
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error("RESEND_API_KEY is not configured");
+  }
+
+  const resend = new Resend(apiKey);
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to,
+    subject: `Zgłoszenie oczekuje na zatwierdzenie — ${event.name}`,
+    html: buildPendingApprovalEmailHtml({ firstName, event }),
+  });
+
+  if (error) {
+    throw new Error(`Resend error: ${error.message}`);
+  }
+}
+
+function buildRejectedEmailHtml(params: { firstName: string; event: Event }) {
+  const { firstName, event } = params;
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #171717;">
+      <h1 style="font-size: 20px;">Witaj, ${escapeHtml(firstName)}.</h1>
+      <p>Niestety Twoja rejestracja na <strong>${escapeHtml(event.name)}</strong> nie została zatwierdzona przez organizatora.</p>
+    </div>
+  `;
+}
+
+export async function sendAttendeeRejectedEmail(params: {
+  to: string;
+  firstName: string;
+  event: Event;
+}) {
+  const { to, firstName, event } = params;
+
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error("RESEND_API_KEY is not configured");
+  }
+
+  const resend = new Resend(apiKey);
+
+  const { error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to,
+    subject: `Rejestracja nie została zatwierdzona — ${event.name}`,
+    html: buildRejectedEmailHtml({ firstName, event }),
+  });
+
+  if (error) {
+    throw new Error(`Resend error: ${error.message}`);
+  }
+}

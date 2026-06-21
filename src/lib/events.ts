@@ -22,6 +22,7 @@ export type Event = {
   location: string | null;
   room_names: string[] | null;
   registration_open: boolean;
+  requires_approval: boolean;
   created_at: string;
   updated_at: string;
 };

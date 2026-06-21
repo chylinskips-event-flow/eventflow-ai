@@ -23,6 +23,7 @@ export async function updateEvent(
   const location = formData.get("location");
   const primaryColor = formData.get("primary_color");
   const roomNames = parseRoomNames(formData.get("room_names"));
+  const requiresApproval = formData.get("requires_approval") === "on";
 
   if (typeof name !== "string" || !name.trim()) {
     return { status: "error", message: "Podaj nazwę eventu." };
@@ -88,6 +89,7 @@ export async function updateEvent(
           ? primaryColor.trim()
           : null,
       room_names: roomNames,
+      requires_approval: requiresApproval,
     })
     .eq("id", eventId);
 

@@ -11,6 +11,7 @@ export function EventNav({ eventId }: { eventId: string }) {
     { href: `/admin/events/${eventId}`, label: "Ustawienia" },
     { href: `/admin/events/${eventId}/speakers`, label: "Prelegenci" },
     { href: `/admin/events/${eventId}/sessions`, label: "Agenda" },
+    { href: `/admin/events/${eventId}/attendees`, label: "Uczestnicy" },
   ];
 
   return (
