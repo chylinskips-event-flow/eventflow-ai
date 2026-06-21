@@ -7,7 +7,7 @@ export function EventHeader({ event }: { event: Event }) {
         <img
           src={event.logo_url}
           alt={event.name}
-          className="h-8 w-auto max-w-[160px] object-contain"
+          className="h-10 w-auto max-w-[200px] object-contain"
         />
       ) : (
         <span className="text-lg font-semibold text-primary">
