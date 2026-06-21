@@ -8,6 +8,10 @@ import {
   sendAttendeeConfirmationEmail,
   sendAttendeePendingApprovalEmail,
 } from "@/lib/email/attendee-confirmation";
+import {
+  ATTENDEE_TOKEN_COOKIE,
+  ATTENDEE_TOKEN_MAX_AGE_SECONDS,
+} from "@/lib/attendee-session";
 import type { Event } from "@/lib/events";
 
 export type RegisterAttendeeState = {
@@ -16,8 +20,6 @@ export type RegisterAttendeeState = {
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ATTENDEE_TOKEN_COOKIE = "eventflow_attendee_token";
-const THIRTY_DAYS_SECONDS = 60 * 60 * 24 * 30;
 
 export async function registerAttendee(
   eventId: string,
@@ -128,12 +130,14 @@ export async function registerAttendee(
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: `/e/${slug}`,
-    maxAge: THIRTY_DAYS_SECONDS,
+    maxAge: ATTENDEE_TOKEN_MAX_AGE_SECONDS,
   });
 
-  // TODO (Krok 2.3): dostęp przez token (/e/[slug]/a/[token]) musi sprawdzać
-  // attendee.status === 'approved' — token istnieje od razu po rejestracji,
-  // niezależnie od tego, czy organizator jeszcze nie zatwierdził zgłoszenia.
+  // Uwaga: cookie ustawiamy też dla statusu 'pending' — getCurrentAttendee()
+  // (Krok 2.3) i tak nie uzna takiego attendee za zalogowanego, dopóki
+  // status nie zmieni się na 'approved'. Dzięki temu, gdy organizator
+  // zatwierdzi zgłoszenie, ta sama przeglądarka automatycznie odzyska dostęp
+  // bez konieczności ponownego klikania linku z emaila.
   const status = event.requires_approval ? "pending" : "approved";
   redirect(
     `/e/${slug}/welcome?name=${encodeURIComponent(firstName.trim())}&status=${status}`,

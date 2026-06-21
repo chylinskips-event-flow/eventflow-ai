@@ -3,6 +3,7 @@ import {
   getEventBySlugForRegistration,
   getRegistrationUnavailableReason,
 } from "@/lib/events";
+import { getCurrentAttendee } from "@/lib/attendee-session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -26,6 +27,30 @@ export default async function ParticipantEventPage({
           <CardHeader>
             <CardTitle>Wydarzenie nie zostało znalezione</CardTitle>
           </CardHeader>
+        </Card>
+      </main>
+    );
+  }
+
+  // Zatwierdzony uczestnik ma dostęp niezależnie od późniejszej zmiany statusu
+  // eventu (completed/archived) - celowe. Po evencie uczestnicy mają widzieć
+  // listę poznanych osób i rekomendacje kontaktów (moduł post-event/networking,
+  // patrz plan produktu) - to wymaga zachowania dostępu po zakończeniu eventu,
+  // nie tylko w trakcie.
+  const attendee = await getCurrentAttendee(slug);
+
+  if (attendee) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center p-4">
+        <Card className="w-full max-w-sm">
+          <CardHeader>
+            <CardTitle>Cześć, {attendee.first_name}!</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">
+              Tu będzie Twój panel uczestnika — {event.name}.
+            </p>
+          </CardContent>
         </Card>
       </main>
     );
