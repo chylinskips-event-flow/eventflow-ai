@@ -1,6 +1,7 @@
 import type { Speaker } from "@/lib/speakers";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { SpeakerBio } from "./speaker-bio";
 
 export function SpeakerList({ speakers }: { speakers: Speaker[] }) {
   return (
@@ -15,26 +16,22 @@ export function SpeakerList({ speakers }: { speakers: Speaker[] }) {
 
         return (
           <Card key={speaker.id}>
-            <CardContent className="flex items-start gap-3 py-4">
-              <Avatar size="lg">
+            <CardContent className="flex flex-col items-center gap-2 py-6 text-center">
+              <Avatar className="h-16 w-16">
                 {speaker.photo_url && (
                   <AvatarImage src={speaker.photo_url} alt={fullName} />
                 )}
-                <AvatarFallback>{initials || "?"}</AvatarFallback>
+                <AvatarFallback className="text-lg">
+                  {initials || "?"}
+                </AvatarFallback>
               </Avatar>
-              <div className="flex flex-col gap-1">
-                <span className="font-medium">{fullName}</span>
-                {speaker.company && (
-                  <span className="text-sm text-muted-foreground">
-                    {speaker.company}
-                  </span>
-                )}
-                {speaker.bio && (
-                  <span className="text-sm text-muted-foreground">
-                    {speaker.bio}
-                  </span>
-                )}
-              </div>
+              <span className="font-semibold">{fullName}</span>
+              {speaker.company && (
+                <span className="text-sm text-muted-foreground">
+                  {speaker.company}
+                </span>
+              )}
+              {speaker.bio && <SpeakerBio bio={speaker.bio} />}
             </CardContent>
           </Card>
         );

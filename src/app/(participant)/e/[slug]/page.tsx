@@ -9,6 +9,7 @@ import { getEventSpeakers } from "@/lib/speakers";
 import { getEventContentSections } from "@/lib/event-content";
 import { formatTimeRange } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AgendaSessionList } from "./agenda/agenda-session-list";
 import { SpeakerList } from "./speaker-list";
@@ -149,54 +150,104 @@ export default async function ParticipantEventPage({
 
   const speakerMap = new Map(speakers.map((speaker) => [speaker.id, speaker]));
 
+  const navLinks = [
+    sections.length > 0 ? { href: "#about", label: "O wydarzeniu" } : null,
+    speakers.length > 0 ? { href: "#speakers", label: "Prelegenci" } : null,
+    sessions.length > 0 ? { href: "#agenda", label: "Agenda" } : null,
+    { href: "#register", label: "Rejestracja" },
+  ].filter((link): link is { href: string; label: string } => link !== null);
+
   return (
     <main className="flex flex-col">
       {event.banner_url ? (
         <img
           src={event.banner_url}
           alt={event.name}
-          className="h-48 w-full object-cover sm:h-64"
+          className="h-48 w-full object-cover object-center md:h-64 lg:h-80"
         />
       ) : (
-        <div className="flex h-48 w-full items-center justify-center bg-primary sm:h-64">
+        <div className="flex h-48 w-full items-center justify-center bg-primary md:h-64 lg:h-80">
           <span className="px-4 text-center text-2xl font-semibold text-primary-foreground">
             {event.name}
           </span>
         </div>
       )}
 
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4">
-        <h1 className="text-2xl font-semibold">{event.name}</h1>
-        {event.starts_at && (
-          <p className="text-sm text-muted-foreground">
-            {dateRangeFormatter.format(new Date(event.starts_at))}
-            {event.ends_at &&
-              ` – ${dateRangeFormatter.format(new Date(event.ends_at))}`}
-          </p>
+      {navLinks.length > 0 && (
+        <nav className="flex flex-wrap justify-center gap-4 border-b px-4 py-3 text-sm">
+          {navLinks.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="font-medium text-muted-foreground hover:text-foreground"
+            >
+              {link.label}
+            </a>
+          ))}
+        </nav>
+      )}
+
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 md:flex-row md:items-start md:justify-between">
+        <div className="flex flex-col gap-4">
+          <Badge variant="secondary" className="w-fit">
+            WYDARZENIE
+          </Badge>
+          <h1 className="text-3xl font-bold md:text-4xl">{event.name}</h1>
+          {(event.starts_at || event.location) && (
+            <p className="text-lg text-muted-foreground">
+              {event.starts_at && dateRangeFormatter.format(new Date(event.starts_at))}
+              {event.starts_at &&
+                event.ends_at &&
+                ` – ${dateRangeFormatter.format(new Date(event.ends_at))}`}
+              {event.starts_at && event.location && " · "}
+              {event.location}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-3">
+            <Button asChild size="lg" className="w-full sm:w-auto">
+              <Link href={`/e/${slug}/register`}>Zarejestruj się →</Link>
+            </Button>
+            {sessions.length > 0 && (
+              <Button asChild size="lg" variant="outline" className="w-full sm:w-auto">
+                <a href="#agenda">Zobacz agendę</a>
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {(speakers.length > 0 || sessions.length > 0) && (
+          <div className="flex gap-6 md:flex-col md:items-end">
+            {speakers.length > 0 && (
+              <div className="text-center md:text-right">
+                <p className="text-2xl font-bold text-primary">{speakers.length}</p>
+                <p className="text-xs text-muted-foreground">Prelegentów</p>
+              </div>
+            )}
+            {sessions.length > 0 && (
+              <div className="text-center md:text-right">
+                <p className="text-2xl font-bold text-primary">{sessions.length}</p>
+                <p className="text-xs text-muted-foreground">Sesji</p>
+              </div>
+            )}
+          </div>
         )}
-        {event.location && (
-          <p className="text-sm text-muted-foreground">{event.location}</p>
-        )}
-        <Button asChild size="lg">
-          <Link href={`/e/${slug}/register`}>Zarejestruj się</Link>
-        </Button>
       </div>
 
       {sections.length > 0 && (
-        <div className="mx-auto w-full max-w-2xl p-4">
+        <div id="about" className="mx-auto w-full max-w-2xl p-4">
           <ContentSections sections={sections} />
         </div>
       )}
 
       {speakers.length > 0 && (
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4">
+        <div id="speakers" className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4">
           <h2 className="text-xl font-semibold">Prelegenci</h2>
           <SpeakerList speakers={speakers} />
         </div>
       )}
 
       {sessions.length > 0 && (
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4">
+        <div id="agenda" className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4">
           <h2 className="text-xl font-semibold">Agenda</h2>
           <AgendaSessionList
             slug={slug}
@@ -208,10 +259,16 @@ export default async function ParticipantEventPage({
         </div>
       )}
 
-      <div className="mx-auto w-full max-w-2xl p-4">
-        <Button asChild size="lg" className="w-full">
-          <Link href={`/e/${slug}/register`}>Zarejestruj się</Link>
-        </Button>
+      <div id="register" className="bg-secondary">
+        <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-3 p-8 text-center">
+          <h2 className="text-2xl font-bold">Dołącz do nas!</h2>
+          <p className="text-muted-foreground">
+            Miejsca są ograniczone — zarezerwuj swoje już teraz.
+          </p>
+          <Button asChild size="lg" className="w-full sm:w-auto">
+            <Link href={`/e/${slug}/register`}>Zarejestruj się</Link>
+          </Button>
+        </div>
       </div>
     </main>
   );
