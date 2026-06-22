@@ -36,7 +36,7 @@ export function BannerUpload({
             <img
               src={bannerUrl}
               alt="Baner eventu"
-              className="aspect-[4/1] w-full rounded border object-cover object-center"
+              className="aspect-[2/1] w-full rounded border object-cover object-top"
             />
           )}
           <div className="flex flex-col gap-2">
@@ -48,8 +48,9 @@ export function BannerUpload({
               accept="image/jpeg,image/png,image/webp"
             />
             <p className="text-xs text-muted-foreground">
-              Zalecany rozmiar: 1920×480px (proporcje 4:1). Zdjęcie zostanie
-              automatycznie wykadrowane do środka.
+              Zalecany rozmiar: 1920×960px (proporcje 2:1). Zdjęcie zostanie
+              wykadrowane od góry na szerokich ekranach — umieść kluczowe
+              elementy w górnej połowie.
             </p>
           </div>
           {state.status === "error" && (

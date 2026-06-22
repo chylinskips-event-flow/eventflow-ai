@@ -163,10 +163,10 @@ export default async function ParticipantEventPage({
         <img
           src={event.banner_url}
           alt={event.name}
-          className="h-48 w-full object-cover object-center md:h-64 lg:h-80"
+          className="w-full aspect-[2/1] lg:aspect-auto lg:max-h-[480px] object-cover object-top"
         />
       ) : (
-        <div className="flex h-48 w-full items-center justify-center bg-primary md:h-64 lg:h-80">
+        <div className="flex w-full aspect-[2/1] lg:aspect-auto lg:max-h-[480px] lg:h-[480px] items-center justify-center bg-primary">
           <span className="px-4 text-center text-2xl font-semibold text-primary-foreground">
             {event.name}
           </span>
