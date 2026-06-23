@@ -1,4 +1,5 @@
 import type { EventContentSection } from "@/lib/event-content";
+import { cn } from "@/lib/utils";
 
 export function ContentSections({
   sections,
@@ -10,13 +11,18 @@ export function ContentSections({
       {sections.map((section) => (
         <div
           key={section.id}
-          className="flex flex-col gap-4 sm:flex-row sm:items-start"
+          className={cn(
+            "gap-6",
+            section.image_url
+              ? "grid grid-cols-1 items-center md:grid-cols-2 md:gap-8"
+              : "flex flex-col",
+          )}
         >
           {section.image_url && (
             <img
               src={section.image_url}
               alt={section.title}
-              className="h-40 w-full rounded object-cover sm:h-32 sm:w-48 sm:shrink-0"
+              className="aspect-[4/3] w-full rounded-lg object-cover"
             />
           )}
           <div className="flex flex-col gap-2">
