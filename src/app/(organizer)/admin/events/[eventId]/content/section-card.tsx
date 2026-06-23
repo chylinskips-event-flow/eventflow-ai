@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { deleteSection, moveSection } from "./actions";
 import type { EventContentSection } from "@/lib/event-content";
 import { Button } from "@/components/ui/button";
@@ -28,10 +29,12 @@ export function SectionCard({
   isFirst: boolean;
   isLast: boolean;
 }) {
+  const router = useRouter();
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isMoving, startMoveTransition] = useTransition();
+  const [moveError, setMoveError] = useState<string | null>(null);
 
   function handleDelete() {
     setDeleteError(null);
@@ -46,33 +49,44 @@ export function SectionCard({
   }
 
   function handleMove(direction: "up" | "down") {
+    setMoveError(null);
     startMoveTransition(async () => {
-      await moveSection(eventId, section.id, direction);
+      const result = await moveSection(eventId, section.id, direction);
+      if (result.status === "error") {
+        setMoveError(result.message ?? "Nie udało się zmienić kolejności.");
+        return;
+      }
+      router.refresh();
     });
   }
 
   return (
     <Card>
       <CardContent className="flex items-start justify-between gap-4 py-4">
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            disabled={isFirst || isMoving}
-            onClick={() => handleMove("up")}
-          >
-            ↑
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            disabled={isLast || isMoving}
-            onClick={() => handleMove("down")}
-          >
-            ↓
-          </Button>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              disabled={isFirst || isMoving}
+              onClick={() => handleMove("up")}
+            >
+              ↑
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              disabled={isLast || isMoving}
+              onClick={() => handleMove("down")}
+            >
+              ↓
+            </Button>
+          </div>
+          {moveError && (
+            <p className="text-xs text-destructive">{moveError}</p>
+          )}
         </div>
 
         {section.image_url && (
