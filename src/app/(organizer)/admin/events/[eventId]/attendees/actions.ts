@@ -50,6 +50,7 @@ export async function approveAttendee(
         event,
         qrCodeToken: attendee.qr_code_token,
         origin,
+        templateType: "registration_approved",
       });
     } catch (emailError) {
       console.error("Failed to send attendee approval email:", emailError);

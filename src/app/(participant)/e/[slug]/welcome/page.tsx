@@ -1,4 +1,5 @@
 import { getEventBySlugForRegistration } from "@/lib/events";
+import { getTemplate, applyVariables } from "@/lib/message-templates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function WelcomePage({
@@ -15,6 +16,13 @@ export default async function WelcomePage({
   const eventName = event ? event.name : "tym wydarzeniu";
   const isPending = status === "pending";
 
+  const templateType = isPending ? "welcome_pending" : "welcome_approved";
+  const template = await getTemplate(event?.id ?? "", templateType);
+  const body = applyVariables(template.body, {
+    imię: name ?? "",
+    nazwa_eventu: eventName,
+  });
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
       <Card className="w-full max-w-sm">
@@ -24,20 +32,10 @@ export default async function WelcomePage({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">
-            {isPending ? (
-              <>
-                Dziękujemy za zgłoszenie! Twoja rejestracja na {eventName}{" "}
-                oczekuje na zatwierdzenie przez organizatora. Otrzymasz email,
-                gdy zostanie zaakceptowana.
-              </>
-            ) : (
-              <>
-                {name ? `${name}, ` : ""}cieszymy się, że będziesz z nami na{" "}
-                {eventName}.
-              </>
-            )}
-          </p>
+          <p
+            className="text-muted-foreground"
+            dangerouslySetInnerHTML={{ __html: body }}
+          />
         </CardContent>
       </Card>
     </main>

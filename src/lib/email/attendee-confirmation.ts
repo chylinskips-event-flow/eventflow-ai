@@ -1,54 +1,9 @@
 import QRCode from "qrcode";
 import { Resend } from "resend";
 import type { Event } from "@/lib/events";
+import { getTemplate, applyVariables } from "@/lib/message-templates";
 
 const FROM_ADDRESS = "EventFlow <onboarding@resend.dev>";
-
-const dateRangeFormatter = new Intl.DateTimeFormat("pl-PL", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function buildEmailHtml(params: {
-  firstName: string;
-  event: Event;
-  accessUrl: string;
-}) {
-  const { firstName, event, accessUrl } = params;
-
-  const dateLine = event.starts_at
-    ? `${dateRangeFormatter.format(new Date(event.starts_at))}${
-        event.ends_at
-          ? ` – ${dateRangeFormatter.format(new Date(event.ends_at))}`
-          : ""
-      }`
-    : null;
-
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #171717;">
-      <h1 style="font-size: 20px;">Witaj, ${escapeHtml(firstName)}!</h1>
-      <p>Twoja rejestracja na <strong>${escapeHtml(event.name)}</strong> została potwierdzona.</p>
-      ${dateLine ? `<p>${escapeHtml(dateLine)}</p>` : ""}
-      ${event.location ? `<p>${escapeHtml(event.location)}</p>` : ""}
-      <p style="margin-top: 24px;">
-        <img src="cid:qr-code" alt="Twój kod QR" width="200" height="200" />
-      </p>
-      <p>Pokaż ten kod przy wejściu na wydarzenie.</p>
-      <p style="font-size: 13px; color: #666;">
-        Jeśli kod się nie wyświetla, użyj tego linku:<br />
-        <a href="${accessUrl}">${accessUrl}</a>
-      </p>
-    </div>
-  `;
-}
 
 export async function sendAttendeeConfirmationEmail(params: {
   to: string;
@@ -56,24 +11,34 @@ export async function sendAttendeeConfirmationEmail(params: {
   event: Event;
   qrCodeToken: string;
   origin: string;
+  templateType?: "registration_confirmed" | "registration_approved";
 }) {
-  const { to, firstName, event, qrCodeToken, origin } = params;
+  const {
+    to,
+    firstName,
+    event,
+    qrCodeToken,
+    origin,
+    templateType = "registration_confirmed",
+  } = params;
 
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    throw new Error("RESEND_API_KEY is not configured");
-  }
+  if (!apiKey) throw new Error("RESEND_API_KEY is not configured");
 
   const accessUrl = `${origin}/e/${event.slug}/a/${qrCodeToken}`;
   const qrPngBuffer = await QRCode.toBuffer(accessUrl, { type: "png", width: 400 });
 
-  const resend = new Resend(apiKey);
+  const template = await getTemplate(event.id, templateType);
+  const vars = { imię: firstName, nazwa_eventu: event.name, "link_dostępu": accessUrl };
+  const subject = applyVariables(template.subject ?? "", vars);
+  const html = applyVariables(template.body, vars);
 
+  const resend = new Resend(apiKey);
   const { error } = await resend.emails.send({
     from: FROM_ADDRESS,
     to,
-    subject: `Potwierdzenie rejestracji — ${event.name}`,
-    html: buildEmailHtml({ firstName, event, accessUrl }),
+    subject,
+    html,
     attachments: [
       {
         filename: "qr-code.png",
@@ -83,25 +48,7 @@ export async function sendAttendeeConfirmationEmail(params: {
     ],
   });
 
-  if (error) {
-    throw new Error(`Resend error: ${error.message}`);
-  }
-}
-
-function buildPendingApprovalEmailHtml(params: {
-  firstName: string;
-  event: Event;
-}) {
-  const { firstName, event } = params;
-
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #171717;">
-      <h1 style="font-size: 20px;">Witaj, ${escapeHtml(firstName)}!</h1>
-      <p>Otrzymaliśmy Twoje zgłoszenie na <strong>${escapeHtml(event.name)}</strong>.</p>
-      <p>Organizator musi jeszcze zatwierdzić Twoją rejestrację. Gdy to się stanie,
-      otrzymasz kolejny email z dostępem i kodem QR.</p>
-    </div>
-  `;
+  if (error) throw new Error(`Resend error: ${error.message}`);
 }
 
 export async function sendAttendeePendingApprovalEmail(params: {
@@ -112,33 +59,22 @@ export async function sendAttendeePendingApprovalEmail(params: {
   const { to, firstName, event } = params;
 
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    throw new Error("RESEND_API_KEY is not configured");
-  }
+  if (!apiKey) throw new Error("RESEND_API_KEY is not configured");
+
+  const template = await getTemplate(event.id, "registration_pending");
+  const vars = { imię: firstName, nazwa_eventu: event.name, "link_dostępu": "" };
+  const subject = applyVariables(template.subject ?? "", vars);
+  const html = applyVariables(template.body, vars);
 
   const resend = new Resend(apiKey);
-
   const { error } = await resend.emails.send({
     from: FROM_ADDRESS,
     to,
-    subject: `Zgłoszenie oczekuje na zatwierdzenie — ${event.name}`,
-    html: buildPendingApprovalEmailHtml({ firstName, event }),
+    subject,
+    html,
   });
 
-  if (error) {
-    throw new Error(`Resend error: ${error.message}`);
-  }
-}
-
-function buildRejectedEmailHtml(params: { firstName: string; event: Event }) {
-  const { firstName, event } = params;
-
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #171717;">
-      <h1 style="font-size: 20px;">Witaj, ${escapeHtml(firstName)}.</h1>
-      <p>Niestety Twoja rejestracja na <strong>${escapeHtml(event.name)}</strong> nie została zatwierdzona przez organizatora.</p>
-    </div>
-  `;
+  if (error) throw new Error(`Resend error: ${error.message}`);
 }
 
 export async function sendAttendeeRejectedEmail(params: {
@@ -149,20 +85,20 @@ export async function sendAttendeeRejectedEmail(params: {
   const { to, firstName, event } = params;
 
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    throw new Error("RESEND_API_KEY is not configured");
-  }
+  if (!apiKey) throw new Error("RESEND_API_KEY is not configured");
+
+  const template = await getTemplate(event.id, "registration_rejected");
+  const vars = { imię: firstName, nazwa_eventu: event.name, "link_dostępu": "" };
+  const subject = applyVariables(template.subject ?? "", vars);
+  const html = applyVariables(template.body, vars);
 
   const resend = new Resend(apiKey);
-
   const { error } = await resend.emails.send({
     from: FROM_ADDRESS,
     to,
-    subject: `Rejestracja nie została zatwierdzona — ${event.name}`,
-    html: buildRejectedEmailHtml({ firstName, event }),
+    subject,
+    html,
   });
 
-  if (error) {
-    throw new Error(`Resend error: ${error.message}`);
-  }
+  if (error) throw new Error(`Resend error: ${error.message}`);
 }

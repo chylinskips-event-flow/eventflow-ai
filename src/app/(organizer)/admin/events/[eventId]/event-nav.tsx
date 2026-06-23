@@ -13,6 +13,7 @@ export function EventNav({ eventId }: { eventId: string }) {
     { href: `/admin/events/${eventId}/sessions`, label: "Agenda" },
     { href: `/admin/events/${eventId}/attendees`, label: "Uczestnicy" },
     { href: `/admin/events/${eventId}/content`, label: "Treść" },
+    { href: `/admin/events/${eventId}/messages`, label: "Komunikaty" },
   ];
 
   return (
