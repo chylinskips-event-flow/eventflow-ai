@@ -27,7 +27,8 @@
       "WebFetch(domain:v3.shadcn.com)",
       "WebFetch(domain:cloudfour.com)",
       "Bash(sed 's/=.*/=<hidden, exists>/')",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(curl -s 'https://swdsbeiqqfpognrwpidm.supabase.co/rest/v1/event_content_sections?select=id,title,position&order=position.asc' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3ZHNiZWlxcWZwb2ducndwaWRtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTg1NzI5OCwiZXhwIjoyMDk3NDMzMjk4fQ.5C-FRxoT5NHJKX9P_Rxuxkxah39uwRlnGs8fgNsS4YQ' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3ZHNiZWlxcWZwb2cucndwaWRtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTg1NzI5OCwiZXhwIjoyMDk3NDMzMjk4fQ.5C-FRxoT5NHJKX9P_Rxuxkxah39uwRlnGs8fgNsS4YQ')"
     ]
   }
 }

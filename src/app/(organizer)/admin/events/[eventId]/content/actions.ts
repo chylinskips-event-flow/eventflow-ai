@@ -133,17 +133,22 @@ export async function createSection(
 
   const supabase = await createClient();
 
-  const { count } = await supabase
+  const { data: maxRow } = await supabase
     .from("event_content_sections")
-    .select("id", { count: "exact", head: true })
-    .eq("event_id", eventId);
+    .select("position")
+    .eq("event_id", eventId)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const nextPosition = maxRow ? maxRow.position + 1 : 0;
 
   const { data: section, error } = await supabase
     .from("event_content_sections")
     .insert({
       event_id: eventId,
       ...parsed.fields,
-      position: count ?? 0,
+      position: nextPosition,
     })
     .select("id")
     .single();
@@ -343,11 +348,11 @@ export async function moveSection(
   const [{ error: error1 }, { error: error2 }] = await Promise.all([
     supabase
       .from("event_content_sections")
-      .update({ position: adjacent.position })
+      .update({ position: adjacentIndex })
       .eq("id", current.id),
     supabase
       .from("event_content_sections")
-      .update({ position: current.position })
+      .update({ position: index })
       .eq("id", adjacent.id),
   ]);
 
