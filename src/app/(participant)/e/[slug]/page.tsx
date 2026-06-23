@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   getEventBySlugForRegistration,
   getRegistrationUnavailableReason,
 } from "@/lib/events";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { getEventSessions, getEventSessionsForParticipant } from "@/lib/sessions";
 import { getEventSpeakers } from "@/lib/speakers";
@@ -14,6 +16,50 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AgendaSessionList } from "./agenda/agenda-session-list";
 import { SpeakerList } from "./speaker-list";
 import { ContentSections } from "./content-sections";
+
+const metaDateFormatter = new Intl.DateTimeFormat("pl-PL", { dateStyle: "long" });
+
+type Props = { params: Promise<{ slug: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const event = await getEventBySlugForRegistration(slug);
+
+  if (!event) return {};
+
+  // event_content_sections has no RLS policy yet (blocked for anon) — use admin client.
+  const supabase = createAdminClient();
+  const { data: sections } = await supabase
+    .from("event_content_sections")
+    .select("body")
+    .eq("event_id", event.id)
+    .order("position", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  let description: string;
+  if (sections?.body) {
+    description = sections.body.slice(0, 160);
+  } else {
+    const dateStr = event.starts_at
+      ? metaDateFormatter.format(new Date(event.starts_at))
+      : null;
+    description = dateStr ? `${event.name} · ${dateStr}` : event.name;
+  }
+
+  const ogImage = event.banner_url ?? event.logo_url ?? undefined;
+
+  return {
+    title: event.name,
+    description,
+    openGraph: {
+      type: "website",
+      title: event.name,
+      description,
+      ...(ogImage ? { images: [{ url: ogImage }] } : {}),
+    },
+  };
+}
 
 const dateRangeFormatter = new Intl.DateTimeFormat("pl-PL", {
   dateStyle: "medium",

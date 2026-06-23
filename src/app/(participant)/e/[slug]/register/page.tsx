@@ -5,6 +5,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RegisterForm } from "./register-form";
 
+const dateFormatter = new Intl.DateTimeFormat("pl-PL", {
+  dateStyle: "long",
+});
+
 export default async function RegisterPage({
   params,
 }: {
@@ -42,5 +46,23 @@ export default async function RegisterPage({
     );
   }
 
-  return <RegisterForm event={event} />;
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
+      <div className="w-full max-w-sm">
+        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+          Rejestracja
+        </p>
+        <h1 className="mt-1 text-2xl font-bold text-primary">{event.name}</h1>
+        {event.starts_at && (
+          <p className="mt-1 text-sm text-muted-foreground">
+            {dateFormatter.format(new Date(event.starts_at))}
+          </p>
+        )}
+        <p className="mt-2 text-sm text-muted-foreground">
+          Zarejestruj się, aby wziąć udział w wydarzeniu.
+        </p>
+      </div>
+      <RegisterForm event={event} />
+    </main>
+  );
 }

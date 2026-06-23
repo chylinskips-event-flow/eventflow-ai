@@ -61,10 +61,9 @@ export function RegisterForm({ event }: { event: Event }) {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
+    <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Rejestracja — {event.name}</CardTitle>
+          <CardTitle>Dane uczestnika</CardTitle>
         </CardHeader>
         <CardContent>
           <form action={formAction} className="flex flex-col gap-5">
@@ -210,7 +209,6 @@ export function RegisterForm({ event }: { event: Event }) {
             </Button>
           </form>
         </CardContent>
-      </Card>
-    </main>
+    </Card>
   );
 }
