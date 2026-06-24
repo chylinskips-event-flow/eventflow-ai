@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getOwnEvent } from "@/lib/events";
 import {
   DEFAULT_TEMPLATES,
+  buildStructuredHtml,
   type MessageTemplateType,
 } from "@/lib/message-templates";
 import { createClient } from "@/lib/supabase/server";
@@ -14,6 +15,10 @@ import { DeleteTemplateButton } from "./delete-template-button";
 type TemplateRow = {
   subject: string | null;
   body: string;
+  body_mode: string;
+  body_heading: string | null;
+  body_main: string | null;
+  body_footer: string | null;
 };
 
 const TEMPLATE_META: {
@@ -41,11 +46,21 @@ export default async function MessagesPage({
   const supabase = await createClient();
   const { data: rows } = await supabase
     .from("event_message_templates")
-    .select("template_type, subject, body")
+    .select("template_type, subject, body, body_mode, body_heading, body_main, body_footer")
     .eq("event_id", eventId);
 
   const customMap = new Map<string, TemplateRow>(
-    (rows ?? []).map((r) => [r.template_type, { subject: r.subject, body: r.body }]),
+    (rows ?? []).map((r) => [
+      r.template_type,
+      {
+        subject: r.subject,
+        body: r.body,
+        body_mode: r.body_mode,
+        body_heading: r.body_heading,
+        body_main: r.body_main,
+        body_footer: r.body_footer,
+      },
+    ]),
   );
 
   return (
@@ -62,7 +77,17 @@ export default async function MessagesPage({
         {TEMPLATE_META.map(({ type, label, channel }) => {
           const custom = customMap.get(type);
           const isCustom = !!custom;
-          const current = custom ?? DEFAULT_TEMPLATES[type];
+          const def = DEFAULT_TEMPLATES[type];
+
+          const currentSubject = custom?.subject ?? def.subject;
+          const currentBodyMode =
+            (custom?.body_mode as "structured" | "html") ?? "structured";
+          const currentBodyHeading = custom?.body_heading ?? def.body_heading;
+          const currentBodyMain = custom?.body_main ?? def.body_main;
+          const currentBodyFooter = custom?.body_footer ?? def.body_footer;
+          const currentBody =
+            custom?.body ??
+            buildStructuredHtml(type, def.body_heading, def.body_main, def.body_footer);
 
           return (
             <Card key={type}>
@@ -84,9 +109,9 @@ export default async function MessagesPage({
                       {isCustom ? "Własny" : "Domyślny"}
                     </span>
                   </div>
-                  {current.subject && (
+                  {currentSubject && (
                     <span className="truncate text-sm text-muted-foreground">
-                      Temat: {current.subject}
+                      Temat: {currentSubject}
                     </span>
                   )}
                 </div>
@@ -103,8 +128,12 @@ export default async function MessagesPage({
                     templateType={type}
                     label={label}
                     hasSubject={channel === "Email"}
-                    currentSubject={current.subject}
-                    currentBody={current.body}
+                    currentSubject={currentSubject}
+                    currentBody={currentBody}
+                    currentBodyMode={currentBodyMode}
+                    currentBodyHeading={currentBodyHeading}
+                    currentBodyMain={currentBodyMain}
+                    currentBodyFooter={currentBodyFooter}
                     trigger={
                       <Button variant="outline" size="sm">
                         Edytuj
