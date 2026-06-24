@@ -58,7 +58,7 @@ export function TemplateFormDialog({
   trigger,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"preview" | "html">("html");
+  const [activeTab, setActiveTab] = useState<"preview" | "html">("preview");
   const [bodyValue, setBodyValue] = useState(currentBody);
   const action = upsertTemplate.bind(null, eventId, templateType);
   const [state, formAction, isPending] = useActionState(action, initialState);
@@ -72,7 +72,7 @@ export function TemplateFormDialog({
   useEffect(() => {
     if (open) {
       setBodyValue(currentBody);
-      setActiveTab("html");
+      setActiveTab("preview");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
