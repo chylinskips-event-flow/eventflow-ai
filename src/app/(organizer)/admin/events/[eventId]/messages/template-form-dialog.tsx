@@ -22,6 +22,20 @@ const QR_HINT_TYPES: MessageTemplateType[] = [
 
 const QR_SNIPPET = `<img src="cid:qr-code" alt="Kod QR" width="200" height="200" />`;
 
+const SAMPLE_VARS: Record<string, string> = {
+  imię: "Jan Kowalski",
+  nazwa_eventu: "[Nazwa eventu]",
+  "link_dostępu": "#",
+};
+
+function applyPreviewVars(body: string): string {
+  return Object.entries(SAMPLE_VARS).reduce(
+    (result, [key, value]) =>
+      result.replace(new RegExp(`\\{${key}\\}`, "g"), () => value),
+    body,
+  );
+}
+
 type Props = {
   eventId: string;
   templateType: MessageTemplateType;
@@ -44,6 +58,8 @@ export function TemplateFormDialog({
   trigger,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"preview" | "html">("html");
+  const [bodyValue, setBodyValue] = useState(currentBody);
   const action = upsertTemplate.bind(null, eventId, templateType);
   const [state, formAction, isPending] = useActionState(action, initialState);
 
@@ -52,6 +68,16 @@ export function TemplateFormDialog({
       setOpen(false);
     }
   }, [state]);
+
+  useEffect(() => {
+    if (open) {
+      setBodyValue(currentBody);
+      setActiveTab("html");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const isWelcomeTemplate = templateType.startsWith("welcome_");
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -77,16 +103,52 @@ export function TemplateFormDialog({
           )}
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="body">
-              {hasSubject ? "Treść HTML maila" : "Treść wiadomości"}
-            </Label>
-            <Textarea
-              id="body"
-              name="body"
-              defaultValue={currentBody}
-              className="min-h-[280px] font-mono text-sm"
-              required
-            />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="body">
+                {hasSubject ? "Treść HTML maila" : "Treść wiadomości"}
+              </Label>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={activeTab === "html" ? "default" : "outline"}
+                  onClick={() => setActiveTab("html")}
+                >
+                  HTML
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={activeTab === "preview" ? "default" : "outline"}
+                  onClick={() => setActiveTab("preview")}
+                >
+                  Podgląd
+                </Button>
+              </div>
+            </div>
+
+            {activeTab === "preview" ? (
+              <div className="min-h-[200px] overflow-y-auto rounded-md border p-3 text-sm">
+                {isWelcomeTemplate ? (
+                  <p>{applyPreviewVars(bodyValue)}</p>
+                ) : (
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: applyPreviewVars(bodyValue),
+                    }}
+                  />
+                )}
+              </div>
+            ) : (
+              <Textarea
+                id="body"
+                name="body"
+                value={bodyValue}
+                onChange={(e) => setBodyValue(e.target.value)}
+                className="min-h-[280px] font-mono text-sm"
+                required
+              />
+            )}
           </div>
 
           {QR_HINT_TYPES.includes(templateType) && (
