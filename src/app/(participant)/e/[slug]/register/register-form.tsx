@@ -61,7 +61,7 @@ export function RegisterForm({ event }: { event: Event }) {
   }
 
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>Dane uczestnika</CardTitle>
         </CardHeader>
