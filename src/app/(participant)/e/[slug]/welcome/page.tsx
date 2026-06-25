@@ -30,23 +30,17 @@ export default async function WelcomePage({
   return (
     <main className="flex flex-col items-center px-4 py-12 md:py-20">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-3">
-          <div
-            className={`flex size-12 items-center justify-center rounded-full ${
-              isPending
-                ? "bg-amber-100 text-amber-700"
-                : "bg-primary/10 text-primary"
-            }`}
-          >
+        <CardHeader className="justify-items-center space-y-3 text-center">
+          <div className="flex items-center justify-center gap-2">
             {isPending ? (
-              <Clock className="size-6" />
+              <Clock className="size-7 text-amber-600" />
             ) : (
-              <CheckCircle2 className="size-6" />
+              <CheckCircle2 className="size-7 text-primary" />
             )}
+            <CardTitle className="text-2xl font-bold text-primary">
+              {isPending ? "Zgłoszenie przyjęte!" : "Zarejestrowano!"}
+            </CardTitle>
           </div>
-          <CardTitle className="text-2xl font-bold text-primary">
-            {isPending ? "Zgłoszenie przyjęte!" : "Zarejestrowano!"}
-          </CardTitle>
           {isPending && (
             <Badge
               variant="outline"
@@ -57,7 +51,7 @@ export default async function WelcomePage({
             </Badge>
           )}
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 text-center">
           <p
             className="text-base leading-relaxed text-foreground"
             dangerouslySetInnerHTML={{ __html: body }}
