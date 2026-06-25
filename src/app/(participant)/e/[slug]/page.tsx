@@ -164,6 +164,9 @@ export default async function ParticipantEventPage({
               <Button asChild variant="outline">
                 <Link href={`/e/${slug}/my-agenda`}>Moja agenda</Link>
               </Button>
+              <Button asChild variant="outline">
+                <Link href={`/e/${slug}/attendees`}>Uczestnicy</Link>
+              </Button>
             </div>
           </CardContent>
         </Card>

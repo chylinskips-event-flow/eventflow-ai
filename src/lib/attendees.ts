@@ -15,6 +15,7 @@ export type Attendee = {
   goal: string | null;
   gdpr_consent_at: string | null;
   marketing_consent: boolean;
+  networking_visible: boolean;
   points: number;
   level: string;
   status: AttendeeStatus;
