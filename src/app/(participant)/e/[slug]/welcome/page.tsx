@@ -56,7 +56,7 @@ export default async function WelcomePage({
             className="text-base leading-relaxed text-foreground"
             dangerouslySetInnerHTML={{ __html: body }}
           />
-          <Button asChild variant="outline" className="w-full">
+          <Button asChild variant="default" className="w-full">
             <Link href={`/e/${slug}`}>Wróć do strony wydarzenia</Link>
           </Button>
         </CardContent>
