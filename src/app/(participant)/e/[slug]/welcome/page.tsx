@@ -1,5 +1,9 @@
+import Link from "next/link";
+import { CheckCircle2, Clock } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getTemplate, applyVariables } from "@/lib/message-templates";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function WelcomePage({
@@ -24,18 +28,43 @@ export default async function WelcomePage({
   });
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>
+    <main className="flex flex-col items-center px-4 py-12 md:py-20">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-3">
+          <div
+            className={`flex size-12 items-center justify-center rounded-full ${
+              isPending
+                ? "bg-amber-100 text-amber-700"
+                : "bg-primary/10 text-primary"
+            }`}
+          >
+            {isPending ? (
+              <Clock className="size-6" />
+            ) : (
+              <CheckCircle2 className="size-6" />
+            )}
+          </div>
+          <CardTitle className="text-2xl font-bold text-primary">
             {isPending ? "Zgłoszenie przyjęte!" : "Zarejestrowano!"}
           </CardTitle>
+          {isPending && (
+            <Badge
+              variant="outline"
+              className="border-amber-200 bg-amber-50 text-amber-700"
+            >
+              <Clock className="size-3" />
+              Oczekuje na zatwierdzenie
+            </Badge>
+          )}
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           <p
-            className="text-muted-foreground"
+            className="text-base leading-relaxed text-foreground"
             dangerouslySetInnerHTML={{ __html: body }}
           />
+          <Button asChild variant="outline" className="w-full">
+            <Link href={`/e/${slug}`}>Wróć do strony wydarzenia</Link>
+          </Button>
         </CardContent>
       </Card>
     </main>
