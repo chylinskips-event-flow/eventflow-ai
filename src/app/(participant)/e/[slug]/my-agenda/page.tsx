@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { getEventSessionsForParticipant } from "@/lib/sessions";
@@ -38,12 +39,11 @@ export default async function MyAgendaPage({
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
-      <Link
-        href={`/e/${slug}`}
-        className="text-sm text-muted-foreground hover:text-foreground"
-      >
-        ← Wróć
-      </Link>
+      <Button asChild variant="outline" size="sm" className="w-fit">
+        <Link href={`/e/${slug}`}>
+          <ArrowLeft className="size-4" /> Powrót
+        </Link>
+      </Button>
       <h1 className="text-2xl font-semibold">Moja agenda — {event.name}</h1>
 
       {sessions.length === 0 ? (
