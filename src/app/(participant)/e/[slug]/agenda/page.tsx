@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
@@ -35,6 +36,12 @@ export default async function AgendaPage({
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
+      <Link
+        href={`/e/${slug}`}
+        className="text-sm text-muted-foreground hover:text-foreground"
+      >
+        ← Wróć
+      </Link>
       <h1 className="text-2xl font-semibold">Agenda — {event.name}</h1>
 
       {sessions.length === 0 ? (
@@ -52,6 +59,7 @@ export default async function AgendaPage({
           speakerMap={speakerMap}
           agendaSessionIds={agendaSessionIds}
           isLive={event.status === "live"}
+          timezone={event.timezone}
         />
       )}
     </main>

@@ -22,11 +22,13 @@ export function LiveNow({
   sessions,
   speakerMap,
   agendaSessionIds,
+  timezone,
 }: {
   slug: string;
   sessions: Session[];
   speakerMap: Map<string, Speaker>;
   agendaSessionIds: Set<string>;
+  timezone: string | null;
 }) {
   // TODO(post-MVP): auto-odświeżanie tej sekcji co ~30s (router.refresh po
   // stronie klienta albo revalidate), żeby "teraz trwa" aktualizowało się bez
@@ -53,7 +55,7 @@ export function LiveNow({
                 ? speakerMap.get(session.speaker_id)
                 : undefined,
             );
-            const until = formatTime(session.ends_at);
+            const until = formatTime(session.ends_at, timezone);
             const details = [session.room, speaker].filter(Boolean).join(" · ");
 
             return (
@@ -85,7 +87,7 @@ export function LiveNow({
             <CardContent className="py-4">
               <p className="text-sm text-muted-foreground">
                 {nextStart
-                  ? `Przerwa — następna sesja o ${formatTime(nextStart)}`
+                  ? `Przerwa — następna sesja o ${formatTime(nextStart, timezone)}`
                   : "Brak zaplanowanych sesji."}
               </p>
             </CardContent>
@@ -97,7 +99,7 @@ export function LiveNow({
         <div className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">Za chwilę</h2>
           {upcoming.map((session) => {
-            const at = formatTime(session.starts_at);
+            const at = formatTime(session.starts_at, timezone);
             const meta = [at ? `o ${at}` : null, session.room]
               .filter(Boolean)
               .join(" · ");

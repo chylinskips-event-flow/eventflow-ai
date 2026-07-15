@@ -1,15 +1,15 @@
 import type { Session } from "@/lib/sessions";
-import { formatTimeRange, getCurrentTimestamp, isSessionOngoing } from "@/lib/format";
+import {
+  formatDay,
+  formatTimeRange,
+  getCurrentTimestamp,
+  getDateGroupKey,
+  isSessionOngoing,
+} from "@/lib/format";
 import type { Speaker } from "@/lib/speakers";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { AgendaToggleButton } from "./agenda-toggle-button";
-
-const dayFormatter = new Intl.DateTimeFormat("pl-PL", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-});
 
 function speakerName(speaker: Speaker | undefined) {
   if (!speaker) return null;
@@ -22,6 +22,7 @@ export function AgendaSessionList({
   speakerMap,
   agendaSessionIds,
   isLive,
+  timezone,
   readOnly = false,
 }: {
   slug: string;
@@ -29,15 +30,14 @@ export function AgendaSessionList({
   speakerMap: Map<string, Speaker>;
   agendaSessionIds?: Set<string>;
   isLive: boolean;
+  timezone: string | null;
   readOnly?: boolean;
 }) {
   const now = getCurrentTimestamp();
 
   const groups = new Map<string, Session[]>();
   for (const session of sessions) {
-    const key = session.starts_at
-      ? new Date(session.starts_at).toDateString()
-      : "no-date";
+    const key = getDateGroupKey(session.starts_at, timezone);
     const group = groups.get(key) ?? [];
     group.push(session);
     groups.set(key, group);
@@ -50,7 +50,7 @@ export function AgendaSessionList({
           <h2 className="text-base font-semibold text-foreground">
             {key === "no-date"
               ? "Bez ustalonej daty"
-              : dayFormatter.format(new Date(group[0].starts_at!))}
+              : formatDay(group[0].starts_at, timezone)}
           </h2>
           {group.map((session) => {
             const isOngoing = isLive && isSessionOngoing(session, now);
@@ -79,7 +79,7 @@ export function AgendaSessionList({
                     </div>
                     {(session.starts_at || session.ends_at) && (
                       <span className="text-sm text-muted-foreground">
-                        {formatTimeRange(session.starts_at, session.ends_at)}
+                        {formatTimeRange(session.starts_at, session.ends_at, timezone)}
                       </span>
                     )}
                     {(session.room || session.track) && (

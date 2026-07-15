@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { deleteSession } from "./actions";
 import type { Session } from "@/lib/sessions";
-import { formatTimeRange } from "@/lib/format";
+import { formatDay, formatTimeRange, getDateGroupKey } from "@/lib/format";
 import type { Speaker } from "@/lib/speakers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,11 +19,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-const dayFormatter = new Intl.DateTimeFormat("pl-PL", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-});
 function speakerName(speaker: Speaker | undefined) {
   if (!speaker) return "Brak prelegenta";
   return [speaker.first_name, speaker.last_name].filter(Boolean).join(" ") || "Brak prelegenta";
@@ -36,6 +31,7 @@ function SessionRow({
   existingSessions,
   roomNames,
   speaker,
+  timezone,
 }: {
   eventId: string;
   session: Session;
@@ -43,6 +39,7 @@ function SessionRow({
   existingSessions: Session[];
   roomNames: string[];
   speaker?: Speaker;
+  timezone: string | null;
 }) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
@@ -64,8 +61,8 @@ function SessionRow({
     <Card>
       <CardContent className="flex items-center gap-4 py-3">
         <div className="flex w-28 flex-col text-sm text-muted-foreground">
-          {formatTimeRange(session.starts_at, session.ends_at) && (
-            <span>{formatTimeRange(session.starts_at, session.ends_at)}</span>
+          {formatTimeRange(session.starts_at, session.ends_at, timezone) && (
+            <span>{formatTimeRange(session.starts_at, session.ends_at, timezone)}</span>
           )}
           {session.room && <span>{session.room}</span>}
         </div>
@@ -123,19 +120,19 @@ export function SessionList({
   sessions,
   speakers,
   roomNames,
+  timezone,
 }: {
   eventId: string;
   sessions: Session[];
   speakers: Speaker[];
   roomNames: string[];
+  timezone: string | null;
 }) {
   const speakerMap = new Map(speakers.map((speaker) => [speaker.id, speaker]));
 
   const groups = new Map<string, Session[]>();
   for (const session of sessions) {
-    const key = session.starts_at
-      ? new Date(session.starts_at).toDateString()
-      : "no-date";
+    const key = getDateGroupKey(session.starts_at, timezone);
     const group = groups.get(key) ?? [];
     group.push(session);
     groups.set(key, group);
@@ -148,7 +145,7 @@ export function SessionList({
           <h2 className="text-sm font-medium text-muted-foreground">
             {key === "no-date"
               ? "Bez ustalonej daty"
-              : dayFormatter.format(new Date(group[0].starts_at!))}
+              : formatDay(group[0].starts_at, timezone)}
           </h2>
           {group.map((session) => (
             <SessionRow
@@ -159,6 +156,7 @@ export function SessionList({
               existingSessions={sessions}
               roomNames={roomNames}
               speaker={session.speaker_id ? speakerMap.get(session.speaker_id) : undefined}
+              timezone={timezone}
             />
           ))}
         </div>

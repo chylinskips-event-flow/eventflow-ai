@@ -10,6 +10,7 @@ import { getEventSessions, getEventSessionsForParticipant } from "@/lib/sessions
 import { getEventSpeakers, getEventSpeakersForParticipant } from "@/lib/speakers";
 import { getAttendeeAgendaSessionIds } from "@/lib/agenda-items";
 import { getEventContentSections } from "@/lib/event-content";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,8 +18,6 @@ import { AgendaSessionList } from "./agenda/agenda-session-list";
 import { SpeakerList } from "./speaker-list";
 import { ContentSections } from "./content-sections";
 import { LiveNow } from "./live-now";
-
-const metaDateFormatter = new Intl.DateTimeFormat("pl-PL", { dateStyle: "long" });
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -42,9 +41,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (sections?.body) {
     description = sections.body.slice(0, 160);
   } else {
-    const dateStr = event.starts_at
-      ? metaDateFormatter.format(new Date(event.starts_at))
-      : null;
+    const dateStr = formatDate(event.starts_at, event.timezone);
     description = dateStr ? `${event.name} · ${dateStr}` : event.name;
   }
 
@@ -62,10 +59,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-const dateRangeFormatter = new Intl.DateTimeFormat("pl-PL", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
 
 export default async function ParticipantEventPage({
   params,
@@ -130,6 +123,7 @@ export default async function ParticipantEventPage({
             sessions={sessions}
             speakerMap={speakerMap}
             agendaSessionIds={agendaSessionIds}
+            timezone={event.timezone}
           />
           {navButtons}
         </main>
@@ -232,10 +226,10 @@ export default async function ParticipantEventPage({
           <h1 className="text-3xl font-bold md:text-4xl">{event.name}</h1>
           {(event.starts_at || event.location) && (
             <p className="text-lg text-muted-foreground">
-              {event.starts_at && dateRangeFormatter.format(new Date(event.starts_at))}
+              {event.starts_at && formatDateTime(event.starts_at, event.timezone)}
               {event.starts_at &&
                 event.ends_at &&
-                ` – ${dateRangeFormatter.format(new Date(event.ends_at))}`}
+                ` – ${formatDateTime(event.ends_at, event.timezone)}`}
               {event.starts_at && event.location && " · "}
               {event.location}
             </p>
@@ -291,6 +285,7 @@ export default async function ParticipantEventPage({
             sessions={sessions}
             speakerMap={speakerMap}
             isLive={event.status === "live"}
+            timezone={event.timezone}
             readOnly
           />
         </div>

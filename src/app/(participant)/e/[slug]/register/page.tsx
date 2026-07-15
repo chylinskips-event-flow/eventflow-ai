@@ -3,12 +3,9 @@ import {
   getRegistrationUnavailableReason,
   DEFAULT_INTEREST_OPTIONS,
 } from "@/lib/events";
+import { formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RegisterForm } from "./register-form";
-
-const dateFormatter = new Intl.DateTimeFormat("pl-PL", {
-  dateStyle: "long",
-});
 
 export default async function RegisterPage({
   params,
@@ -56,7 +53,7 @@ export default async function RegisterPage({
         <h1 className="mt-1 text-2xl font-bold text-primary">{event.name}</h1>
         {event.starts_at && (
           <p className="mt-1 text-sm text-muted-foreground">
-            {dateFormatter.format(new Date(event.starts_at))}
+            {formatDate(event.starts_at, event.timezone)}
           </p>
         )}
         <p className="mt-2 text-sm text-muted-foreground">

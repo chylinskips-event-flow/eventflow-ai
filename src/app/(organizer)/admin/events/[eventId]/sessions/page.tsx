@@ -51,6 +51,7 @@ export default async function EventSessionsPage({
           sessions={sessions}
           speakers={speakers}
           roomNames={event.room_names ?? []}
+          timezone={event.timezone}
         />
       )}
     </main>

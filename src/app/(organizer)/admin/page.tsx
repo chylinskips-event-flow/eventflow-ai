@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getOwnOrganization } from "@/lib/organizations";
 import { getOrganizationEvents, type Event } from "@/lib/events";
+import { formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,23 +24,22 @@ const STATUS_CLASSES: Record<Event["status"], string> = {
   archived: "bg-muted text-muted-foreground",
 };
 
-function formatDateRange(startsAt: string | null, endsAt: string | null) {
+function formatDateRange(
+  startsAt: string | null,
+  endsAt: string | null,
+  timeZone: string | null,
+) {
   if (!startsAt) {
     return "Termin nieustalony";
   }
 
-  const formatter = new Intl.DateTimeFormat("pl-PL", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-
-  const start = formatter.format(new Date(startsAt));
+  const start = formatDateTime(startsAt, timeZone);
 
   if (!endsAt) {
     return start;
   }
 
-  return `${start} – ${formatter.format(new Date(endsAt))}`;
+  return `${start} – ${formatDateTime(endsAt, timeZone)}`;
 }
 
 export default async function OrganizerAdminPage() {
@@ -77,7 +77,7 @@ export default async function OrganizerAdminPage() {
                   <div className="flex flex-col gap-1">
                     <span className="font-medium">{event.name}</span>
                     <span className="text-sm text-muted-foreground">
-                      {formatDateRange(event.starts_at, event.ends_at)}
+                      {formatDateRange(event.starts_at, event.ends_at, event.timezone)}
                     </span>
                   </div>
                   <Badge className={cn(STATUS_CLASSES[event.status])}>

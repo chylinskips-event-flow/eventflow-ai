@@ -2,16 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { formatDateTime } from "@/lib/format";
 
 export type SessionFormState = {
   status: "idle" | "error" | "success";
   message?: string;
 };
-
-const dateRangeFormatter = new Intl.DateTimeFormat("pl-PL", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
 
 function rangesOverlap(
   startA: number,
@@ -57,7 +53,11 @@ async function readSessionFields(
   formData: FormData,
   supabase: Awaited<ReturnType<typeof createClient>>,
   eventId: string,
-  eventRange: { starts_at: string | null; ends_at: string | null },
+  eventRange: {
+    starts_at: string | null;
+    ends_at: string | null;
+    timezone: string | null;
+  },
   excludeSessionId?: string,
 ) {
   const title = formData.get("title");
@@ -95,7 +95,7 @@ async function readSessionFields(
 
     if (startsAtTime < eventStart || endsAtTime > eventEnd) {
       return {
-        error: `Data sesji musi mieścić się w terminie eventu: ${dateRangeFormatter.format(new Date(eventRange.starts_at))} – ${dateRangeFormatter.format(new Date(eventRange.ends_at))}.`,
+        error: `Data sesji musi mieścić się w terminie eventu: ${formatDateTime(eventRange.starts_at, eventRange.timezone)} – ${formatDateTime(eventRange.ends_at, eventRange.timezone)}.`,
       } as const;
     }
   }
@@ -143,13 +143,14 @@ async function getEventDateRange(
 ) {
   const { data } = await supabase
     .from("events")
-    .select("starts_at, ends_at")
+    .select("starts_at, ends_at, timezone")
     .eq("id", eventId)
     .maybeSingle();
 
   return {
     starts_at: data?.starts_at ?? null,
     ends_at: data?.ends_at ?? null,
+    timezone: data?.timezone ?? null,
   };
 }
 
