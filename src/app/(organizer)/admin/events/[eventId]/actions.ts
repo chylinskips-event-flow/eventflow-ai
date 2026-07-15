@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { parseRoomNames } from "@/lib/events";
+import { parseLines } from "@/lib/events";
 import { SLUG_PATTERN } from "@/lib/slug";
 
 export type EventFormState = {
@@ -22,7 +22,8 @@ export async function updateEvent(
   const timezone = formData.get("timezone");
   const location = formData.get("location");
   const primaryColor = formData.get("primary_color");
-  const roomNames = parseRoomNames(formData.get("room_names"));
+  const roomNames = parseLines(formData.get("room_names"));
+  const interestOptions = parseLines(formData.get("interest_options"));
   const requiresApproval = formData.get("requires_approval") === "on";
 
   if (typeof name !== "string" || !name.trim()) {
@@ -89,6 +90,8 @@ export async function updateEvent(
           ? primaryColor.trim()
           : null,
       room_names: roomNames,
+      // Pusta lista -> NULL: fallback do domyślnej, zahardkodowanej listy.
+      interest_options: interestOptions.length > 0 ? interestOptions : null,
       requires_approval: requiresApproval,
     })
     .eq("id", eventId);

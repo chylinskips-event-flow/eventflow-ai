@@ -1,6 +1,7 @@
 import {
   getEventBySlugForRegistration,
   getRegistrationUnavailableReason,
+  DEFAULT_INTEREST_OPTIONS,
 } from "@/lib/events";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RegisterForm } from "./register-form";
@@ -62,7 +63,10 @@ export default async function RegisterPage({
           Zarejestruj się, aby wziąć udział w wydarzeniu.
         </p>
       </div>
-      <RegisterForm event={event} />
+      <RegisterForm
+        event={event}
+        interestOptions={event.interest_options ?? DEFAULT_INTEREST_OPTIONS}
+      />
     </main>
   );
 }

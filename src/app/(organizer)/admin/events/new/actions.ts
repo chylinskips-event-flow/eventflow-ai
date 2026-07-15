@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOwnOrganization } from "@/lib/organizations";
-import { parseRoomNames } from "@/lib/events";
+import { parseLines } from "@/lib/events";
 import { SLUG_PATTERN } from "@/lib/slug";
 
 export type CreateEventState = {
@@ -21,7 +21,8 @@ export async function createEvent(
   const endsAt = formData.get("ends_at");
   const timezone = formData.get("timezone");
   const location = formData.get("location");
-  const roomNames = parseRoomNames(formData.get("room_names"));
+  const roomNames = parseLines(formData.get("room_names"));
+  const interestOptions = parseLines(formData.get("interest_options"));
   const requiresApproval = formData.get("requires_approval") === "on";
 
   if (typeof name !== "string" || !name.trim()) {
@@ -86,6 +87,8 @@ export async function createEvent(
       timezone,
       location: typeof location === "string" && location.trim() ? location.trim() : null,
       room_names: roomNames,
+      // Pusta lista -> NULL: fallback do domyślnej, zahardkodowanej listy.
+      interest_options: interestOptions.length > 0 ? interestOptions : null,
       requires_approval: requiresApproval,
       status: "draft",
     })

@@ -20,18 +20,6 @@ import { cn } from "@/lib/utils";
 const initialState: RegisterAttendeeState = { status: "idle" };
 const NO_GOAL_VALUE = "__none__";
 
-const INTEREST_OPTIONS = [
-  "AI",
-  "SaaS",
-  "Marketing",
-  "Sprzedaż",
-  "HR",
-  "Finanse",
-  "Produkt",
-  "Design",
-  "Inne",
-];
-
 const GOAL_OPTIONS = [
   { value: "networking", label: "Networking" },
   { value: "wiedza-branzowa", label: "Wiedza branżowa" },
@@ -39,7 +27,13 @@ const GOAL_OPTIONS = [
   { value: "inne", label: "Inne" },
 ];
 
-export function RegisterForm({ event }: { event: Event }) {
+export function RegisterForm({
+  event,
+  interestOptions,
+}: {
+  event: Event;
+  interestOptions: string[];
+}) {
   const action = registerAttendee.bind(null, event.id, event.slug);
   const [state, formAction, isPending] = useActionState(action, initialState);
 
@@ -134,7 +128,7 @@ export function RegisterForm({ event }: { event: Event }) {
             <div className="flex flex-col gap-2">
               <Label>Zainteresowania (opcjonalnie)</Label>
               <div className="flex flex-wrap gap-2">
-                {INTEREST_OPTIONS.map((option) => {
+                {interestOptions.map((option) => {
                   const selected = interests.includes(option);
                   return (
                     <button

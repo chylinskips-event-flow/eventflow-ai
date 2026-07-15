@@ -36,6 +36,7 @@ export function NewEventForm() {
   const [slugTouched, setSlugTouched] = useState(false);
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
   const [roomNamesText, setRoomNamesText] = useState("");
+  const [interestOptionsText, setInterestOptionsText] = useState("");
   const [requiresApproval, setRequiresApproval] = useState(false);
 
   function handleNameChange(value: string) {
@@ -135,6 +136,22 @@ export function NewEventForm() {
               />
               <p className="text-xs text-muted-foreground">
                 Jedna nazwa sali w linii — przyda się przy planowaniu agendy.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="interest_options">
+                Zainteresowania uczestników (opcjonalnie)
+              </Label>
+              <Textarea
+                id="interest_options"
+                name="interest_options"
+                value={interestOptionsText}
+                onChange={(e) => setInterestOptionsText(e.target.value)}
+                placeholder={"AI\nSaaS\nMarketing"}
+              />
+              <p className="text-xs text-muted-foreground">
+                Lista zainteresowań, które uczestnicy mogą wybrać przy
+                rejestracji. Pozostaw pustą, aby użyć domyślnej listy.
               </p>
             </div>
             <div className="flex items-start gap-3">

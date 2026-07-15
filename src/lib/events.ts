@@ -23,13 +23,31 @@ export type Event = {
   primary_color: string | null;
   location: string | null;
   room_names: string[] | null;
+  interest_options: string[] | null;
   registration_open: boolean;
   requires_approval: boolean;
   created_at: string;
   updated_at: string;
 };
 
-export function parseRoomNames(value: FormDataEntryValue | null): string[] {
+// Domyślna lista zainteresowań w formularzu rejestracji, używana gdy
+// organizator nie zdefiniował własnej (events.interest_options === NULL).
+export const DEFAULT_INTEREST_OPTIONS = [
+  "AI",
+  "SaaS",
+  "Marketing",
+  "Sprzedaż",
+  "HR",
+  "Finanse",
+  "Produkt",
+  "Design",
+  "Inne",
+];
+
+// Parsuje textarea "jedna wartość w linii" z formularza: trim + usunięcie
+// pustych + dedup. Wspólne dla sal (room_names) i zainteresowań
+// (interest_options) — identyczna logika, jedno źródło prawdy.
+export function parseLines(value: FormDataEntryValue | null): string[] {
   if (typeof value !== "string") return [];
   return Array.from(
     new Set(

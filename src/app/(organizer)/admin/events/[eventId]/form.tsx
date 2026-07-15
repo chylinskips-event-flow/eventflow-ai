@@ -78,6 +78,9 @@ export function EventEditForm({ event }: { event: Event }) {
   const [roomNamesText, setRoomNamesText] = useState(
     (event.room_names ?? []).join("\n"),
   );
+  const [interestOptionsText, setInterestOptionsText] = useState(
+    (event.interest_options ?? []).join("\n"),
+  );
   const [requiresApproval, setRequiresApproval] = useState(
     event.requires_approval,
   );
@@ -242,6 +245,22 @@ export function EventEditForm({ event }: { event: Event }) {
               />
               <p className="text-xs text-muted-foreground">
                 Jedna nazwa sali w linii — przyda się przy planowaniu agendy.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="interest_options">
+                Zainteresowania uczestników (opcjonalnie)
+              </Label>
+              <Textarea
+                id="interest_options"
+                name="interest_options"
+                value={interestOptionsText}
+                onChange={(e) => setInterestOptionsText(e.target.value)}
+                placeholder={"AI\nSaaS\nMarketing"}
+              />
+              <p className="text-xs text-muted-foreground">
+                Lista zainteresowań, które uczestnicy mogą wybrać przy
+                rejestracji. Pozostaw pustą, aby użyć domyślnej listy.
               </p>
             </div>
             <div className="flex items-start gap-3">

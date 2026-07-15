@@ -190,7 +190,7 @@ export function AttendeeList({
                 className={cn(isSelf && "border-primary bg-primary/5")}
               >
                 <CardContent className="flex flex-col items-center gap-2 py-6 text-center">
-                  {isSelf && <Badge className="mb-1">Ty</Badge>}
+                  {isSelf && <Badge className="mb-1">Mój profil</Badge>}
                   <Avatar className="h-16 w-16">
                     <AvatarFallback className="text-lg">
                       {initials || "?"}
