@@ -1,5 +1,5 @@
 import type { Session } from "@/lib/sessions";
-import { formatTimeRange, getCurrentTimestamp } from "@/lib/format";
+import { formatTimeRange, getCurrentTimestamp, isSessionOngoing } from "@/lib/format";
 import type { Speaker } from "@/lib/speakers";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -53,12 +53,7 @@ export function AgendaSessionList({
               : dayFormatter.format(new Date(group[0].starts_at!))}
           </h2>
           {group.map((session) => {
-            const isOngoing =
-              isLive &&
-              !!session.starts_at &&
-              !!session.ends_at &&
-              now >= new Date(session.starts_at).getTime() &&
-              now <= new Date(session.ends_at).getTime();
+            const isOngoing = isLive && isSessionOngoing(session, now);
 
             const speaker = speakerName(
               session.speaker_id ? speakerMap.get(session.speaker_id) : undefined,
