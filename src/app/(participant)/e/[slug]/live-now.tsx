@@ -2,9 +2,11 @@ import Link from "next/link";
 import type { Session } from "@/lib/sessions";
 import type { Speaker } from "@/lib/speakers";
 import {
+  formatDay,
   formatTime,
   formatTimeRange,
   getCurrentTimestamp,
+  getDateGroupKey,
   isSessionOngoing,
 } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,6 +50,9 @@ export function LiveNow({
     )
     .slice(0, 3);
   const nextStart = upcoming[0]?.starts_at ?? null;
+  // Dzień "dzisiaj" w strefie eventu — do wykrycia, że nadchodząca sesja jest
+  // w innym dniu (wtedy sama godzina myli: wygląda jak przeszłość).
+  const todayKey = getDateGroupKey(new Date(now).toISOString(), timezone);
 
   return (
     <section className="flex flex-col gap-6">
@@ -113,7 +118,13 @@ export function LiveNow({
               session.ends_at,
               timezone,
             );
-            const meta = [timeRange, session.room]
+            // Inny dzień niż dziś -> prefiks z dniem, żeby godzina nie wyglądała
+            // jak przeszłość.
+            const dayLabel =
+              getDateGroupKey(session.starts_at, timezone) !== todayKey
+                ? formatDay(session.starts_at, timezone)
+                : null;
+            const meta = [dayLabel, timeRange, session.room]
               .filter(Boolean)
               .join(" · ");
 
