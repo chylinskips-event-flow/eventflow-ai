@@ -3,13 +3,17 @@ import Link from "next/link";
 import {
   getEventBySlugForRegistration,
   getRegistrationUnavailableReason,
+  isCurrentUserEventOwner,
 } from "@/lib/events";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { getEventSessions, getEventSessionsForParticipant } from "@/lib/sessions";
 import { getEventSpeakers, getEventSpeakersForParticipant } from "@/lib/speakers";
 import { getAttendeeAgendaSessionIds } from "@/lib/agenda-items";
-import { getEventContentSections } from "@/lib/event-content";
+import {
+  getEventContentSections,
+  getEventContentSectionsForPreview,
+} from "@/lib/event-content";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -62,10 +66,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ParticipantEventPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ preview?: string }>;
 }) {
   const { slug } = await params;
+  const { preview } = await searchParams;
   const event = await getEventBySlugForRegistration(slug);
 
   if (!event) {
@@ -80,12 +87,19 @@ export default async function ParticipantEventPage({
     );
   }
 
+  // Tryb podglądu: tylko właściciel eventu i tylko z jawnym ?preview=1. Param
+  // sam w sobie nic nie robi bez własności. W podglądzie ignorujemy cookie
+  // uczestnika (organizator z własnym tokenem testowym zobaczyłby "Cześć,
+  // [imię]!" zamiast strony marketingowej) i pomijamy bramkę "niedostępne",
+  // żeby draft też był widoczny — z banerem podglądu.
+  const previewMode = preview === "1" && (await isCurrentUserEventOwner(event));
+
   // Zatwierdzony uczestnik ma dostęp niezależnie od późniejszej zmiany statusu
   // eventu (completed/archived) - celowe. Po evencie uczestnicy mają widzieć
   // listę poznanych osób i rekomendacje kontaktów (moduł post-event/networking,
   // patrz plan produktu) - to wymaga zachowania dostępu po zakończeniu eventu,
   // nie tylko w trakcie.
-  const attendee = await getCurrentAttendee(slug);
+  const attendee = previewMode ? null : await getCurrentAttendee(slug);
 
   if (attendee) {
     const navButtons = (
@@ -156,7 +170,9 @@ export default async function ParticipantEventPage({
     );
   }
 
-  const unavailableReason = getRegistrationUnavailableReason(event);
+  const unavailableReason = previewMode
+    ? null
+    : getRegistrationUnavailableReason(event);
 
   if (unavailableReason) {
     return (
@@ -173,11 +189,20 @@ export default async function ParticipantEventPage({
     );
   }
 
-  const [sections, sessions, speakers] = await Promise.all([
-    getEventContentSections(event.id),
-    getEventSessions(event.id),
-    getEventSpeakers(event.id),
-  ]);
+  // W trybie podglądu (własność potwierdzona) czytamy przez service_role —
+  // publiczne polityki RLS ujawniają te dane tylko dla published/live, więc
+  // draft inaczej dałby pustą stronę bez agendy/prelegentów/sekcji.
+  const [sections, sessions, speakers] = previewMode
+    ? await Promise.all([
+        getEventContentSectionsForPreview(event.id),
+        getEventSessionsForParticipant(event.id),
+        getEventSpeakersForParticipant(event.id),
+      ])
+    : await Promise.all([
+        getEventContentSections(event.id),
+        getEventSessions(event.id),
+        getEventSpeakers(event.id),
+      ]);
 
   const speakerMap = new Map(speakers.map((speaker) => [speaker.id, speaker]));
 
@@ -188,8 +213,17 @@ export default async function ParticipantEventPage({
     { href: "#register", label: "Rejestracja" },
   ].filter((link): link is { href: string; label: string } => link !== null);
 
+  const showPreviewBanner =
+    previewMode && event.status !== "published" && event.status !== "live";
+
   return (
     <main className="flex flex-col">
+      {showPreviewBanner && (
+        <div className="bg-amber-500 px-4 py-2 text-center text-sm font-medium text-white">
+          Podgląd — wydarzenie nie jest jeszcze opublikowane. Widzisz je jako
+          organizator; uczestnicy jeszcze go nie widzą.
+        </div>
+      )}
       {event.banner_url ? (
         <img
           src={event.banner_url}

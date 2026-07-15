@@ -101,7 +101,7 @@ export function EventEditForm({ event }: { event: Event }) {
         toast.success("Wydarzenie opublikowane", {
           action: {
             label: "Zobacz stronę",
-            onClick: () => window.open(`/e/${event.slug}`, "_blank"),
+            onClick: () => window.open(`/e/${event.slug}?preview=1`, "_blank"),
           },
         });
       } catch (err) {
@@ -127,7 +127,7 @@ export function EventEditForm({ event }: { event: Event }) {
         toast.success("Wydarzenie rozpoczęte — uczestnicy widzą sekcję na żywo", {
           action: {
             label: "Zobacz stronę",
-            onClick: () => window.open(`/e/${event.slug}`, "_blank"),
+            onClick: () => window.open(`/e/${event.slug}?preview=1`, "_blank"),
           },
         });
       } catch (err) {
@@ -175,9 +175,19 @@ export function EventEditForm({ event }: { event: Event }) {
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">{event.name}</h1>
-        {event.status === "draft" ? (
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <a
+              href={`/e/${event.slug}?preview=1`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Podgląd
+            </a>
+          </Button>
+          {event.status === "draft" ? (
           <AlertDialog
             open={isPublishOpen}
             onOpenChange={(open) => {
@@ -273,9 +283,10 @@ export function EventEditForm({ event }: { event: Event }) {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        ) : (
-          <Badge variant="secondary">{STATUS_LABELS[event.status]}</Badge>
-        )}
+          ) : (
+            <Badge variant="secondary">{STATUS_LABELS[event.status]}</Badge>
+          )}
+        </div>
       </div>
 
       <Card>

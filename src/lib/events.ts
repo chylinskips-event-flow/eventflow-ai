@@ -88,6 +88,34 @@ export async function getOrganizationEvents(
   return data ?? [];
 }
 
+/**
+ * Czy zalogowany użytkownik (Supabase Auth) jest właścicielem organizacji
+ * tego eventu. Używane przez tryb podglądu strony publicznej — wchodzi w grę
+ * tylko przy jawnym ?preview=1. Zwykli odwiedzający nie są zalogowani, więc
+ * getUser() zwróci null i funkcja szybko odda false.
+ */
+export async function isCurrentUserEventOwner(
+  event: Pick<Event, "organization_id">,
+): Promise<boolean> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return false;
+  }
+
+  const { data } = await supabase
+    .from("organizations")
+    .select("id")
+    .eq("id", event.organization_id)
+    .eq("owner_user_id", user.id)
+    .maybeSingle();
+
+  return data !== null;
+}
+
 export async function getOwnEvent(eventId: string): Promise<Event | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
