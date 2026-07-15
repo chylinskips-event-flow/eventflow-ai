@@ -136,6 +136,55 @@ export async function publishEvent(eventId: string) {
   revalidatePath("/admin");
 }
 
+// published -> live. Guard .eq("status","published") wymusza stan źródłowy,
+// własność egzekwuje RLS (createClient) — ten sam wzorzec co publishEvent.
+export async function startEvent(eventId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("events")
+    .update({ status: "live" })
+    .eq("id", eventId)
+    .eq("status", "published")
+    .select();
+
+  if (error) {
+    throw new Error(`Start failed: ${error.message} (code: ${error.code})`);
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error(
+      "Update affected 0 rows — sprawdź RLS lub czy event istnieje",
+    );
+  }
+
+  revalidatePath(`/admin/events/${eventId}`);
+  revalidatePath("/admin");
+}
+
+// live -> completed. Analogicznie do startEvent.
+export async function completeEvent(eventId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("events")
+    .update({ status: "completed" })
+    .eq("id", eventId)
+    .eq("status", "live")
+    .select();
+
+  if (error) {
+    throw new Error(`Complete failed: ${error.message} (code: ${error.code})`);
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error(
+      "Update affected 0 rows — sprawdź RLS lub czy event istnieje",
+    );
+  }
+
+  revalidatePath(`/admin/events/${eventId}`);
+  revalidatePath("/admin");
+}
+
 const ALLOWED_LOGO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 

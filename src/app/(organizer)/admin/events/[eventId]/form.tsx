@@ -4,6 +4,8 @@ import { useActionState, useState, useTransition } from "react";
 import {
   updateEvent,
   publishEvent,
+  startEvent,
+  completeEvent,
   uploadEventLogo,
   type EventFormState,
 } from "./actions";
@@ -105,6 +107,46 @@ export function EventEditForm({ event }: { event: Event }) {
     });
   }
 
+  const [isStartOpen, setIsStartOpen] = useState(false);
+  const [isStarting, startStartTransition] = useTransition();
+  const [startError, setStartError] = useState<string | null>(null);
+
+  function handleStart() {
+    setStartError(null);
+    startStartTransition(async () => {
+      try {
+        await startEvent(event.id);
+        setIsStartOpen(false);
+      } catch (err) {
+        setStartError(
+          err instanceof Error
+            ? err.message
+            : "Nie udało się rozpocząć wydarzenia.",
+        );
+      }
+    });
+  }
+
+  const [isCompleteOpen, setIsCompleteOpen] = useState(false);
+  const [isCompleting, startCompleteTransition] = useTransition();
+  const [completeError, setCompleteError] = useState<string | null>(null);
+
+  function handleComplete() {
+    setCompleteError(null);
+    startCompleteTransition(async () => {
+      try {
+        await completeEvent(event.id);
+        setIsCompleteOpen(false);
+      } catch (err) {
+        setCompleteError(
+          err instanceof Error
+            ? err.message
+            : "Nie udało się zakończyć wydarzenia.",
+        );
+      }
+    });
+  }
+
   function handleNameChange(value: string) {
     setName(value);
     if (!slugTouched) {
@@ -149,6 +191,70 @@ export function EventEditForm({ event }: { event: Event }) {
                 </AlertDialogCancel>
                 <Button onClick={handlePublish} disabled={isPublishing}>
                   {isPublishing ? "Publikowanie..." : "Opublikuj"}
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : event.status === "published" ? (
+          <AlertDialog
+            open={isStartOpen}
+            onOpenChange={(open) => {
+              if (isStarting) return;
+              setIsStartOpen(open);
+            }}
+          >
+            <AlertDialogTrigger asChild>
+              <Button>Rozpocznij wydarzenie</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Rozpocząć wydarzenie?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Czy na pewno chcesz rozpocząć wydarzenie? Uczestnicy zobaczą
+                  sekcję na żywo.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {startError && (
+                <p className="text-sm text-destructive">{startError}</p>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isStarting}>
+                  Anuluj
+                </AlertDialogCancel>
+                <Button onClick={handleStart} disabled={isStarting}>
+                  {isStarting ? "Rozpoczynanie..." : "Rozpocznij"}
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : event.status === "live" ? (
+          <AlertDialog
+            open={isCompleteOpen}
+            onOpenChange={(open) => {
+              if (isCompleting) return;
+              setIsCompleteOpen(open);
+            }}
+          >
+            <AlertDialogTrigger asChild>
+              <Button>Zakończ wydarzenie</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Zakończyć wydarzenie?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Czy na pewno chcesz zakończyć wydarzenie? Sekcja na żywo
+                  zniknie, uczestnicy zachowają dostęp do swoich danych.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {completeError && (
+                <p className="text-sm text-destructive">{completeError}</p>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isCompleting}>
+                  Anuluj
+                </AlertDialogCancel>
+                <Button onClick={handleComplete} disabled={isCompleting}>
+                  {isCompleting ? "Kończenie..." : "Zakończ"}
                 </Button>
               </AlertDialogFooter>
             </AlertDialogContent>
