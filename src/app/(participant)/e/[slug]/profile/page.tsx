@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { getCurrentAttendee } from "@/lib/attendee-session";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -30,12 +32,11 @@ export default async function ProfilePage({
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
-      <Link
-        href={`/e/${slug}/attendees`}
-        className="text-sm text-muted-foreground hover:text-foreground"
-      >
-        ← Uczestnicy
-      </Link>
+      <Button asChild variant="outline" size="sm" className="w-fit">
+        <Link href={`/e/${slug}/attendees`}>
+          <ArrowLeft className="size-4" /> Powrót
+        </Link>
+      </Button>
 
       <Card>
         <CardHeader>

@@ -1,7 +1,10 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Button } from "@/components/ui/button";
 import { AttendeeList, type AttendeeListItem } from "./attendee-list";
 
 export default async function AttendeesPage({
@@ -47,6 +50,11 @@ export default async function AttendeesPage({
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4">
+      <Button asChild variant="outline" size="sm" className="w-fit">
+        <Link href={`/e/${slug}`}>
+          <ArrowLeft className="size-4" /> Powrót
+        </Link>
+      </Button>
       <h1 className="text-2xl font-semibold">Uczestnicy — {event.name}</h1>
       <AttendeeList
         slug={slug}
