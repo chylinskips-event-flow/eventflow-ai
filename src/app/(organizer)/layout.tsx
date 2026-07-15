@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "./actions";
 import { Button } from "@/components/ui/button";
+import { Toaster } from "@/components/ui/sonner";
 
 export default async function OrganizerLayout({
   children,
@@ -30,6 +31,7 @@ export default async function OrganizerLayout({
         </div>
       </header>
       <div className="flex-1">{children}</div>
+      <Toaster />
     </div>
   );
 }

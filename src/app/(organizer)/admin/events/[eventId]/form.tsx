@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
+import { toast } from "sonner";
 import {
   updateEvent,
   publishEvent,
@@ -97,6 +98,12 @@ export function EventEditForm({ event }: { event: Event }) {
       try {
         await publishEvent(event.id);
         setIsPublishOpen(false);
+        toast.success("Wydarzenie opublikowane", {
+          action: {
+            label: "Zobacz stronę",
+            onClick: () => window.open(`/e/${event.slug}`, "_blank"),
+          },
+        });
       } catch (err) {
         setPublishError(
           err instanceof Error
@@ -117,6 +124,12 @@ export function EventEditForm({ event }: { event: Event }) {
       try {
         await startEvent(event.id);
         setIsStartOpen(false);
+        toast.success("Wydarzenie rozpoczęte — uczestnicy widzą sekcję na żywo", {
+          action: {
+            label: "Zobacz stronę",
+            onClick: () => window.open(`/e/${event.slug}`, "_blank"),
+          },
+        });
       } catch (err) {
         setStartError(
           err instanceof Error
@@ -137,6 +150,7 @@ export function EventEditForm({ event }: { event: Event }) {
       try {
         await completeEvent(event.id);
         setIsCompleteOpen(false);
+        toast.success("Wydarzenie zakończone");
       } catch (err) {
         setCompleteError(
           err instanceof Error
