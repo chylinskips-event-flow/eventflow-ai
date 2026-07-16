@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseLines } from "@/lib/events";
+import { parseDateTimeLocal } from "@/lib/format";
 import { SLUG_PATTERN } from "@/lib/slug";
 
 export type EventFormState = {
@@ -46,15 +47,20 @@ export async function updateEvent(
     return { status: "error", message: "Podaj datę i godzinę zakończenia." };
   }
 
-  if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
+  if (typeof timezone !== "string" || !timezone) {
+    return { status: "error", message: "Wybierz strefę czasową." };
+  }
+
+  // Naiwne godziny z pól interpretujemy w WYBRANEJ strefie (nowej, jeśli
+  // organizator ją zmienił w tym samym zapisie).
+  const startsAtIso = parseDateTimeLocal(startsAt, timezone);
+  const endsAtIso = parseDateTimeLocal(endsAt, timezone);
+
+  if (new Date(endsAtIso).getTime() <= new Date(startsAtIso).getTime()) {
     return {
       status: "error",
       message: "Data zakończenia musi być późniejsza niż data rozpoczęcia.",
     };
-  }
-
-  if (typeof timezone !== "string" || !timezone) {
-    return { status: "error", message: "Wybierz strefę czasową." };
   }
 
   const supabase = await createClient();
@@ -78,8 +84,8 @@ export async function updateEvent(
     .update({
       name: name.trim(),
       slug,
-      starts_at: new Date(startsAt).toISOString(),
-      ends_at: new Date(endsAt).toISOString(),
+      starts_at: startsAtIso,
+      ends_at: endsAtIso,
       timezone,
       location:
         typeof location === "string" && location.trim()

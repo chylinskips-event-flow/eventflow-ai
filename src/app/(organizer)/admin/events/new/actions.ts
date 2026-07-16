@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOwnOrganization } from "@/lib/organizations";
 import { parseLines } from "@/lib/events";
+import { parseDateTimeLocal } from "@/lib/format";
 import { SLUG_PATTERN } from "@/lib/slug";
 
 export type CreateEventState = {
@@ -45,15 +46,18 @@ export async function createEvent(
     return { status: "error", message: "Podaj datę i godzinę zakończenia." };
   }
 
-  if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
+  if (typeof timezone !== "string" || !timezone) {
+    return { status: "error", message: "Wybierz strefę czasową." };
+  }
+
+  const startsAtIso = parseDateTimeLocal(startsAt, timezone);
+  const endsAtIso = parseDateTimeLocal(endsAt, timezone);
+
+  if (new Date(endsAtIso).getTime() <= new Date(startsAtIso).getTime()) {
     return {
       status: "error",
       message: "Data zakończenia musi być późniejsza niż data rozpoczęcia.",
     };
-  }
-
-  if (typeof timezone !== "string" || !timezone) {
-    return { status: "error", message: "Wybierz strefę czasową." };
   }
 
   const organization = await getOwnOrganization();
@@ -82,8 +86,8 @@ export async function createEvent(
       organization_id: organization.id,
       name: name.trim(),
       slug,
-      starts_at: new Date(startsAt).toISOString(),
-      ends_at: new Date(endsAt).toISOString(),
+      starts_at: startsAtIso,
+      ends_at: endsAtIso,
       timezone,
       location: typeof location === "string" && location.trim() ? location.trim() : null,
       room_names: roomNames,

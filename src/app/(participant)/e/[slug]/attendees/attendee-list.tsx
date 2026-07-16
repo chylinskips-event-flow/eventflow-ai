@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,7 @@ export type AttendeeListItem = {
   industry: string | null;
   interests: string[] | null;
   looking_for: string | null;
+  avatar_url: string | null;
   networking_visible: boolean;
 };
 
@@ -193,6 +194,9 @@ export function AttendeeList({
                 <CardContent className="flex flex-col items-center gap-2 py-6 text-center">
                   {isSelf && <Badge className="mb-1">Mój profil</Badge>}
                   <Avatar className="h-16 w-16">
+                    {a.avatar_url && (
+                      <AvatarImage src={a.avatar_url} alt={fullName} />
+                    )}
                     <AvatarFallback className="text-lg">
                       {initials || "?"}
                     </AvatarFallback>

@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { refreshMatches } from "./actions";
@@ -19,6 +19,7 @@ export type RecommendedMatch = {
   industry: string | null;
   interests: string[];
   looking_for: string | null;
+  avatar_url: string | null;
   reason: string;
 };
 
@@ -126,6 +127,9 @@ export function RecommendedContacts({
             <Card key={match.id} className="border-primary/30">
               <CardContent className="flex flex-col items-center gap-2 py-6 text-center">
                 <Avatar className="h-16 w-16">
+                  {match.avatar_url && (
+                    <AvatarImage src={match.avatar_url} alt={fullName} />
+                  )}
                   <AvatarFallback className="text-lg">
                     {initials || "?"}
                   </AvatarFallback>

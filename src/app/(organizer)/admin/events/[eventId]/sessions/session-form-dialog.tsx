@@ -4,6 +4,7 @@ import { useActionState, useMemo, useState } from "react";
 import { createSession, updateSession, type SessionFormState } from "./actions";
 import type { Session } from "@/lib/sessions";
 import type { Speaker } from "@/lib/speakers";
+import { parseDateTimeLocal, toDateTimeLocalValue } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,13 +29,6 @@ const initialState: SessionFormState = { status: "idle" };
 const NO_SPEAKER_VALUE = "__none__";
 const NO_ROOM_VALUE = "__no_room__";
 
-function toDatetimeLocal(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
 function rangesOverlap(
   startA: number,
   endA: number,
@@ -46,6 +40,7 @@ function rangesOverlap(
 
 export function SessionFormDialog({
   eventId,
+  eventTimezone,
   session,
   speakers,
   existingSessions,
@@ -53,6 +48,7 @@ export function SessionFormDialog({
   trigger,
 }: {
   eventId: string;
+  eventTimezone: string | null;
   session?: Session;
   speakers: Speaker[];
   existingSessions: Session[];
@@ -72,14 +68,20 @@ export function SessionFormDialog({
   const [description, setDescription] = useState(session?.description ?? "");
   const [track, setTrack] = useState(session?.track ?? "");
   const [room, setRoom] = useState(session?.room ?? NO_ROOM_VALUE);
-  const [startsAt, setStartsAt] = useState(toDatetimeLocal(session?.starts_at ?? null));
-  const [endsAt, setEndsAt] = useState(toDatetimeLocal(session?.ends_at ?? null));
+  const [startsAt, setStartsAt] = useState(
+    toDateTimeLocalValue(session?.starts_at ?? null, eventTimezone),
+  );
+  const [endsAt, setEndsAt] = useState(
+    toDateTimeLocalValue(session?.ends_at ?? null, eventTimezone),
+  );
   const [speakerId, setSpeakerId] = useState(session?.speaker_id ?? NO_SPEAKER_VALUE);
 
   const collisionWarning = useMemo(() => {
     if (!room || room === NO_ROOM_VALUE || !startsAt || !endsAt) return null;
-    const start = new Date(startsAt).getTime();
-    const end = new Date(endsAt).getTime();
+    // Naiwne wartości pól -> instant w strefie eventu, żeby porównanie z
+    // sesjami z bazy (ISO) było w tej samej osi czasu.
+    const start = new Date(parseDateTimeLocal(startsAt, eventTimezone)).getTime();
+    const end = new Date(parseDateTimeLocal(endsAt, eventTimezone)).getTime();
     if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return null;
 
     const conflict = existingSessions.find((other) => {
@@ -97,7 +99,7 @@ export function SessionFormDialog({
     return conflict
       ? `Ta sala jest zajęta w tym czasie przez sesję „${conflict.title}” — zapis zostanie zablokowany.`
       : null;
-  }, [room, startsAt, endsAt, existingSessions, session]);
+  }, [room, startsAt, endsAt, existingSessions, session, eventTimezone]);
 
   if (state.status !== lastStatus) {
     setLastStatus(state.status);

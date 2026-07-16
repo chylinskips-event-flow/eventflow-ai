@@ -74,6 +74,7 @@ function SessionRow({
         </div>
         <SessionFormDialog
           eventId={eventId}
+          eventTimezone={timezone}
           session={session}
           speakers={speakers}
           existingSessions={existingSessions}

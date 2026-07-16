@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, parseDateTimeLocal } from "@/lib/format";
 
 export type SessionFormState = {
   status: "idle" | "error" | "success";
@@ -80,8 +80,11 @@ async function readSessionFields(
     return { error: "Podaj datę i godzinę zakończenia." } as const;
   }
 
-  const startsAtTime = new Date(startsAt).getTime();
-  const endsAtTime = new Date(endsAt).getTime();
+  // Naiwne godziny z pól interpretujemy w strefie eventu (sesja ją dziedziczy).
+  const startsAtIso = parseDateTimeLocal(startsAt, eventRange.timezone);
+  const endsAtIso = parseDateTimeLocal(endsAt, eventRange.timezone);
+  const startsAtTime = new Date(startsAtIso).getTime();
+  const endsAtTime = new Date(endsAtIso).getTime();
 
   if (endsAtTime <= startsAtTime) {
     return {
@@ -129,8 +132,8 @@ async function readSessionFields(
           : null,
       track: typeof track === "string" && track.trim() ? track.trim() : null,
       room: trimmedRoom,
-      starts_at: new Date(startsAt).toISOString(),
-      ends_at: new Date(endsAt).toISOString(),
+      starts_at: startsAtIso,
+      ends_at: endsAtIso,
       speaker_id:
         typeof speakerId === "string" && speakerId ? speakerId : null,
     },

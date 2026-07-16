@@ -8,9 +8,9 @@ import {
 } from "@/lib/events";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NetworkingToggle } from "./networking-toggle";
 import { ProfileForm } from "./profile-form";
+import { AvatarUpload } from "./avatar-upload";
 
 export default async function ProfilePage({
   params,
@@ -54,12 +54,7 @@ export default async function ProfilePage({
         <CardHeader>
           <CardTitle>Dane konta</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col items-center gap-3 py-2 text-center">
-          <Avatar className="size-16">
-            <AvatarFallback className="text-lg">
-              {initials || "?"}
-            </AvatarFallback>
-          </Avatar>
+        <CardContent className="flex flex-col items-center gap-2 py-2 text-center">
           {fullName && (
             <span className="text-lg font-semibold">{fullName}</span>
           )}
@@ -73,7 +68,12 @@ export default async function ProfilePage({
         <CardHeader>
           <CardTitle>Profil networkingowy</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-6">
+          <AvatarUpload
+            slug={slug}
+            initialAvatarUrl={attendee.avatar_url}
+            initials={initials}
+          />
           <ProfileForm
             slug={slug}
             interestOptions={interestOptions}

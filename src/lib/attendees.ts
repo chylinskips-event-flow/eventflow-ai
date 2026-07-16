@@ -14,6 +14,7 @@ export type Attendee = {
   interests: string[] | null;
   goal: string | null;
   looking_for: string | null;
+  avatar_url: string | null;
   gdpr_consent_at: string | null;
   marketing_consent: boolean;
   networking_visible: boolean;

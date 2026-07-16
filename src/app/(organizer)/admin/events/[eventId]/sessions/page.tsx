@@ -30,6 +30,7 @@ export default async function EventSessionsPage({
         <h1 className="text-2xl font-semibold">Agenda</h1>
         <SessionFormDialog
           eventId={eventId}
+          eventTimezone={event.timezone}
           speakers={speakers}
           existingSessions={sessions}
           roomNames={event.room_names ?? []}

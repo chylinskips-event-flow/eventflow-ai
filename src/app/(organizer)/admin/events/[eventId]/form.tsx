@@ -11,6 +11,7 @@ import {
   type EventFormState,
 } from "./actions";
 import type { Event } from "@/lib/events";
+import { toDateTimeLocalValue } from "@/lib/format";
 import { slugify } from "@/lib/slug";
 import { TIMEZONES } from "@/lib/timezones";
 import { Button } from "@/components/ui/button";
@@ -51,13 +52,6 @@ const STATUS_LABELS: Record<Event["status"], string> = {
   completed: "Zakończony",
   archived: "Zarchiwizowany",
 };
-
-function toDatetimeLocal(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
 
 const initialState: EventFormState = { status: "idle" };
 
@@ -326,7 +320,7 @@ export function EventEditForm({ event }: { event: Event }) {
                   id="starts_at"
                   name="starts_at"
                   type="datetime-local"
-                  defaultValue={toDatetimeLocal(event.starts_at)}
+                  defaultValue={toDateTimeLocalValue(event.starts_at, event.timezone)}
                   required
                 />
               </div>
@@ -336,7 +330,7 @@ export function EventEditForm({ event }: { event: Event }) {
                   id="ends_at"
                   name="ends_at"
                   type="datetime-local"
-                  defaultValue={toDatetimeLocal(event.ends_at)}
+                  defaultValue={toDateTimeLocalValue(event.ends_at, event.timezone)}
                   required
                 />
               </div>

@@ -100,3 +100,144 @@ export async function updateAttendeeProfile(
   revalidatePath(`/e/${slug}/attendees`);
   return { status: "success", message: "Zapisano ✓" };
 }
+
+export type AvatarActionState = {
+  status: "idle" | "success" | "error";
+  message?: string;
+  avatarUrl?: string | null;
+};
+
+const AVATAR_BUCKET = "attendee-avatars";
+const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
+const EXT_BY_TYPE: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+// Ścieżka obiektu w bucketcie wyciągnięta z publicznego URL-a (bez ?v=...).
+function storagePathFromPublicUrl(url: string): string | null {
+  const marker = `/${AVATAR_BUCKET}/`;
+  const idx = url.indexOf(marker);
+  if (idx === -1) return null;
+  return url.slice(idx + marker.length).split("?")[0];
+}
+
+/**
+ * Upload avatara uczestnika.
+ *
+ * BEZPIECZEŃSTWO: tożsamość WYŁĄCZNIE z getCurrentAttendee(slug). Storage przez
+ * service_role (bucket nie ma polityki zapisu dla anon/authenticated —
+ * uczestnik nie ma sesji auth). Ścieżka "<event_id>/<attendee_id>.<ext>"
+ * budowana z danych serwerowych, nie z klienta.
+ */
+export async function uploadAttendeeAvatar(
+  slug: string,
+  formData: FormData,
+): Promise<AvatarActionState> {
+  const attendee = await getCurrentAttendee(slug);
+  if (!attendee) {
+    return { status: "error", message: "Sesja wygasła. Odśwież stronę." };
+  }
+
+  const file = formData.get("avatar");
+  if (!(file instanceof File) || file.size === 0) {
+    return { status: "error", message: "Wybierz plik ze zdjęciem." };
+  }
+
+  const ext = EXT_BY_TYPE[file.type];
+  if (!ext) {
+    return {
+      status: "error",
+      message: "Zdjęcie musi być w formacie JPG, PNG lub WebP.",
+    };
+  }
+
+  if (file.size > MAX_AVATAR_SIZE_BYTES) {
+    return { status: "error", message: "Zdjęcie nie może być większe niż 2MB." };
+  }
+
+  const supabase = createAdminClient();
+  const path = `${attendee.event_id}/${attendee.id}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: true });
+
+  if (uploadError) {
+    return {
+      status: "error",
+      message: "Nie udało się wgrać zdjęcia. Spróbuj ponownie.",
+    };
+  }
+
+  // Sprzątamy poprzedni plik, jeśli miał inne rozszerzenie (png -> webp) —
+  // inaczej zostałby osierocony w bucketcie.
+  if (attendee.avatar_url) {
+    const oldPath = storagePathFromPublicUrl(attendee.avatar_url);
+    if (oldPath && oldPath !== path) {
+      await supabase.storage.from(AVATAR_BUCKET).remove([oldPath]);
+    }
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path);
+  // Cache-busting: nadpisanie tej samej ścieżki inaczej pokazałoby stary
+  // obrazek z cache przeglądarki/CDN.
+  const avatarUrl = `${publicUrl}?v=${Date.now()}`;
+
+  const { error } = await supabase
+    .from("attendees")
+    .update({ avatar_url: avatarUrl })
+    .eq("id", attendee.id);
+
+  if (error) {
+    return {
+      status: "error",
+      message: "Nie udało się zapisać zdjęcia. Spróbuj ponownie.",
+    };
+  }
+
+  revalidatePath(`/e/${slug}/profile`);
+  revalidatePath(`/e/${slug}/attendees`);
+  return { status: "success", message: "Zapisano ✓", avatarUrl };
+}
+
+/**
+ * Usunięcie avatara: plik z bucketa + avatar_url = NULL. Tożsamość z cookie,
+ * storage przez service_role.
+ */
+export async function removeAttendeeAvatar(
+  slug: string,
+): Promise<AvatarActionState> {
+  const attendee = await getCurrentAttendee(slug);
+  if (!attendee) {
+    return { status: "error", message: "Sesja wygasła. Odśwież stronę." };
+  }
+
+  const supabase = createAdminClient();
+
+  if (attendee.avatar_url) {
+    const path = storagePathFromPublicUrl(attendee.avatar_url);
+    if (path) {
+      await supabase.storage.from(AVATAR_BUCKET).remove([path]);
+    }
+  }
+
+  const { error } = await supabase
+    .from("attendees")
+    .update({ avatar_url: null })
+    .eq("id", attendee.id);
+
+  if (error) {
+    return {
+      status: "error",
+      message: "Nie udało się usunąć zdjęcia. Spróbuj ponownie.",
+    };
+  }
+
+  revalidatePath(`/e/${slug}/profile`);
+  revalidatePath(`/e/${slug}/attendees`);
+  return { status: "success", message: "Zdjęcie usunięte.", avatarUrl: null };
+}

@@ -22,6 +22,83 @@ export function getCurrentTimestamp() {
   return Date.now();
 }
 
+// Domyślna strefa, gdy event nie ma ustawionej (spójna z formularzami).
+const TZ_FALLBACK = "Europe/Warsaw";
+
+// Offset strefy (ms) dla danego instantu: (ściana zegarowa w tz) - (UTC).
+// DST-aware — offset zależy od daty, nie jest stały.
+function tzOffsetMs(timeZone: string, date: Date): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const map: Record<string, string> = {};
+  for (const part of dtf.formatToParts(date)) map[part.type] = part.value;
+  const hour = map.hour === "24" ? "0" : map.hour;
+  const asUTC = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    Number(hour),
+    Number(map.minute),
+    Number(map.second),
+  );
+  return asUTC - date.getTime();
+}
+
+/**
+ * Naiwny "YYYY-MM-DDTHH:mm" (z pola datetime-local, godzina W STREFIE EVENTU)
+ * -> ISO UTC. Bez zewnętrznej biblioteki: traktujemy wpisaną godzinę jak UTC,
+ * po czym odejmujemy offset strefy dla tego instantu. Dwa przebiegi obsługują
+ * zmianę offsetu wokół granicy DST.
+ */
+export function parseDateTimeLocal(
+  value: string,
+  timeZone: string | null,
+): string {
+  const tz = timeZone || TZ_FALLBACK;
+  const [datePart, timePart = "00:00"] = value.split("T");
+  const [y, mo, d] = datePart.split("-").map(Number);
+  const [h, mi] = timePart.split(":").map(Number);
+  const guess = Date.UTC(y, mo - 1, d, h, mi);
+  const offset1 = tzOffsetMs(tz, new Date(guess));
+  const offset2 = tzOffsetMs(tz, new Date(guess - offset1));
+  return new Date(guess - offset2).toISOString();
+}
+
+/**
+ * ISO/timestamp z bazy -> "YYYY-MM-DDTHH:mm" w strefie eventu, do wstawienia
+ * jako wartość pola <input type="datetime-local">.
+ */
+export function toDateTimeLocalValue(
+  value: string | null,
+  timeZone: string | null,
+): string {
+  if (!value) return "";
+  const tz = timeZone || TZ_FALLBACK;
+  const dtf = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const map: Record<string, string> = {};
+  for (const part of dtf.formatToParts(new Date(value))) {
+    map[part.type] = part.value;
+  }
+  const hour = map.hour === "24" ? "00" : map.hour;
+  return `${map.year}-${map.month}-${map.day}T${hour}:${map.minute}`;
+}
+
 export function formatTime(
   value: string | null,
   timeZone?: string | null,
