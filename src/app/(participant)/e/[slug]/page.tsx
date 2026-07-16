@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Calendar, MapPin } from "lucide-react";
 import {
   getEventBySlugForRegistration,
   getRegistrationUnavailableReason,
@@ -231,15 +232,92 @@ export default async function ParticipantEventPage({
           className="w-full aspect-[2/1] lg:max-h-[480px] lg:aspect-auto 2xl:max-h-[600px] object-cover object-top"
         />
       ) : (
-        <div className="flex w-full aspect-[2/1] lg:max-h-[480px] lg:aspect-auto lg:h-[480px] 2xl:max-h-[600px] 2xl:h-[600px] items-center justify-center bg-primary">
+        <div className="flex w-full min-h-40 aspect-[2/1] lg:max-h-[480px] lg:aspect-auto lg:h-[480px] 2xl:max-h-[600px] 2xl:h-[600px] items-center justify-center bg-primary">
           <span className="px-4 text-center text-2xl font-semibold text-primary-foreground">
             {event.name}
           </span>
         </div>
       )}
 
+      {/* Karta hero nachodząca na dolną krawędź banera — bg-background
+          (nieprzezroczysta, działa z każdym banerem), z.10 nad banerem. */}
+      <div className="relative z-10 mx-auto -mt-10 w-full max-w-3xl px-4 md:-mt-20">
+        <div className="flex flex-col gap-4 rounded-xl border bg-background p-5 shadow-lg md:p-8">
+          <Badge variant="secondary" className="w-fit">
+            WYDARZENIE
+          </Badge>
+          <h1 className="text-3xl font-bold md:text-4xl">{event.name}</h1>
+          {(event.starts_at || event.location) && (
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
+              {event.starts_at && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Calendar className="size-4 shrink-0" />
+                  {formatDateTimeRange(
+                    event.starts_at,
+                    event.ends_at,
+                    event.timezone,
+                  )}
+                </span>
+              )}
+              {event.starts_at && event.location && (
+                <span aria-hidden="true">·</span>
+              )}
+              {event.location && (
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin className="size-4 shrink-0" />
+                  {event.location}
+                </span>
+              )}
+            </p>
+          )}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Button asChild size="lg" className="w-full sm:w-auto">
+              <Link href={`/e/${slug}/register`}>Zarejestruj się →</Link>
+            </Button>
+            {sessions.length > 0 && (
+              <Button asChild size="lg" variant="outline" className="w-full sm:w-auto">
+                <a href="#agenda">Zobacz agendę</a>
+              </Button>
+            )}
+
+            {/* Statystyki inline: tylko dla liczb >= 3 (małe liczby działają
+                antymarketingowo — świadoma decyzja). Desktop: po prawej
+                (ml-auto); mobile: pod przyciskami, wycentrowane. */}
+            {(speakers.length >= 3 || sessions.length >= 3) && (
+              <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 sm:ml-auto sm:justify-end">
+                {speakers.length >= 3 && (
+                  <span className="flex items-baseline gap-1.5">
+                    <span className="text-lg font-semibold">{speakers.length}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {pluralizePl(speakers.length, [
+                        "prelegent",
+                        "prelegenci",
+                        "prelegentów",
+                      ])}
+                    </span>
+                  </span>
+                )}
+                {speakers.length >= 3 && sessions.length >= 3 && (
+                  <span className="text-muted-foreground" aria-hidden="true">
+                    ·
+                  </span>
+                )}
+                {sessions.length >= 3 && (
+                  <span className="flex items-baseline gap-1.5">
+                    <span className="text-lg font-semibold">{sessions.length}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {pluralizePl(sessions.length, ["sesja", "sesje", "sesji"])}
+                    </span>
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {navLinks.length > 0 && (
-        <nav className="flex flex-wrap justify-center gap-4 border-b px-4 py-3 text-sm">
+        <nav className="mt-8 flex flex-wrap justify-center gap-4 border-b px-4 py-3 text-sm">
           {navLinks.map((link) => (
             <a
               key={link.href}
@@ -251,67 +329,6 @@ export default async function ParticipantEventPage({
           ))}
         </nav>
       )}
-
-      <section className="bg-gradient-to-b from-primary/5 to-transparent">
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10 md:flex-row md:items-start md:justify-between">
-          <div className="flex flex-col gap-4">
-            <Badge variant="secondary" className="w-fit">
-              WYDARZENIE
-            </Badge>
-            <h1 className="text-3xl font-bold md:text-4xl">{event.name}</h1>
-            {(event.starts_at || event.location) && (
-              <p className="text-lg text-muted-foreground">
-                {event.starts_at &&
-                  formatDateTimeRange(
-                    event.starts_at,
-                    event.ends_at,
-                    event.timezone,
-                  )}
-                {event.starts_at && event.location && " · "}
-                {event.location}
-              </p>
-            )}
-            <div className="flex flex-wrap gap-3">
-              <Button asChild size="lg" className="w-full sm:w-auto">
-                <Link href={`/e/${slug}/register`}>Zarejestruj się →</Link>
-              </Button>
-              {sessions.length > 0 && (
-                <Button asChild size="lg" variant="outline" className="w-full sm:w-auto">
-                  <a href="#agenda">Zobacz agendę</a>
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Statystyki tylko dla liczb >= 3: małe liczby ("1 Prelegent",
-              "2 Sesje") działają antymarketingowo — świadoma decyzja. Gdy obie
-              < 3, cały blok znika i hero układa się bez niego. */}
-          {(speakers.length >= 3 || sessions.length >= 3) && (
-            <div className="flex flex-wrap gap-3">
-              {speakers.length >= 3 && (
-                <div className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-3">
-                  <span className="text-2xl font-bold text-primary">{speakers.length}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {pluralizePl(speakers.length, [
-                      "Prelegent",
-                      "Prelegenci",
-                      "Prelegentów",
-                    ])}
-                  </span>
-                </div>
-              )}
-              {sessions.length >= 3 && (
-                <div className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-3">
-                  <span className="text-2xl font-bold text-primary">{sessions.length}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {pluralizePl(sessions.length, ["Sesja", "Sesje", "Sesji"])}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </section>
 
       {sections.length > 0 && (
         <section id="about" className="mx-auto w-full max-w-4xl px-4 py-12">
