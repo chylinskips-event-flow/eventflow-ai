@@ -22,6 +22,7 @@ export type Event = {
   banner_url: string | null;
   primary_color: string | null;
   location: string | null;
+  event_type: string | null;
   room_names: string[] | null;
   interest_options: string[] | null;
   registration_open: boolean;

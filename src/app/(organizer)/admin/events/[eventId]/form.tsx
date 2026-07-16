@@ -13,6 +13,7 @@ import {
 import type { Event } from "@/lib/events";
 import { toDateTimeLocalValue } from "@/lib/format";
 import { validateImageFile, MB } from "@/lib/upload-validation";
+import { EVENT_TYPE_OPTIONS, NO_EVENT_TYPE_VALUE } from "@/lib/event-options";
 import { slugify } from "@/lib/slug";
 import { TIMEZONES } from "@/lib/timezones";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,9 @@ export function EventEditForm({ event }: { event: Event }) {
   const [slug, setSlug] = useState(event.slug);
   const [slugTouched, setSlugTouched] = useState(true);
   const [timezone, setTimezone] = useState(event.timezone ?? "Europe/Warsaw");
+  const [eventType, setEventType] = useState(
+    event.event_type ?? NO_EVENT_TYPE_VALUE,
+  );
   const [roomNamesText, setRoomNamesText] = useState(
     (event.room_names ?? []).join("\n"),
   );
@@ -375,6 +379,27 @@ export function EventEditForm({ event }: { event: Event }) {
                 name="location"
                 defaultValue={event.location ?? ""}
               />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="event_type">Typ wydarzenia (opcjonalnie)</Label>
+              <input
+                type="hidden"
+                name="event_type"
+                value={eventType === NO_EVENT_TYPE_VALUE ? "" : eventType}
+              />
+              <Select value={eventType} onValueChange={setEventType}>
+                <SelectTrigger id="event_type" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_EVENT_TYPE_VALUE}>Nie wybrano</SelectItem>
+                  {EVENT_TYPE_OPTIONS.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="room_names">Sale (opcjonalnie)</Label>

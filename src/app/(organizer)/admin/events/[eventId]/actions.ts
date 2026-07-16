@@ -22,6 +22,7 @@ export async function updateEvent(
   const endsAt = formData.get("ends_at");
   const timezone = formData.get("timezone");
   const location = formData.get("location");
+  const eventType = formData.get("event_type");
   const primaryColor = formData.get("primary_color");
   const roomNames = parseLines(formData.get("room_names"));
   const interestOptions = parseLines(formData.get("interest_options"));
@@ -90,6 +91,10 @@ export async function updateEvent(
       location:
         typeof location === "string" && location.trim()
           ? location.trim()
+          : null,
+      event_type:
+        typeof eventType === "string" && eventType.trim()
+          ? eventType.trim()
           : null,
       primary_color:
         typeof primaryColor === "string" && primaryColor.trim()

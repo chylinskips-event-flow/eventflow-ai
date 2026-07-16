@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { createEvent, type CreateEventState } from "./actions";
 import { slugify } from "@/lib/slug";
 import { TIMEZONES, DEFAULT_TIMEZONE } from "@/lib/timezones";
+import { EVENT_TYPE_OPTIONS, NO_EVENT_TYPE_VALUE } from "@/lib/event-options";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +36,7 @@ export function NewEventForm() {
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
+  const [eventType, setEventType] = useState(NO_EVENT_TYPE_VALUE);
   const [roomNamesText, setRoomNamesText] = useState("");
   const [interestOptionsText, setInterestOptionsText] = useState("");
   const [requiresApproval, setRequiresApproval] = useState(false);
@@ -124,6 +126,27 @@ export function NewEventForm() {
             <div className="flex flex-col gap-2">
               <Label htmlFor="location">Lokalizacja (opcjonalnie)</Label>
               <Input id="location" name="location" placeholder="Warszawa" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="event_type">Typ wydarzenia (opcjonalnie)</Label>
+              <input
+                type="hidden"
+                name="event_type"
+                value={eventType === NO_EVENT_TYPE_VALUE ? "" : eventType}
+              />
+              <Select value={eventType} onValueChange={setEventType}>
+                <SelectTrigger id="event_type" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_EVENT_TYPE_VALUE}>Nie wybrano</SelectItem>
+                  {EVENT_TYPE_OPTIONS.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="room_names">Sale (opcjonalnie)</Label>

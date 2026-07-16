@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -48,36 +54,39 @@ export function RegisterForm({
   }
 
   return (
-    <Card className="w-full max-w-2xl">
+    <Card className="w-full max-w-2xl rounded-xl">
         <CardHeader>
           <CardTitle>Dane uczestnika</CardTitle>
+          <CardDescription>Pola oznaczone * są wymagane.</CardDescription>
         </CardHeader>
         <CardContent>
           <form action={formAction} className="flex flex-col gap-5">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="first_name">Imię</Label>
-              <Input
-                id="first_name"
-                name="first_name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                required
-                className="h-12 text-base"
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="first_name">Imię *</Label>
+                <Input
+                  id="first_name"
+                  name="first_name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                  className="h-12 text-base"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="last_name">Nazwisko *</Label>
+                <Input
+                  id="last_name"
+                  name="last_name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required
+                  className="h-12 text-base"
+                />
+              </div>
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="last_name">Nazwisko</Label>
-              <Input
-                id="last_name"
-                name="last_name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                required
-                className="h-12 text-base"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Email *</Label>
               <Input
                 id="email"
                 name="email"
@@ -170,23 +179,25 @@ export function RegisterForm({
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-start gap-3">
-              <Checkbox id="gdpr_consent" name="gdpr_consent" required className="mt-1" />
-              <Label htmlFor="gdpr_consent" className="text-sm leading-snug font-normal">
-                Wyrażam zgodę na przetwarzanie moich danych osobowych w celu
-                organizacji wydarzenia „{event.name}” zgodnie z RODO.
-              </Label>
-            </div>
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="marketing_consent"
-                name="marketing_consent"
-                className="mt-1"
-              />
-              <Label htmlFor="marketing_consent" className="text-sm leading-snug font-normal">
-                Wyrażam zgodę na otrzymywanie informacji marketingowych
-                (opcjonalnie).
-              </Label>
+            <div className="flex flex-col gap-4 border-t pt-4">
+              <div className="flex items-start gap-3">
+                <Checkbox id="gdpr_consent" name="gdpr_consent" required className="mt-1" />
+                <Label htmlFor="gdpr_consent" className="text-sm leading-snug font-normal">
+                  Wyrażam zgodę na przetwarzanie moich danych osobowych w celu
+                  organizacji wydarzenia „{event.name}” zgodnie z RODO.
+                </Label>
+              </div>
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="marketing_consent"
+                  name="marketing_consent"
+                  className="mt-1"
+                />
+                <Label htmlFor="marketing_consent" className="text-sm leading-snug font-normal">
+                  Wyrażam zgodę na otrzymywanie informacji marketingowych
+                  (opcjonalnie).
+                </Label>
+              </div>
             </div>
             {state.status === "error" && (
               <p className="text-sm text-destructive">{state.message}</p>

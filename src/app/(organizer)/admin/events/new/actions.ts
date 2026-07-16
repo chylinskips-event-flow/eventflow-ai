@@ -22,6 +22,7 @@ export async function createEvent(
   const endsAt = formData.get("ends_at");
   const timezone = formData.get("timezone");
   const location = formData.get("location");
+  const eventType = formData.get("event_type");
   const roomNames = parseLines(formData.get("room_names"));
   const interestOptions = parseLines(formData.get("interest_options"));
   const requiresApproval = formData.get("requires_approval") === "on";
@@ -90,6 +91,8 @@ export async function createEvent(
       ends_at: endsAtIso,
       timezone,
       location: typeof location === "string" && location.trim() ? location.trim() : null,
+      event_type:
+        typeof eventType === "string" && eventType.trim() ? eventType.trim() : null,
       room_names: roomNames,
       // Pusta lista -> NULL: fallback do domyślnej, zahardkodowanej listy.
       interest_options: interestOptions.length > 0 ? interestOptions : null,

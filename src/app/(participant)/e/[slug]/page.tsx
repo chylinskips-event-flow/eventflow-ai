@@ -244,7 +244,7 @@ export default async function ParticipantEventPage({
       <div className="relative z-10 mx-auto -mt-10 w-full max-w-3xl px-4 md:-mt-20">
         <div className="flex flex-col gap-4 rounded-xl border bg-background p-5 shadow-lg md:p-8">
           <Badge variant="secondary" className="w-fit">
-            WYDARZENIE
+            {event.event_type?.toUpperCase() ?? "WYDARZENIE"}
           </Badge>
           <h1 className="text-3xl font-bold md:text-4xl">{event.name}</h1>
           {(event.starts_at || event.location) && (
@@ -271,14 +271,16 @@ export default async function ParticipantEventPage({
             </p>
           )}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button asChild size="lg" className="w-full sm:w-auto">
-              <Link href={`/e/${slug}/register`}>Zarejestruj się →</Link>
-            </Button>
-            {sessions.length > 0 && (
-              <Button asChild size="lg" variant="outline" className="w-full sm:w-auto">
-                <a href="#agenda">Zobacz agendę</a>
+            <div className="flex gap-3">
+              <Button asChild size="lg" className="flex-1 sm:flex-none">
+                <Link href={`/e/${slug}/register`}>Zarejestruj się →</Link>
               </Button>
-            )}
+              {sessions.length > 0 && (
+                <Button asChild size="lg" variant="outline" className="flex-1 sm:flex-none">
+                  <a href="#agenda">Zobacz agendę</a>
+                </Button>
+              )}
+            </div>
 
             {/* Statystyki inline: tylko dla liczb >= 3 (małe liczby działają
                 antymarketingowo — świadoma decyzja). Desktop: po prawej
@@ -322,7 +324,7 @@ export default async function ParticipantEventPage({
             <a
               key={link.href}
               href={link.href}
-              className="font-medium text-muted-foreground hover:text-foreground"
+              className="font-semibold text-foreground/80 hover:text-foreground"
             >
               {link.label}
             </a>
