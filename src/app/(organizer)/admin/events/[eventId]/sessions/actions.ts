@@ -234,9 +234,10 @@ export async function deleteSession(
     .eq("event_id", eventId);
 
   if (error) {
+    console.error("deleteSession failed:", error);
     return {
       status: "error",
-      message: `Nie udało się usunąć sesji: ${error.message}`,
+      message: "Nie udało się usunąć sesji. Spróbuj ponownie.",
     };
   }
 

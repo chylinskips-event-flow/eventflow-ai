@@ -196,6 +196,26 @@ export function formatDateTime(
   }).format(new Date(value));
 }
 
+// Zakres data+godzina bez redundancji: gdy start i koniec są tego samego dnia
+// (w strefie eventu) pokazujemy datę raz — "15 lip 2026, 08:30 – 16:00";
+// przy różnych dniach pełny zakres z datą po obu stronach.
+export function formatDateTimeRange(
+  startsAt: string | null,
+  endsAt: string | null,
+  timeZone?: string | null,
+): string | null {
+  if (!startsAt) return null;
+  const start = formatDateTime(startsAt, timeZone);
+  if (!endsAt) return start;
+
+  const sameDay =
+    getDateGroupKey(startsAt, timeZone) === getDateGroupKey(endsAt, timeZone);
+  const end = sameDay
+    ? formatTime(endsAt, timeZone)
+    : formatDateTime(endsAt, timeZone);
+  return `${start} – ${end}`;
+}
+
 /**
  * Jedyne źródło prawdy dla "czy sesja trwa teraz". Czyste porównanie
  * absolutnego czasu (epoch ms) — strefa czasowa eventu NIE ma tu znaczenia,

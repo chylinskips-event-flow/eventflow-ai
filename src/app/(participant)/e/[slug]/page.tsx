@@ -14,7 +14,7 @@ import {
   getEventContentSections,
   getEventContentSectionsForPreview,
 } from "@/lib/event-content";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTimeRange } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -260,10 +260,12 @@ export default async function ParticipantEventPage({
           <h1 className="text-3xl font-bold md:text-4xl">{event.name}</h1>
           {(event.starts_at || event.location) && (
             <p className="text-lg text-muted-foreground">
-              {event.starts_at && formatDateTime(event.starts_at, event.timezone)}
               {event.starts_at &&
-                event.ends_at &&
-                ` – ${formatDateTime(event.ends_at, event.timezone)}`}
+                formatDateTimeRange(
+                  event.starts_at,
+                  event.ends_at,
+                  event.timezone,
+                )}
               {event.starts_at && event.location && " · "}
               {event.location}
             </p>

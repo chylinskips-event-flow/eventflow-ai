@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getOwnOrganization } from "@/lib/organizations";
 import { getOrganizationEvents, type Event } from "@/lib/events";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTimeRange } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,17 +29,7 @@ function formatDateRange(
   endsAt: string | null,
   timeZone: string | null,
 ) {
-  if (!startsAt) {
-    return "Termin nieustalony";
-  }
-
-  const start = formatDateTime(startsAt, timeZone);
-
-  if (!endsAt) {
-    return start;
-  }
-
-  return `${start} – ${formatDateTime(endsAt, timeZone)}`;
+  return formatDateTimeRange(startsAt, endsAt, timeZone) ?? "Termin nieustalony";
 }
 
 export default async function OrganizerAdminPage() {
