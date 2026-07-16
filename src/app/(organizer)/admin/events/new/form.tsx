@@ -7,6 +7,7 @@ import { TIMEZONES, DEFAULT_TIMEZONE } from "@/lib/timezones";
 import { EVENT_TYPE_OPTIONS, NO_EVENT_TYPE_VALUE } from "@/lib/event-options";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -36,6 +37,8 @@ export function NewEventForm() {
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
   const [eventType, setEventType] = useState(NO_EVENT_TYPE_VALUE);
   const [roomNamesText, setRoomNamesText] = useState("");
   const [interestOptionsText, setInterestOptionsText] = useState("");
@@ -90,20 +93,20 @@ export function NewEventForm() {
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="starts_at">Początek</Label>
-                <Input
+                <DateTimePicker
                   id="starts_at"
                   name="starts_at"
-                  type="datetime-local"
-                  required
+                  value={startsAt}
+                  onChange={setStartsAt}
                 />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="ends_at">Koniec</Label>
-                <Input
+                <DateTimePicker
                   id="ends_at"
                   name="ends_at"
-                  type="datetime-local"
-                  required
+                  value={endsAt}
+                  onChange={setEndsAt}
                 />
               </div>
             </div>

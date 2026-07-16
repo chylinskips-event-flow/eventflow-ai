@@ -19,6 +19,7 @@ import { TIMEZONES } from "@/lib/timezones";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FileInput } from "@/components/ui/file-input";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -91,6 +92,12 @@ export function EventEditForm({ event }: { event: Event }) {
   const [slug, setSlug] = useState(event.slug);
   const [slugTouched, setSlugTouched] = useState(true);
   const [timezone, setTimezone] = useState(event.timezone ?? "Europe/Warsaw");
+  const [startsAt, setStartsAt] = useState(
+    toDateTimeLocalValue(event.starts_at, event.timezone),
+  );
+  const [endsAt, setEndsAt] = useState(
+    toDateTimeLocalValue(event.ends_at, event.timezone),
+  );
   const [eventType, setEventType] = useState(
     event.event_type ?? NO_EVENT_TYPE_VALUE,
   );
@@ -329,22 +336,20 @@ export function EventEditForm({ event }: { event: Event }) {
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="starts_at">Początek</Label>
-                <Input
+                <DateTimePicker
                   id="starts_at"
                   name="starts_at"
-                  type="datetime-local"
-                  defaultValue={toDateTimeLocalValue(event.starts_at, event.timezone)}
-                  required
+                  value={startsAt}
+                  onChange={setStartsAt}
                 />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="ends_at">Koniec</Label>
-                <Input
+                <DateTimePicker
                   id="ends_at"
                   name="ends_at"
-                  type="datetime-local"
-                  defaultValue={toDateTimeLocalValue(event.ends_at, event.timezone)}
-                  required
+                  value={endsAt}
+                  onChange={setEndsAt}
                 />
               </div>
             </div>

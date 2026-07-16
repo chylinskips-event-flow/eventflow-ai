@@ -11,6 +11,7 @@ import {
 } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -251,14 +252,11 @@ export function SessionFormDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="starts_at">Początek</Label>
-              <Input
+              <DateTimePicker
                 id="starts_at"
                 name="starts_at"
-                type="datetime-local"
-                step={300}
                 value={startsAt}
-                onChange={(e) => setStartsAt(e.target.value)}
-                required
+                onChange={setStartsAt}
               />
             </div>
             <div className="flex flex-col gap-2">
