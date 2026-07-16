@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -31,8 +32,15 @@ import {
 } from "@/components/ui/select";
 
 const initialState: SessionFormState = { status: "idle" };
-const NO_SPEAKER_VALUE = "__none__";
+const NO_MODERATOR_VALUE = "__none__";
 const NO_ROOM_VALUE = "__no_room__";
+
+function speakerFullName(speaker: Speaker) {
+  return (
+    [speaker.first_name, speaker.last_name].filter(Boolean).join(" ") ||
+    "Bez nazwy"
+  );
+}
 const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
 const DEFAULT_DURATION = 45;
 const CUSTOM_DURATION_VALUE = "__custom__";
@@ -126,7 +134,26 @@ export function SessionFormDialog({
   );
   const durationValue =
     durationSelect === CUSTOM_DURATION_VALUE ? customDuration : durationSelect;
-  const [speakerId, setSpeakerId] = useState(session?.speaker_id ?? NO_SPEAKER_VALUE);
+  // Kolejność w tablicy = position (kolejność klikania chipów).
+  const [speakerIds, setSpeakerIds] = useState<string[]>(
+    () => session?.speakers.map((entry) => entry.speaker.id) ?? [],
+  );
+  const [moderatorId, setModeratorId] = useState<string>(
+    () =>
+      session?.speakers.find((entry) => entry.role === "moderator")?.speaker
+        .id ?? NO_MODERATOR_VALUE,
+  );
+
+  function toggleSpeaker(id: string) {
+    setSpeakerIds((prev) => {
+      if (prev.includes(id)) {
+        // Odznaczenie moderatora resetuje wybór moderatora.
+        if (id === moderatorId) setModeratorId(NO_MODERATOR_VALUE);
+        return prev.filter((item) => item !== id);
+      }
+      return [...prev, id];
+    });
+  }
 
   // "Koniec: HH:MM" na żywo (tylko do wyświetlenia; serwer liczy ends_at sam).
   const endLabel = useMemo(() => {
@@ -304,22 +331,72 @@ export function SessionFormDialog({
             </p>
           )}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="speaker_id">Prelegent</Label>
-            <input type="hidden" name="speaker_id" value={speakerId === NO_SPEAKER_VALUE ? "" : speakerId} />
-            <Select value={speakerId} onValueChange={setSpeakerId}>
-              <SelectTrigger id="speaker_id" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_SPEAKER_VALUE}>Brak prelegenta</SelectItem>
-                {speakers.map((speaker) => (
-                  <SelectItem key={speaker.id} value={speaker.id}>
-                    {[speaker.first_name, speaker.last_name].filter(Boolean).join(" ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Prelegenci (opcjonalnie)</Label>
+            <div className="flex flex-wrap gap-2">
+              {speakers.map((speaker) => {
+                const order = speakerIds.indexOf(speaker.id);
+                const selected = order !== -1;
+                return (
+                  <button
+                    key={speaker.id}
+                    type="button"
+                    onClick={() => toggleSpeaker(speaker.id)}
+                    className={cn(
+                      "rounded-full border px-4 py-2 text-sm transition-colors",
+                      selected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-input bg-background text-foreground",
+                    )}
+                  >
+                    {selected && (
+                      <span className="mr-1 text-xs opacity-80">
+                        {order + 1}.
+                      </span>
+                    )}
+                    {speakerFullName(speaker)}
+                  </button>
+                );
+              })}
+            </div>
+            {speakers.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Nie masz jeszcze prelegentów – dodaj ich w zakładce Prelegenci.
+              </p>
+            )}
+            {speakerIds.map((id) => (
+              <input key={id} type="hidden" name="speaker_ids" value={id} />
+            ))}
           </div>
+
+          {speakerIds.length >= 2 && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="moderator_id">Moderator (opcjonalnie)</Label>
+              <input
+                type="hidden"
+                name="moderator_id"
+                value={moderatorId === NO_MODERATOR_VALUE ? "" : moderatorId}
+              />
+              <Select value={moderatorId} onValueChange={setModeratorId}>
+                <SelectTrigger id="moderator_id" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_MODERATOR_VALUE}>
+                    Brak moderatora
+                  </SelectItem>
+                  {speakerIds.map((id) => {
+                    const speaker = speakers.find((item) => item.id === id);
+                    if (!speaker) return null;
+                    return (
+                      <SelectItem key={id} value={id}>
+                        {speakerFullName(speaker)}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {state.status === "error" && (
             <p className="text-sm text-destructive">{state.message}</p>
           )}

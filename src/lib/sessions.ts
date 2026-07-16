@@ -1,5 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { Speaker } from "@/lib/speakers";
+
+export type SessionSpeakerRole = "speaker" | "moderator";
+
+/**
+ * Prelegent przypisany do sesji. CELOWO bez `position` — konsumenci potrzebują
+ * tylko kolejności (już zastosowanej: tablica jest posortowana) i roli.
+ * Wystawianie position obok posortowanej tablicy = dwa źródła prawdy o
+ * kolejności. position żyje w bazie i w zapisie formularza.
+ */
+export type SessionSpeaker = {
+  speaker: Speaker;
+  role: SessionSpeakerRole;
+};
 
 export type Session = {
   id: string;
@@ -10,20 +24,44 @@ export type Session = {
   room: string | null;
   starts_at: string | null;
   ends_at: string | null;
-  speaker_id: string | null;
+  speakers: SessionSpeaker[];
   created_at: string;
   updated_at: string;
 };
+
+// Jeden round-trip: join robi Postgres na indeksach zamiast JS.
+const SESSION_SELECT = "*, session_speakers(role, position, speakers(*))";
+
+type SessionRow = Omit<Session, "speakers"> & {
+  session_speakers: {
+    role: SessionSpeakerRole;
+    position: number;
+    speakers: Speaker | null;
+  }[] | null;
+};
+
+function mapSession(row: SessionRow): Session {
+  const { session_speakers, ...rest } = row;
+  const speakers = (session_speakers ?? [])
+    .filter((link) => link.speakers !== null)
+    .sort((a, b) => a.position - b.position)
+    .map((link) => ({
+      speaker: link.speakers as Speaker,
+      role: link.role,
+    }));
+
+  return { ...rest, speakers };
+}
 
 export async function getEventSessions(eventId: string): Promise<Session[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("sessions")
-    .select("*")
+    .select(SESSION_SELECT)
     .eq("event_id", eventId)
     .order("starts_at", { ascending: true });
 
-  return data ?? [];
+  return ((data ?? []) as unknown as SessionRow[]).map(mapSession);
 }
 
 /**
@@ -38,9 +76,9 @@ export async function getEventSessionsForParticipant(
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("sessions")
-    .select("*")
+    .select(SESSION_SELECT)
     .eq("event_id", eventId)
     .order("starts_at", { ascending: true });
 
-  return data ?? [];
+  return ((data ?? []) as unknown as SessionRow[]).map(mapSession);
 }

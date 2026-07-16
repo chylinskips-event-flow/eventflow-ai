@@ -4,7 +4,6 @@ import { ArrowLeft } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { getEventSessionsForParticipant } from "@/lib/sessions";
-import { getEventSpeakersForParticipant } from "@/lib/speakers";
 import { getAttendeeAgendaSessionIds } from "@/lib/agenda-items";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,13 +27,12 @@ export default async function AgendaPage({
     redirect(`/e/${slug}`);
   }
 
-  const [sessions, speakers, agendaSessionIds] = await Promise.all([
+  // Prelegenci przychodzą razem z sesjami (nested select) — bez osobnego
+  // zapytania i mapy.
+  const [sessions, agendaSessionIds] = await Promise.all([
     getEventSessionsForParticipant(event.id),
-    getEventSpeakersForParticipant(event.id),
     getAttendeeAgendaSessionIds(attendee.id),
   ]);
-
-  const speakerMap = new Map(speakers.map((speaker) => [speaker.id, speaker]));
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
@@ -57,7 +55,6 @@ export default async function AgendaPage({
         <AgendaSessionList
           slug={slug}
           sessions={sessions}
-          speakerMap={speakerMap}
           agendaSessionIds={agendaSessionIds}
           isLive={event.status === "live"}
           timezone={event.timezone}

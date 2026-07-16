@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { Session } from "@/lib/sessions";
-import type { Speaker } from "@/lib/speakers";
 import {
   formatDay,
+  formatSessionSpeakers,
   formatTime,
   formatTimeRange,
   getCurrentTimestamp,
@@ -10,11 +10,6 @@ import {
   isSessionOngoing,
 } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
-
-function speakerName(speaker: Speaker | undefined) {
-  if (!speaker) return null;
-  return [speaker.first_name, speaker.last_name].filter(Boolean).join(" ") || null;
-}
 
 function AgendaBadge() {
   return (
@@ -27,13 +22,11 @@ function AgendaBadge() {
 export function LiveNow({
   slug,
   sessions,
-  speakerMap,
   agendaSessionIds,
   timezone,
 }: {
   slug: string;
   sessions: Session[];
-  speakerMap: Map<string, Speaker>;
   agendaSessionIds: Set<string>;
   timezone: string | null;
 }) {
@@ -60,11 +53,7 @@ export function LiveNow({
         <h2 className="text-lg font-semibold">Teraz trwa</h2>
         {ongoing.length > 0 ? (
           ongoing.map((session) => {
-            const speaker = speakerName(
-              session.speaker_id
-                ? speakerMap.get(session.speaker_id)
-                : undefined,
-            );
+            const speaker = formatSessionSpeakers(session.speakers);
             const timeRange = formatTimeRange(
               session.starts_at,
               session.ends_at,

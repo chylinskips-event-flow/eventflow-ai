@@ -118,12 +118,11 @@ export default async function ParticipantEventPage({
     );
 
     if (event.status === "live") {
-      const [sessions, speakers, agendaSessionIds] = await Promise.all([
+      // Prelegenci przychodzą razem z sesjami (nested select).
+      const [sessions, agendaSessionIds] = await Promise.all([
         getEventSessionsForParticipant(event.id),
-        getEventSpeakersForParticipant(event.id),
         getAttendeeAgendaSessionIds(attendee.id),
       ]);
-      const speakerMap = new Map(speakers.map((speaker) => [speaker.id, speaker]));
 
       return (
         <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
@@ -136,7 +135,6 @@ export default async function ParticipantEventPage({
           <LiveNow
             slug={slug}
             sessions={sessions}
-            speakerMap={speakerMap}
             agendaSessionIds={agendaSessionIds}
             timezone={event.timezone}
           />
@@ -204,8 +202,6 @@ export default async function ParticipantEventPage({
         getEventSessions(event.id),
         getEventSpeakers(event.id),
       ]);
-
-  const speakerMap = new Map(speakers.map((speaker) => [speaker.id, speaker]));
 
   const navLinks = [
     sections.length > 0 ? { href: "#about", label: "O wydarzeniu" } : null,
@@ -353,7 +349,6 @@ export default async function ParticipantEventPage({
           <AgendaSessionList
             slug={slug}
             sessions={sessions}
-            speakerMap={speakerMap}
             isLive={event.status === "live"}
             timezone={event.timezone}
             readOnly

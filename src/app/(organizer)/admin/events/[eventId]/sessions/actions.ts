@@ -66,10 +66,29 @@ async function readSessionFields(
   const room = formData.get("room");
   const startsAt = formData.get("starts_at");
   const durationRaw = formData.get("duration_minutes");
-  const speakerId = formData.get("speaker_id");
+  const moderatorId = formData.get("moderator_id");
+  // Kolejność zaznaczeń w formularzu = position.
+  const speakerIds = Array.from(
+    new Set(
+      formData
+        .getAll("speaker_ids")
+        .filter(
+          (value): value is string =>
+            typeof value === "string" && value.length > 0,
+        ),
+    ),
+  );
 
   if (typeof title !== "string" || !title.trim()) {
     return { error: "Podaj tytuł sesji." } as const;
+  }
+
+  const moderator =
+    typeof moderatorId === "string" && moderatorId ? moderatorId : null;
+  if (moderator && !speakerIds.includes(moderator)) {
+    return {
+      error: "Moderator musi być jednym z wybranych prelegentów.",
+    } as const;
   }
 
   if (typeof startsAt !== "string" || !startsAt) {
@@ -132,9 +151,13 @@ async function readSessionFields(
       room: trimmedRoom,
       starts_at: startsAtIso,
       ends_at: endsAtIso,
-      speaker_id:
-        typeof speakerId === "string" && speakerId ? speakerId : null,
     },
+    // Wiersze do session_speakers (bez session_id — dokładany przy zapisie).
+    speakerLinks: speakerIds.map((id, index) => ({
+      speaker_id: id,
+      role: id === moderator ? "moderator" : "speaker",
+      position: index,
+    })),
   } as const;
 }
 
@@ -168,15 +191,36 @@ export async function createSession(
     return { status: "error", message: parsed.error };
   }
 
-  const { error } = await supabase
+  const { data: created, error } = await supabase
     .from("sessions")
-    .insert({ event_id: eventId, ...parsed.fields });
+    .insert({ event_id: eventId, ...parsed.fields })
+    .select("id")
+    .single();
 
-  if (error) {
+  if (error || !created) {
     return {
       status: "error",
       message: "Nie udało się dodać sesji. Spróbuj ponownie.",
     };
+  }
+
+  if (parsed.speakerLinks.length > 0) {
+    const { error: linkError } = await supabase
+      .from("session_speakers")
+      .insert(
+        parsed.speakerLinks.map((link) => ({
+          session_id: created.id as string,
+          ...link,
+        })),
+      );
+
+    if (linkError) {
+      console.error("createSession: session_speakers insert failed", linkError);
+      return {
+        status: "error",
+        message: "Sesja dodana, ale nie udało się zapisać prelegentów.",
+      };
+    }
   }
 
   revalidatePath(`/admin/events/${eventId}/sessions`);
@@ -214,6 +258,40 @@ export async function updateSession(
       status: "error",
       message: "Nie udało się zapisać zmian. Spróbuj ponownie.",
     };
+  }
+
+  // Przypisania prelegentów: pełna wymiana (DELETE + INSERT) — prostsze i
+  // spójne z tym, że formularz wysyła kompletną listę w nowej kolejności.
+  const { error: deleteError } = await supabase
+    .from("session_speakers")
+    .delete()
+    .eq("session_id", sessionId);
+
+  if (deleteError) {
+    console.error("updateSession: session_speakers delete failed", deleteError);
+    return {
+      status: "error",
+      message: "Nie udało się zapisać prelegentów. Spróbuj ponownie.",
+    };
+  }
+
+  if (parsed.speakerLinks.length > 0) {
+    const { error: linkError } = await supabase
+      .from("session_speakers")
+      .insert(
+        parsed.speakerLinks.map((link) => ({
+          session_id: sessionId,
+          ...link,
+        })),
+      );
+
+    if (linkError) {
+      console.error("updateSession: session_speakers insert failed", linkError);
+      return {
+        status: "error",
+        message: "Nie udało się zapisać prelegentów. Spróbuj ponownie.",
+      };
+    }
   }
 
   revalidatePath(`/admin/events/${eventId}/sessions`);

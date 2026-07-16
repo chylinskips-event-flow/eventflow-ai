@@ -23,6 +23,41 @@ export function getCurrentTimestamp() {
 }
 
 /**
+ * Prelegenci sesji jako jeden string: "Moderator: X · Y, Z" (gdy jest
+ * moderator) albo "Y, Z". Typ strukturalny — bez importu z lib/sessions
+ * (server-only), więc helper jest client-safe.
+ */
+export function formatSessionSpeakers(
+  speakers: {
+    speaker: { first_name: string | null; last_name: string | null };
+    role: string;
+  }[],
+): string | null {
+  const fullName = (entry: {
+    speaker: { first_name: string | null; last_name: string | null };
+  }) =>
+    [entry.speaker.first_name, entry.speaker.last_name]
+      .filter(Boolean)
+      .join(" ");
+
+  const moderator = speakers.find((entry) => entry.role === "moderator");
+  const rest = speakers
+    .filter((entry) => entry.role !== "moderator")
+    .map(fullName)
+    .filter(Boolean);
+
+  if (moderator) {
+    const moderatorName = fullName(moderator);
+    const restLabel = rest.join(", ");
+    return restLabel
+      ? `Moderator: ${moderatorName} · ${restLabel}`
+      : `Moderator: ${moderatorName}`;
+  }
+
+  return rest.join(", ") || null;
+}
+
+/**
  * Polska odmiana liczebnika. forms = [mianownik l.poj. (1),
  * "2-4" (mianownik l.mn.), "5+" (dopełniacz l.mn.)].
  * Np. pluralizePl(n, ["uczestnik", "uczestnicy", "uczestników"]).

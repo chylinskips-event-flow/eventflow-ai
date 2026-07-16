@@ -3,7 +3,12 @@
 import { useState, useTransition } from "react";
 import { deleteSession } from "./actions";
 import type { Session } from "@/lib/sessions";
-import { formatDay, formatTimeRange, getDateGroupKey } from "@/lib/format";
+import {
+  formatDay,
+  formatSessionSpeakers,
+  formatTimeRange,
+  getDateGroupKey,
+} from "@/lib/format";
 import type { Speaker } from "@/lib/speakers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,18 +24,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-function speakerName(speaker: Speaker | undefined) {
-  if (!speaker) return "Brak prelegenta";
-  return [speaker.first_name, speaker.last_name].filter(Boolean).join(" ") || "Brak prelegenta";
-}
-
 function SessionRow({
   eventId,
   session,
   speakers,
   existingSessions,
   roomNames,
-  speaker,
   timezone,
 }: {
   eventId: string;
@@ -38,7 +37,6 @@ function SessionRow({
   speakers: Speaker[];
   existingSessions: Session[];
   roomNames: string[];
-  speaker?: Speaker;
   timezone: string | null;
 }) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -69,7 +67,7 @@ function SessionRow({
         <div className="flex flex-1 flex-col">
           <span className="font-medium">{session.title}</span>
           <span className="text-sm text-muted-foreground">
-            {speakerName(speaker)}
+            {formatSessionSpeakers(session.speakers) ?? "Brak prelegenta"}
           </span>
         </div>
         <SessionFormDialog
@@ -129,8 +127,6 @@ export function SessionList({
   roomNames: string[];
   timezone: string | null;
 }) {
-  const speakerMap = new Map(speakers.map((speaker) => [speaker.id, speaker]));
-
   const groups = new Map<string, Session[]>();
   for (const session of sessions) {
     const key = getDateGroupKey(session.starts_at, timezone);
@@ -156,7 +152,6 @@ export function SessionList({
               speakers={speakers}
               existingSessions={sessions}
               roomNames={roomNames}
-              speaker={session.speaker_id ? speakerMap.get(session.speaker_id) : undefined}
               timezone={timezone}
             />
           ))}

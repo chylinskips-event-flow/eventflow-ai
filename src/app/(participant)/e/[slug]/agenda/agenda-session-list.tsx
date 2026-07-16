@@ -1,25 +1,19 @@
 import type { Session } from "@/lib/sessions";
 import {
   formatDay,
+  formatSessionSpeakers,
   formatTimeRange,
   getCurrentTimestamp,
   getDateGroupKey,
   isSessionOngoing,
 } from "@/lib/format";
-import type { Speaker } from "@/lib/speakers";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { AgendaToggleButton } from "./agenda-toggle-button";
 
-function speakerName(speaker: Speaker | undefined) {
-  if (!speaker) return null;
-  return [speaker.first_name, speaker.last_name].filter(Boolean).join(" ") || null;
-}
-
 export function AgendaSessionList({
   slug,
   sessions,
-  speakerMap,
   agendaSessionIds,
   isLive,
   timezone,
@@ -27,7 +21,6 @@ export function AgendaSessionList({
 }: {
   slug: string;
   sessions: Session[];
-  speakerMap: Map<string, Speaker>;
   agendaSessionIds?: Set<string>;
   isLive: boolean;
   timezone: string | null;
@@ -55,9 +48,7 @@ export function AgendaSessionList({
           {group.map((session) => {
             const isOngoing = isLive && isSessionOngoing(session, now);
 
-            const speaker = speakerName(
-              session.speaker_id ? speakerMap.get(session.speaker_id) : undefined,
-            );
+            const speaker = formatSessionSpeakers(session.speakers);
 
             return (
               <Card

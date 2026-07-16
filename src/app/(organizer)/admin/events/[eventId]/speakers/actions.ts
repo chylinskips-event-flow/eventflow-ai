@@ -222,8 +222,8 @@ export async function deleteSpeaker(
   const supabase = await createClient();
 
   const { count } = await supabase
-    .from("sessions")
-    .select("id", { count: "exact", head: true })
+    .from("session_speakers")
+    .select("session_id", { count: "exact", head: true })
     .eq("speaker_id", speakerId);
 
   if (count && count > 0) {
