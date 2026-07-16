@@ -18,6 +18,7 @@ export type RecommendedMatch = {
   job_title: string | null;
   industry: string | null;
   interests: string[];
+  looking_for: string | null;
   reason: string;
 };
 
@@ -147,6 +148,12 @@ export function RecommendedContacts({
                       </span>
                     ))}
                   </div>
+                )}
+                {match.looking_for && (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Szuka:</span>{" "}
+                    {match.looking_for}
+                  </p>
                 )}
                 <div className="mt-1 flex items-start gap-2 rounded-md bg-primary/5 px-3 py-2 text-left">
                   <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />

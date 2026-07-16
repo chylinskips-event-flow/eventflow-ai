@@ -15,17 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { GOAL_OPTIONS, NO_GOAL_VALUE } from "@/lib/attendee-options";
 import { cn } from "@/lib/utils";
 
 const initialState: RegisterAttendeeState = { status: "idle" };
-const NO_GOAL_VALUE = "__none__";
-
-const GOAL_OPTIONS = [
-  { value: "networking", label: "Networking" },
-  { value: "wiedza-branzowa", label: "Wiedza branżowa" },
-  { value: "poszukiwanie-dostawcow", label: "Poszukiwanie dostawców" },
-  { value: "inne", label: "Inne" },
-];
 
 export function RegisterForm({
   event,

@@ -53,6 +53,11 @@ function goalScore(
  * - +15 gdy ta sama branża (case-insensitive, trim),
  * - komplementarność celów (patrz goalScore).
  * 0 = brak dopasowania.
+ *
+ * CELOWA ASYMETRIA: looking_for ("czego szukam") NIE bierze udziału w scoringu.
+ * To wolny tekst — nie nadaje się do rule-based porównań (brak wspólnego
+ * słownika, synonimy, literówki). Zostaje sygnałem wyłącznie dla LLM w
+ * generateMatchReason(), gdzie model potrafi go zinterpretować semantycznie.
  */
 export function computeMatchScore(a: Attendee, b: Attendee): number {
   let score = 0;
@@ -182,7 +187,7 @@ export async function getCachedMatches(
 // Profil przekazywany do LLM — CELOWO bez email (i innych pól, których model
 // nie potrzebuje do uzasadnienia).
 function llmProfile(attendee: Attendee) {
-  return {
+  const profile: Record<string, unknown> = {
     imię: attendee.first_name,
     nazwisko: attendee.last_name,
     firma: attendee.company,
@@ -191,6 +196,11 @@ function llmProfile(attendee: Attendee) {
     zainteresowania: attendee.interests ?? [],
     cel: attendee.goal,
   };
+  // Dodaj tylko gdy niepuste — nie zaśmiecamy promptu null/pustym stringiem.
+  if (attendee.looking_for && attendee.looking_for.trim()) {
+    profile.czego_szuka = attendee.looking_for.trim();
+  }
+  return profile;
 }
 
 /**
@@ -202,7 +212,7 @@ export async function generateMatchReason(
   a: Attendee,
   b: Attendee,
 ): Promise<string | null> {
-  const prompt = `Jesteś asystentem networkingowym na wydarzeniu biznesowym. Na podstawie dwóch profili napisz JEDNO zdanie po polsku (maksymalnie 25 słów), dlaczego tym osobom warto porozmawiać. Bez imion, bez powitań, bez cudzysłowów — zwróć samo zdanie.
+  const prompt = `Jesteś asystentem networkingowym na wydarzeniu biznesowym. Na podstawie dwóch profili napisz JEDNO zdanie po polsku (maksymalnie 25 słów), dlaczego tym osobom warto porozmawiać. Bez imion, bez powitań, bez cudzysłowów — zwróć samo zdanie. Jeśli profile zawierają pole czego_szuka, potraktuj je jako najważniejszy sygnał dopasowania.
 
 Profil odbiorcy sugestii:
 ${JSON.stringify(llmProfile(a), null, 2)}

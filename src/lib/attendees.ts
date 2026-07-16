@@ -13,6 +13,7 @@ export type Attendee = {
   industry: string | null;
   interests: string[] | null;
   goal: string | null;
+  looking_for: string | null;
   gdpr_consent_at: string | null;
   marketing_consent: boolean;
   networking_visible: boolean;

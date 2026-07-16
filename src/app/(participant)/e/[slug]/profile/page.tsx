@@ -2,11 +2,15 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getCurrentAttendee } from "@/lib/attendee-session";
+import {
+  getEventBySlugForRegistration,
+  DEFAULT_INTEREST_OPTIONS,
+} from "@/lib/events";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { NetworkingToggle } from "./networking-toggle";
+import { ProfileForm } from "./profile-form";
 
 export default async function ProfilePage({
   params,
@@ -20,15 +24,23 @@ export default async function ProfilePage({
     redirect(`/e/${slug}`);
   }
 
+  const event = await getEventBySlugForRegistration(slug);
+
   const fullName = [attendee.first_name, attendee.last_name]
     .filter(Boolean)
     .join(" ");
   const initials = [attendee.first_name?.[0], attendee.last_name?.[0]]
     .filter(Boolean)
     .join("");
-  const role = [attendee.job_title, attendee.company]
-    .filter(Boolean)
-    .join(" · ");
+
+  // Lista chipów = opcje eventu (lub domyślne) + wartości historyczne
+  // uczestnika spoza tej listy, żeby zaznaczone zainteresowania nie znikały.
+  const baseInterests = event?.interest_options ?? DEFAULT_INTEREST_OPTIONS;
+  const currentInterests = attendee.interests ?? [];
+  const extraInterests = currentInterests.filter(
+    (interest) => !baseInterests.includes(interest),
+  );
+  const interestOptions = [...baseInterests, ...extraInterests];
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
@@ -40,7 +52,7 @@ export default async function ProfilePage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Twój profil</CardTitle>
+          <CardTitle>Dane konta</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-3 py-2 text-center">
           <Avatar className="size-16">
@@ -51,24 +63,27 @@ export default async function ProfilePage({
           {fullName && (
             <span className="text-lg font-semibold">{fullName}</span>
           )}
-          {role && (
-            <span className="text-sm text-muted-foreground">{role}</span>
-          )}
-          {attendee.industry && (
-            <Badge variant="secondary">{attendee.industry}</Badge>
-          )}
-          {attendee.interests && attendee.interests.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-1">
-              {attendee.interests.map((interest) => (
-                <span
-                  key={interest}
-                  className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                >
-                  {interest}
-                </span>
-              ))}
-            </div>
-          )}
+          <p className="text-sm text-muted-foreground">
+            Aby zmienić dane osobowe, skontaktuj się z organizatorem.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Profil networkingowy</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ProfileForm
+            slug={slug}
+            interestOptions={interestOptions}
+            company={attendee.company}
+            jobTitle={attendee.job_title}
+            industry={attendee.industry}
+            interests={currentInterests}
+            goal={attendee.goal}
+            lookingFor={attendee.looking_for}
+          />
         </CardContent>
       </Card>
 

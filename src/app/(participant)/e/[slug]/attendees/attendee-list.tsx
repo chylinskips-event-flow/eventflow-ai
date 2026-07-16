@@ -23,6 +23,7 @@ export type AttendeeListItem = {
   job_title: string | null;
   industry: string | null;
   interests: string[] | null;
+  looking_for: string | null;
   networking_visible: boolean;
 };
 
@@ -218,6 +219,12 @@ export function AttendeeList({
                         </span>
                       ))}
                     </div>
+                  )}
+                  {a.looking_for && (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">Szuka:</span>{" "}
+                      {a.looking_for}
+                    </p>
                   )}
                   {isSelf && (
                     <Button

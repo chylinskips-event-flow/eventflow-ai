@@ -65,7 +65,7 @@ export default async function AttendeesPage({
   const { data } = await supabase
     .from("attendees")
     .select(
-      "id, first_name, last_name, company, job_title, industry, interests, networking_visible",
+      "id, first_name, last_name, company, job_title, industry, interests, looking_for, networking_visible",
     )
     .eq("event_id", event.id)
     .eq("status", "approved")
@@ -90,6 +90,7 @@ export default async function AttendeesPage({
     job_title: match.attendee.job_title,
     industry: match.attendee.industry,
     interests: match.attendee.interests ?? [],
+    looking_for: match.attendee.looking_for,
     reason: match.reason ?? buildFallbackReason(attendee, match.attendee),
   }));
 
