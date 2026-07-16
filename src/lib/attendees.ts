@@ -21,6 +21,7 @@ export type Attendee = {
   status: AttendeeStatus;
   qr_code_token: string;
   checked_in_at: string | null;
+  matches_generated_at: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -4,8 +4,40 @@ import { ArrowLeft } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCachedMatches } from "@/lib/matchmaking";
+import type { Attendee } from "@/lib/attendees";
 import { Button } from "@/components/ui/button";
 import { AttendeeList, type AttendeeListItem } from "./attendee-list";
+import {
+  RecommendedContacts,
+  type RecommendedMatch,
+} from "./recommended-contacts";
+
+const REFRESH_LIMIT_MIN = 60;
+
+function normalizeStr(value: string | null): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+// Fallback uzasadnienia gdy reason z LLM jest NULL — wyliczony z danych obu
+// profili (wspólne zainteresowania, potem branża).
+function buildFallbackReason(self: Attendee, other: Attendee): string {
+  const otherInterests = new Set((other.interests ?? []).map(normalizeStr));
+  const common = (self.interests ?? []).filter((interest) =>
+    otherInterests.has(normalizeStr(interest)),
+  );
+  if (common.length > 0) {
+    return `Łączy Was: ${common.join(", ")}`;
+  }
+  if (
+    self.industry &&
+    other.industry &&
+    normalizeStr(self.industry) === normalizeStr(other.industry)
+  ) {
+    return `Wspólna branża: ${other.industry}`;
+  }
+  return "Podobne cele uczestnictwa.";
+}
 
 export default async function AttendeesPage({
   params,
@@ -48,6 +80,26 @@ export default async function AttendeesPage({
     ...rows.filter((row) => row.id !== attendee.id),
   ];
 
+  // Sekcja "Polecane kontakty" — CZYSTY odczyt cache (zero LLM tutaj).
+  const cachedMatches = await getCachedMatches(event.id, attendee.id);
+  const recommended: RecommendedMatch[] = cachedMatches.map((match) => ({
+    id: match.attendee.id,
+    first_name: match.attendee.first_name,
+    last_name: match.attendee.last_name,
+    company: match.attendee.company,
+    job_title: match.attendee.job_title,
+    industry: match.attendee.industry,
+    interests: match.attendee.interests ?? [],
+    reason: match.reason ?? buildFallbackReason(attendee, match.attendee),
+  }));
+
+  let minutesUntilRefresh = 0;
+  if (attendee.matches_generated_at) {
+    const elapsedMin =
+      (Date.now() - new Date(attendee.matches_generated_at).getTime()) / 60000;
+    minutesUntilRefresh = Math.max(0, Math.ceil(REFRESH_LIMIT_MIN - elapsedMin));
+  }
+
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4">
       <Button asChild variant="outline" size="sm" className="w-fit">
@@ -56,6 +108,12 @@ export default async function AttendeesPage({
         </Link>
       </Button>
       <h1 className="text-2xl font-semibold">Uczestnicy — {event.name}</h1>
+      <RecommendedContacts
+        slug={slug}
+        matches={recommended}
+        hasGenerated={attendee.matches_generated_at !== null}
+        minutesUntilRefresh={minutesUntilRefresh}
+      />
       <AttendeeList
         slug={slug}
         attendees={attendees}
