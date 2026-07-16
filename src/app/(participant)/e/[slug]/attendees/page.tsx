@@ -5,6 +5,7 @@ import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCachedMatches } from "@/lib/matchmaking";
+import { getContactStatesForEvent } from "@/lib/contact-requests";
 import type { Attendee } from "@/lib/attendees";
 import { Button } from "@/components/ui/button";
 import { AttendeeList, type AttendeeListItem } from "./attendee-list";
@@ -95,6 +96,10 @@ export default async function AttendeesPage({
     reason: match.reason ?? buildFallbackReason(attendee, match.attendee),
   }));
 
+  // Stan przycisku kontaktu dla całej siatki — JEDNO zapytanie zwracające mapę
+  // otherId → stan, zamiast odpytywania per karta (N+1).
+  const contactStates = await getContactStatesForEvent(event.id, attendee.id);
+
   let minutesUntilRefresh = 0;
   if (attendee.matches_generated_at) {
     const elapsedMin =
@@ -123,6 +128,7 @@ export default async function AttendeesPage({
         slug={slug}
         attendees={attendees}
         currentAttendeeId={attendee.id}
+        contactStates={contactStates}
       />
     </main>
   );

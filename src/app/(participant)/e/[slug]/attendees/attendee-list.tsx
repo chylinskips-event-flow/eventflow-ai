@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/select";
 import { pluralizePl } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type { ContactCardState } from "@/lib/contact-requests";
+import { ContactRequestButton } from "./contact-request-button";
 
 export type AttendeeListItem = {
   id: string;
@@ -35,10 +37,13 @@ export function AttendeeList({
   slug,
   attendees,
   currentAttendeeId,
+  contactStates,
 }: {
   slug: string;
   attendees: AttendeeListItem[];
   currentAttendeeId: string;
+  /** Mapa attendeeId → stan przycisku kontaktu, policzona server-side. */
+  contactStates: Record<string, ContactCardState>;
 }) {
   const [industry, setIndustry] = useState(ALL_INDUSTRIES);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
@@ -246,7 +251,7 @@ export function AttendeeList({
                       {a.looking_for}
                     </p>
                   )}
-                  {isSelf && (
+                  {isSelf ? (
                     <Button
                       asChild
                       variant="outline"
@@ -255,6 +260,14 @@ export function AttendeeList({
                     >
                       <Link href={`/e/${slug}/profile`}>Edytuj profil</Link>
                     </Button>
+                  ) : (
+                    <div className="mt-2 w-full">
+                      <ContactRequestButton
+                        slug={slug}
+                        recipientId={a.id}
+                        state={contactStates[a.id] ?? { kind: "none" }}
+                      />
+                    </div>
                   )}
                 </CardContent>
               </Card>
