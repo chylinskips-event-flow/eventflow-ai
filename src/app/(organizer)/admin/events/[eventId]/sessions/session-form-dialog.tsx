@@ -34,6 +34,9 @@ const NO_SPEAKER_VALUE = "__none__";
 const NO_ROOM_VALUE = "__no_room__";
 const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
 const DEFAULT_DURATION = 45;
+const CUSTOM_DURATION_VALUE = "__custom__";
+const MIN_DURATION = 5;
+const MAX_DURATION = 720; // 12h
 
 // Koniec chronologicznie ostatniej sesji (max ends_at) — domyślny start nowej.
 function lastSessionEndIso(sessions: Session[]): string | null {
@@ -109,12 +112,19 @@ export function SessionFormDialog({
           eventTimezone,
         ),
   );
-  // Czas trwania (min) jako wartość Selecta (string). Niestandardowy z edycji
-  // (np. 75) dostaje osobną opcję "(obecny)", żeby nie zniknął ani nie został
-  // zaokrąglony.
+  // Czas trwania: Select ze standardowymi opcjami + "Inny...". Wartość
+  // niestandardowa (np. 75 z edycji) otwiera od razu tryb "Inny..." z
+  // wypełnionym inputem — jedna ścieżka dla wszystkich wartości spoza listy.
   const currentDuration = initialDuration(session);
-  const hasCustomDuration = !DURATION_OPTIONS.includes(currentDuration);
-  const [duration, setDuration] = useState(String(currentDuration));
+  const isInitialCustom = !DURATION_OPTIONS.includes(currentDuration);
+  const [durationSelect, setDurationSelect] = useState(
+    isInitialCustom ? CUSTOM_DURATION_VALUE : String(currentDuration),
+  );
+  const [customDuration, setCustomDuration] = useState(
+    isInitialCustom ? String(currentDuration) : "",
+  );
+  const durationValue =
+    durationSelect === CUSTOM_DURATION_VALUE ? customDuration : durationSelect;
   const [speakerId, setSpeakerId] = useState(session?.speaker_id ?? NO_SPEAKER_VALUE);
 
   // "Koniec: HH:MM" na żywo (tylko do wyświetlenia; serwer liczy ends_at sam).
@@ -123,7 +133,7 @@ export function SessionFormDialog({
     const startEpoch = new Date(
       parseDateTimeLocal(startsAt, eventTimezone),
     ).getTime();
-    const dur = Number(duration);
+    const dur = Number(durationValue);
     if (Number.isNaN(startEpoch) || !Number.isFinite(dur) || dur <= 0) {
       return null;
     }
@@ -131,7 +141,7 @@ export function SessionFormDialog({
       new Date(startEpoch + dur * 60000).toISOString(),
       eventTimezone,
     );
-  }, [startsAt, duration, eventTimezone]);
+  }, [startsAt, durationValue, eventTimezone]);
 
   const collisionWarning = useMemo(() => {
     if (!room || room === NO_ROOM_VALUE || !startsAt) return null;
@@ -139,7 +149,7 @@ export function SessionFormDialog({
     // (arytmetyka epoch), żeby porównanie z sesjami z bazy (ISO) było w tej
     // samej osi czasu.
     const start = new Date(parseDateTimeLocal(startsAt, eventTimezone)).getTime();
-    const dur = Number(duration);
+    const dur = Number(durationValue);
     if (Number.isNaN(start) || !Number.isFinite(dur) || dur <= 0) return null;
     const end = start + dur * 60000;
 
@@ -158,7 +168,7 @@ export function SessionFormDialog({
     return conflict
       ? `Ta sala jest zajęta w tym czasie przez sesję „${conflict.title}” – zapis zostanie zablokowany.`
       : null;
-  }, [room, startsAt, duration, existingSessions, session, eventTimezone]);
+  }, [room, startsAt, durationValue, existingSessions, session, eventTimezone]);
 
   if (state.status !== lastStatus) {
     setLastStatus(state.status);
@@ -252,10 +262,10 @@ export function SessionFormDialog({
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="duration_minutes">Czas trwania</Label>
-              <input type="hidden" name="duration_minutes" value={duration} />
-              <Select value={duration} onValueChange={setDuration}>
-                <SelectTrigger id="duration_minutes" className="w-full">
+              <Label htmlFor="duration_select">Czas trwania</Label>
+              <input type="hidden" name="duration_minutes" value={durationValue} />
+              <Select value={durationSelect} onValueChange={setDurationSelect}>
+                <SelectTrigger id="duration_select" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -264,13 +274,25 @@ export function SessionFormDialog({
                       {min} min
                     </SelectItem>
                   ))}
-                  {hasCustomDuration && (
-                    <SelectItem value={String(currentDuration)}>
-                      {currentDuration} min (obecny)
-                    </SelectItem>
-                  )}
+                  <SelectItem value={CUSTOM_DURATION_VALUE}>Inny...</SelectItem>
                 </SelectContent>
               </Select>
+              {durationSelect === CUSTOM_DURATION_VALUE && (
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="custom_duration" className="text-xs font-normal">
+                    Czas trwania (minuty)
+                  </Label>
+                  <Input
+                    id="custom_duration"
+                    type="number"
+                    min={MIN_DURATION}
+                    max={MAX_DURATION}
+                    step={5}
+                    value={customDuration}
+                    onChange={(e) => setCustomDuration(e.target.value)}
+                  />
+                </div>
+              )}
               {endLabel && (
                 <p className="text-xs text-muted-foreground">
                   Koniec: {endLabel}

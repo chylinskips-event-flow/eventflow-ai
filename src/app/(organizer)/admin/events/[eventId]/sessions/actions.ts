@@ -77,8 +77,10 @@ async function readSessionFields(
   }
 
   const duration = Number(durationRaw);
-  if (!Number.isFinite(duration) || duration <= 0) {
-    return { error: "Wybierz czas trwania sesji." } as const;
+  if (!Number.isFinite(duration) || duration < 5 || duration > 720) {
+    return {
+      error: "Czas trwania musi wynosić od 5 do 720 minut.",
+    } as const;
   }
 
   // Naiwną godzinę startu interpretujemy w strefie eventu; koniec to czysta
