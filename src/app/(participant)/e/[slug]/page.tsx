@@ -144,27 +144,23 @@ export default async function ParticipantEventPage({
     }
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
-        <Card className="w-full max-w-sm">
-          <CardHeader>
-            <CardTitle>Cześć, {attendee.first_name}!</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <p className="text-muted-foreground">{event.name}</p>
-
-            {event.status === "completed" || event.status === "archived" ? (
-              <p className="text-sm text-muted-foreground">
-                Wydarzenie zakończone.
-              </p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Wydarzenie jeszcze się nie rozpoczęło.
-              </p>
-            )}
-
-            {navButtons}
+      <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
+        <div>
+          <h1 className="text-2xl font-semibold">
+            Cześć, {attendee.first_name}!
+          </h1>
+          <p className="text-muted-foreground">{event.name}</p>
+        </div>
+        <Card>
+          <CardContent className="py-6">
+            <p className="text-sm text-muted-foreground">
+              {event.status === "completed" || event.status === "archived"
+                ? "Wydarzenie zakończone."
+                : "Wydarzenie jeszcze się nie rozpoczęło."}
+            </p>
           </CardContent>
         </Card>
+        {navButtons}
       </main>
     );
   }

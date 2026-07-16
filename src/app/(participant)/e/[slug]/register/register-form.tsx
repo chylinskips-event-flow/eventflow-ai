@@ -54,7 +54,7 @@ export function RegisterForm({
   }
 
   return (
-    <Card className="w-full max-w-2xl rounded-xl">
+    <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>Dane uczestnika</CardTitle>
           <CardDescription>Pola oznaczone * są wymagane.</CardDescription>

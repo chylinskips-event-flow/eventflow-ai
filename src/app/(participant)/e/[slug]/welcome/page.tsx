@@ -37,7 +37,7 @@ export default async function WelcomePage({
             ) : (
               <CheckCircle2 className="size-7 text-primary" />
             )}
-            <CardTitle className="text-2xl font-bold text-primary">
+            <CardTitle className="text-2xl font-semibold text-primary">
               {isPending ? "Zgłoszenie przyjęte!" : "Zarejestrowano!"}
             </CardTitle>
           </div>

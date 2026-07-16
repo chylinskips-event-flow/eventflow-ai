@@ -96,6 +96,27 @@ export function AttendeeList({
     setSelectedInterests([]);
   }
 
+  // Tylko zalogowany uczestnik na liście — filtry i licznik nie mają sensu,
+  // pokazujemy komunikat z CTA (wzorzec pustego stanu z "Mojej agendy").
+  const isAlone =
+    attendees.length === 1 && attendees[0].id === currentAttendeeId;
+
+  if (isAlone) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
+          <p className="text-muted-foreground">
+            Jesteś tu pierwszy – gdy dołączą kolejni uczestnicy, zobaczysz ich
+            na tej liście.
+          </p>
+          <Button asChild>
+            <Link href={`/e/${slug}/profile`}>Uzupełnij swój profil</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {(industries.length > 0 || allInterests.length > 0) && (

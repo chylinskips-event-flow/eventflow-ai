@@ -102,6 +102,9 @@ export default async function AttendeesPage({
     minutesUntilRefresh = Math.max(0, Math.ceil(REFRESH_LIMIT_MIN - elapsedMin));
   }
 
+  // ŚWIADOMY WYJĄTEK od standardu max-w-2xl stron uczestnika: to strona
+  // przeglądowa — siatka kart do skanowania (lg:grid-cols-3), której 2xl by
+  // nie pomieściło. Pozostałe podstrony uczestnika trzymają max-w-2xl.
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4">
       <Button asChild variant="outline" size="sm" className="w-fit">

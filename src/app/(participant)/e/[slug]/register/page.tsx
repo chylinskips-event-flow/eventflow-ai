@@ -52,7 +52,7 @@ export default async function RegisterPage({
         <Badge variant="secondary" className="w-fit">
           REJESTRACJA
         </Badge>
-        <h1 className="text-2xl font-bold">{event.name}</h1>
+        <h1 className="text-2xl font-semibold">{event.name}</h1>
         {event.starts_at && (
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Calendar className="size-4 shrink-0" />

@@ -45,10 +45,14 @@ export default async function AgendaPage({
 
       {sessions.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
+          <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
             <p className="text-muted-foreground">
-              Brak sesji w agendzie tego wydarzenia.
+              Brak sesji w agendzie tego wydarzenia. Organizator jeszcze jej nie
+              opublikował.
             </p>
+            <Button asChild>
+              <Link href={`/e/${slug}`}>Wróć do wydarzenia</Link>
+            </Button>
           </CardContent>
         </Card>
       ) : (

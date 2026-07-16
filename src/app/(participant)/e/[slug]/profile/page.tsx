@@ -49,6 +49,7 @@ export default async function ProfilePage({
           <ArrowLeft className="size-4" /> Powrót
         </Link>
       </Button>
+      <h1 className="text-2xl font-semibold">Twój profil</h1>
 
       <Card>
         <CardHeader>
