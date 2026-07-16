@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { validateImageFile, MB } from "@/lib/upload-validation";
 import { uploadAttendeeAvatar, removeAttendeeAvatar } from "./actions";
 
 export function AvatarUpload({
@@ -31,6 +32,13 @@ export function AvatarUpload({
   function handleUpload() {
     if (!file) {
       setMessage({ type: "error", text: "Wybierz plik ze zdjęciem." });
+      return;
+    }
+    // Walidacja przed wysłaniem: zły typ lub >2MB inaczej wywołałby crash 413
+    // (limit body Server Actions) zanim akcja się uruchomi.
+    const validationError = validateImageFile(file, 2 * MB);
+    if (validationError) {
+      setMessage({ type: "error", text: validationError });
       return;
     }
     const formData = new FormData();

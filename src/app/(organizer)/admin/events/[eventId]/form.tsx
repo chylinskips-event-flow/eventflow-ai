@@ -12,6 +12,7 @@ import {
 } from "./actions";
 import type { Event } from "@/lib/events";
 import { toDateTimeLocalValue } from "@/lib/format";
+import { validateImageFile, MB } from "@/lib/upload-validation";
 import { slugify } from "@/lib/slug";
 import { TIMEZONES } from "@/lib/timezones";
 import { Button } from "@/components/ui/button";
@@ -67,6 +68,22 @@ export function EventEditForm({ event }: { event: Event }) {
     uploadLogoForEvent,
     initialState,
   );
+  const [logoClientError, setLogoClientError] = useState<string | null>(null);
+
+  function handleLogoSubmit(event: React.FormEvent<HTMLFormElement>) {
+    const input = event.currentTarget.elements.namedItem(
+      "logo",
+    ) as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) return;
+    const error = validateImageFile(file, 5 * MB);
+    if (error) {
+      event.preventDefault();
+      setLogoClientError(error);
+    } else {
+      setLogoClientError(null);
+    }
+  }
 
   const [name, setName] = useState(event.name);
   const [slug, setSlug] = useState(event.slug);
@@ -439,6 +456,7 @@ export function EventEditForm({ event }: { event: Event }) {
         <CardContent>
           <form
             action={logoFormAction}
+            onSubmit={handleLogoSubmit}
             className="flex flex-col gap-4"
             encType="multipart/form-data"
           >
@@ -458,6 +476,9 @@ export function EventEditForm({ event }: { event: Event }) {
                 accept="image/jpeg,image/png,image/webp"
               />
             </div>
+            {logoClientError && (
+              <p className="text-sm text-destructive">{logoClientError}</p>
+            )}
             {logoState.status === "error" && (
               <p className="text-sm text-destructive">{logoState.message}</p>
             )}

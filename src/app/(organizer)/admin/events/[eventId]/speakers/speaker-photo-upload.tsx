@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { uploadSpeakerPhoto, type SpeakerFormState } from "./actions";
+import { validateImageFile, MB } from "@/lib/upload-validation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,10 +20,27 @@ export function SpeakerPhotoUpload({
     uploadSpeakerPhoto.bind(null, eventId, speakerId),
     initialState,
   );
+  const [clientError, setClientError] = useState<string | null>(null);
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    const input = event.currentTarget.elements.namedItem(
+      "photo",
+    ) as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) return;
+    const error = validateImageFile(file, 5 * MB);
+    if (error) {
+      event.preventDefault();
+      setClientError(error);
+    } else {
+      setClientError(null);
+    }
+  }
 
   return (
     <form
       action={formAction}
+      onSubmit={handleSubmit}
       encType="multipart/form-data"
       className="flex flex-col gap-2 border-t pt-4"
     >
@@ -38,6 +56,9 @@ export function SpeakerPhotoUpload({
           {isPending ? "Wgrywanie..." : "Wgraj"}
         </Button>
       </div>
+      {clientError && (
+        <p className="text-sm text-destructive">{clientError}</p>
+      )}
       {state.status === "error" && (
         <p className="text-sm text-destructive">{state.message}</p>
       )}

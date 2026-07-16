@@ -2,6 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { uploadSectionImage, removeSectionImage, type ContentFormState } from "./actions";
+import { validateImageFile, MB } from "@/lib/upload-validation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,22 @@ export function SectionImageUpload({
 
   const [isRemoving, startRemoveTransition] = useTransition();
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [clientError, setClientError] = useState<string | null>(null);
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    const input = event.currentTarget.elements.namedItem(
+      "image",
+    ) as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) return;
+    const error = validateImageFile(file, 5 * MB);
+    if (error) {
+      event.preventDefault();
+      setClientError(error);
+    } else {
+      setClientError(null);
+    }
+  }
 
   function handleRemove() {
     setRemoveError(null);
@@ -59,6 +76,7 @@ export function SectionImageUpload({
       {removeError && <p className="text-sm text-destructive">{removeError}</p>}
       <form
         action={formAction}
+        onSubmit={handleSubmit}
         encType="multipart/form-data"
         className="flex gap-2"
       >
@@ -67,6 +85,9 @@ export function SectionImageUpload({
           {isPending ? "Wgrywanie..." : "Wgraj"}
         </Button>
       </form>
+      {clientError && (
+        <p className="text-sm text-destructive">{clientError}</p>
+      )}
       {state.status === "error" && (
         <p className="text-sm text-destructive">{state.message}</p>
       )}

@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { uploadEventBanner, type ContentFormState } from "./actions";
+import { validateImageFile, MB } from "@/lib/upload-validation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +21,22 @@ export function BannerUpload({
     uploadEventBanner.bind(null, eventId),
     initialState,
   );
+  const [clientError, setClientError] = useState<string | null>(null);
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    const input = event.currentTarget.elements.namedItem(
+      "banner",
+    ) as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) return; // brak pliku obsłuży serwer
+    const error = validateImageFile(file, 5 * MB);
+    if (error) {
+      event.preventDefault();
+      setClientError(error);
+    } else {
+      setClientError(null);
+    }
+  }
 
   return (
     <Card>
@@ -29,6 +46,7 @@ export function BannerUpload({
       <CardContent>
         <form
           action={formAction}
+          onSubmit={handleSubmit}
           encType="multipart/form-data"
           className="flex flex-col gap-4"
         >
@@ -53,6 +71,9 @@ export function BannerUpload({
               elementy w górnej połowie.
             </p>
           </div>
+          {clientError && (
+            <p className="text-sm text-destructive">{clientError}</p>
+          )}
           {state.status === "error" && (
             <p className="text-sm text-destructive">{state.message}</p>
           )}
