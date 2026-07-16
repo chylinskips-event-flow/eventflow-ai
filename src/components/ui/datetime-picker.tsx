@@ -13,6 +13,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 // Polskie etykiety przez Intl — niezależne od locale przeglądarki (to jest cel
@@ -38,6 +45,11 @@ function todayDateStr() {
   const now = new Date();
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
+
+// Godzina jako dwa selecty (24h) — natywny <input type="time"> pokazywałby
+// AM/PM przy angielskim locale przeglądarki.
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => pad(i));
+const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, i) => pad(i * 5));
 
 // Siatka miesiąca (poniedziałek pierwszy); null = puste komórki.
 function buildGrid(year: number, month: number): (number | null)[] {
@@ -65,6 +77,18 @@ export function DateTimePicker({
 }) {
   const [open, setOpen] = React.useState(false);
   const [datePart, timePart] = value ? value.split("T") : ["", ""];
+
+  const hourPart = timePart ? (timePart.split(":")[0] ?? "") : "";
+  const minutePart = timePart ? (timePart.split(":")[1] ?? "") : "";
+
+  // Minuty spoza kroku 5 (np. 23 ze starych danych) zostają jako dodatkowa
+  // opcja, dopóki są wybrane — nie znikają ani nie są cicho zaokrąglane.
+  const minuteOptions = React.useMemo(() => {
+    if (!minutePart || MINUTE_OPTIONS.includes(minutePart)) {
+      return MINUTE_OPTIONS;
+    }
+    return [...MINUTE_OPTIONS, minutePart].sort();
+  }, [minutePart]);
 
   const initialView = datePart || todayDateStr();
   const [iy, im] = initialView.split("-").map(Number);
@@ -182,13 +206,43 @@ export function DateTimePicker({
 
             <div className="flex items-center gap-2 border-t pt-3">
               <span className="text-sm text-muted-foreground">Godzina</span>
-              <input
-                type="time"
-                step={300}
-                value={timePart}
-                onChange={(e) => emit(datePart, e.target.value)}
-                className="h-9 rounded-md border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              />
+              <div className="flex items-center gap-1">
+                <Select
+                  value={hourPart}
+                  onValueChange={(h) =>
+                    emit(datePart, `${h}:${minutePart || "00"}`)
+                  }
+                >
+                  <SelectTrigger className="w-[72px]" aria-label="Godzina">
+                    <SelectValue placeholder="--" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {HOUR_OPTIONS.map((h) => (
+                      <SelectItem key={h} value={h}>
+                        {h}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-muted-foreground">:</span>
+                <Select
+                  value={minutePart}
+                  onValueChange={(m) =>
+                    emit(datePart, `${hourPart || "09"}:${m}`)
+                  }
+                >
+                  <SelectTrigger className="w-[72px]" aria-label="Minuty">
+                    <SelectValue placeholder="--" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {minuteOptions.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </PopoverContent>
