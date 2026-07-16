@@ -4,7 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { uploadSectionImage, removeSectionImage, type ContentFormState } from "./actions";
 import { validateImageFile, MB } from "@/lib/upload-validation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/file-input";
 import { Label } from "@/components/ui/label";
 
 const initialState: ContentFormState = { status: "idle" };
@@ -78,9 +78,9 @@ export function SectionImageUpload({
         action={formAction}
         onSubmit={handleSubmit}
         encType="multipart/form-data"
-        className="flex gap-2"
+        className="flex flex-wrap items-center gap-2"
       >
-        <Input id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp" />
+        <FileInput id="image" name="image" accept="image/jpeg,image/png,image/webp" />
         <Button type="submit" variant="outline" disabled={isPending}>
           {isPending ? "Wgrywanie..." : "Wgraj"}
         </Button>

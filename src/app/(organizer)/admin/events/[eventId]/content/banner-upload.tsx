@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { uploadEventBanner, type ContentFormState } from "./actions";
 import { validateImageFile, MB } from "@/lib/upload-validation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/file-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -59,10 +59,9 @@ export function BannerUpload({
           )}
           <div className="flex flex-col gap-2">
             <Label htmlFor="banner">Plik banera</Label>
-            <Input
+            <FileInput
               id="banner"
               name="banner"
-              type="file"
               accept="image/jpeg,image/png,image/webp"
             />
             <p className="text-xs text-muted-foreground">

@@ -18,6 +18,7 @@ import { slugify } from "@/lib/slug";
 import { TIMEZONES } from "@/lib/timezones";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/file-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -193,15 +194,6 @@ export function EventEditForm({ event }: { event: Event }) {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">{event.name}</h1>
         <div className="flex items-center gap-2">
-          <Button asChild variant="outline" size="sm">
-            <a
-              href={`/e/${event.slug}?preview=1`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Podgląd
-            </a>
-          </Button>
           {event.status === "draft" ? (
           <AlertDialog
             open={isPublishOpen}
@@ -494,10 +486,9 @@ export function EventEditForm({ event }: { event: Event }) {
             )}
             <div className="flex flex-col gap-2">
               <Label htmlFor="logo">Plik logo</Label>
-              <Input
+              <FileInput
                 id="logo"
                 name="logo"
-                type="file"
                 accept="image/jpeg,image/png,image/webp"
               />
             </div>

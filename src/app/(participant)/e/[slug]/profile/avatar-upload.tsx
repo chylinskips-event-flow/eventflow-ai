@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/file-input";
 import { validateImageFile, MB } from "@/lib/upload-validation";
 import { uploadAttendeeAvatar, removeAttendeeAvatar } from "./actions";
 
@@ -85,12 +85,12 @@ export function AvatarUpload({
         <AvatarFallback className="text-xl">{initials || "?"}</AvatarFallback>
       </Avatar>
 
-      <Input
+      <FileInput
         key={inputKey}
-        type="file"
+        name="avatar"
         accept="image/jpeg,image/png,image/webp"
-        className="max-w-xs"
-        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        disabled={isPending}
+        onFileChange={setFile}
       />
 
       <div className="flex gap-2">
