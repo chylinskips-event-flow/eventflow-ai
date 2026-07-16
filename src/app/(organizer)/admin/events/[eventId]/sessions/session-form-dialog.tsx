@@ -4,7 +4,11 @@ import { useActionState, useMemo, useState } from "react";
 import { createSession, updateSession, type SessionFormState } from "./actions";
 import type { Session } from "@/lib/sessions";
 import type { Speaker } from "@/lib/speakers";
-import { parseDateTimeLocal, toDateTimeLocalValue } from "@/lib/format";
+import {
+  formatTime,
+  parseDateTimeLocal,
+  toDateTimeLocalValue,
+} from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +32,32 @@ import {
 const initialState: SessionFormState = { status: "idle" };
 const NO_SPEAKER_VALUE = "__none__";
 const NO_ROOM_VALUE = "__no_room__";
+const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
+const DEFAULT_DURATION = 45;
+
+// Koniec chronologicznie ostatniej sesji (max ends_at) — domyślny start nowej.
+function lastSessionEndIso(sessions: Session[]): string | null {
+  let maxTime = -Infinity;
+  for (const s of sessions) {
+    if (!s.ends_at) continue;
+    const t = new Date(s.ends_at).getTime();
+    if (t > maxTime) maxTime = t;
+  }
+  return Number.isFinite(maxTime) ? new Date(maxTime).toISOString() : null;
+}
+
+// Czas trwania (min) z istniejącej sesji; 45 gdy brak danych.
+function initialDuration(session?: Session): number {
+  if (session?.starts_at && session?.ends_at) {
+    const mins = Math.round(
+      (new Date(session.ends_at).getTime() -
+        new Date(session.starts_at).getTime()) /
+        60000,
+    );
+    return mins > 0 ? mins : DEFAULT_DURATION;
+  }
+  return DEFAULT_DURATION;
+}
 
 function rangesOverlap(
   startA: number,
@@ -41,6 +71,7 @@ function rangesOverlap(
 export function SessionFormDialog({
   eventId,
   eventTimezone,
+  eventStartsAt,
   session,
   speakers,
   existingSessions,
@@ -49,6 +80,7 @@ export function SessionFormDialog({
 }: {
   eventId: string;
   eventTimezone: string | null;
+  eventStartsAt?: string | null;
   session?: Session;
   speakers: Speaker[];
   existingSessions: Session[];
@@ -68,21 +100,48 @@ export function SessionFormDialog({
   const [description, setDescription] = useState(session?.description ?? "");
   const [track, setTrack] = useState(session?.track ?? "");
   const [room, setRoom] = useState(session?.room ?? NO_ROOM_VALUE);
-  const [startsAt, setStartsAt] = useState(
-    toDateTimeLocalValue(session?.starts_at ?? null, eventTimezone),
+  // Nowa sesja: start = koniec ostatniej sesji, inaczej start eventu.
+  const [startsAt, setStartsAt] = useState(() =>
+    session
+      ? toDateTimeLocalValue(session.starts_at ?? null, eventTimezone)
+      : toDateTimeLocalValue(
+          lastSessionEndIso(existingSessions) ?? eventStartsAt ?? null,
+          eventTimezone,
+        ),
   );
-  const [endsAt, setEndsAt] = useState(
-    toDateTimeLocalValue(session?.ends_at ?? null, eventTimezone),
-  );
+  // Czas trwania (min) jako wartość Selecta (string). Niestandardowy z edycji
+  // (np. 75) dostaje osobną opcję "(obecny)", żeby nie zniknął ani nie został
+  // zaokrąglony.
+  const currentDuration = initialDuration(session);
+  const hasCustomDuration = !DURATION_OPTIONS.includes(currentDuration);
+  const [duration, setDuration] = useState(String(currentDuration));
   const [speakerId, setSpeakerId] = useState(session?.speaker_id ?? NO_SPEAKER_VALUE);
 
+  // "Koniec: HH:MM" na żywo (tylko do wyświetlenia; serwer liczy ends_at sam).
+  const endLabel = useMemo(() => {
+    if (!startsAt) return null;
+    const startEpoch = new Date(
+      parseDateTimeLocal(startsAt, eventTimezone),
+    ).getTime();
+    const dur = Number(duration);
+    if (Number.isNaN(startEpoch) || !Number.isFinite(dur) || dur <= 0) {
+      return null;
+    }
+    return formatTime(
+      new Date(startEpoch + dur * 60000).toISOString(),
+      eventTimezone,
+    );
+  }, [startsAt, duration, eventTimezone]);
+
   const collisionWarning = useMemo(() => {
-    if (!room || room === NO_ROOM_VALUE || !startsAt || !endsAt) return null;
-    // Naiwne wartości pól -> instant w strefie eventu, żeby porównanie z
-    // sesjami z bazy (ISO) było w tej samej osi czasu.
+    if (!room || room === NO_ROOM_VALUE || !startsAt) return null;
+    // Naiwny start -> instant w strefie eventu; koniec = start + duration
+    // (arytmetyka epoch), żeby porównanie z sesjami z bazy (ISO) było w tej
+    // samej osi czasu.
     const start = new Date(parseDateTimeLocal(startsAt, eventTimezone)).getTime();
-    const end = new Date(parseDateTimeLocal(endsAt, eventTimezone)).getTime();
-    if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return null;
+    const dur = Number(duration);
+    if (Number.isNaN(start) || !Number.isFinite(dur) || dur <= 0) return null;
+    const end = start + dur * 60000;
 
     const conflict = existingSessions.find((other) => {
       if (session && other.id === session.id) return false;
@@ -99,7 +158,7 @@ export function SessionFormDialog({
     return conflict
       ? `Ta sala jest zajęta w tym czasie przez sesję „${conflict.title}” – zapis zostanie zablokowany.`
       : null;
-  }, [room, startsAt, endsAt, existingSessions, session, eventTimezone]);
+  }, [room, startsAt, duration, existingSessions, session, eventTimezone]);
 
   if (state.status !== lastStatus) {
     setLastStatus(state.status);
@@ -193,16 +252,30 @@ export function SessionFormDialog({
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="ends_at">Koniec</Label>
-              <Input
-                id="ends_at"
-                name="ends_at"
-                type="datetime-local"
-                step={300}
-                value={endsAt}
-                onChange={(e) => setEndsAt(e.target.value)}
-                required
-              />
+              <Label htmlFor="duration_minutes">Czas trwania</Label>
+              <input type="hidden" name="duration_minutes" value={duration} />
+              <Select value={duration} onValueChange={setDuration}>
+                <SelectTrigger id="duration_minutes" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATION_OPTIONS.map((min) => (
+                    <SelectItem key={min} value={String(min)}>
+                      {min} min
+                    </SelectItem>
+                  ))}
+                  {hasCustomDuration && (
+                    <SelectItem value={String(currentDuration)}>
+                      {currentDuration} min (obecny)
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              {endLabel && (
+                <p className="text-xs text-muted-foreground">
+                  Koniec: {endLabel}
+                </p>
+              )}
             </div>
           </div>
           {collisionWarning && (

@@ -31,6 +31,7 @@ export default async function EventSessionsPage({
         <SessionFormDialog
           eventId={eventId}
           eventTimezone={event.timezone}
+          eventStartsAt={event.starts_at}
           speakers={speakers}
           existingSessions={sessions}
           roomNames={event.room_names ?? []}

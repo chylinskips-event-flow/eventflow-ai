@@ -65,7 +65,7 @@ async function readSessionFields(
   const track = formData.get("track");
   const room = formData.get("room");
   const startsAt = formData.get("starts_at");
-  const endsAt = formData.get("ends_at");
+  const durationRaw = formData.get("duration_minutes");
   const speakerId = formData.get("speaker_id");
 
   if (typeof title !== "string" || !title.trim()) {
@@ -76,21 +76,17 @@ async function readSessionFields(
     return { error: "Podaj datę i godzinę rozpoczęcia." } as const;
   }
 
-  if (typeof endsAt !== "string" || !endsAt) {
-    return { error: "Podaj datę i godzinę zakończenia." } as const;
+  const duration = Number(durationRaw);
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return { error: "Wybierz czas trwania sesji." } as const;
   }
 
-  // Naiwne godziny z pól interpretujemy w strefie eventu (sesja ją dziedziczy).
+  // Naiwną godzinę startu interpretujemy w strefie eventu; koniec to czysta
+  // arytmetyka epoch (start + czas trwania) — strefa bez znaczenia.
   const startsAtIso = parseDateTimeLocal(startsAt, eventRange.timezone);
-  const endsAtIso = parseDateTimeLocal(endsAt, eventRange.timezone);
   const startsAtTime = new Date(startsAtIso).getTime();
-  const endsAtTime = new Date(endsAtIso).getTime();
-
-  if (endsAtTime <= startsAtTime) {
-    return {
-      error: "Czas zakończenia musi być późniejszy niż czas rozpoczęcia.",
-    } as const;
-  }
+  const endsAtTime = startsAtTime + duration * 60000;
+  const endsAtIso = new Date(endsAtTime).toISOString();
 
   if (eventRange.starts_at && eventRange.ends_at) {
     const eventStart = new Date(eventRange.starts_at).getTime();
