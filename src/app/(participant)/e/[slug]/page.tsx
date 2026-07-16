@@ -14,7 +14,7 @@ import {
   getEventContentSections,
   getEventContentSectionsForPreview,
 } from "@/lib/event-content";
-import { formatDate, formatDateTimeRange } from "@/lib/format";
+import { formatDate, formatDateTimeRange, pluralizePl } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -220,7 +220,7 @@ export default async function ParticipantEventPage({
     <main className="flex flex-col">
       {showPreviewBanner && (
         <div className="bg-amber-500 px-4 py-2 text-center text-sm font-medium text-white">
-          Podgląd — wydarzenie nie jest jeszcze opublikowane. Widzisz je jako
+          Podgląd – wydarzenie nie jest jeszcze opublikowane. Widzisz je jako
           organizator; uczestnicy jeszcze go nie widzą.
         </div>
       )}
@@ -252,69 +252,84 @@ export default async function ParticipantEventPage({
         </nav>
       )}
 
-      <div className="mx-auto mb-8 flex w-full max-w-4xl flex-col gap-6 p-4 md:flex-row md:items-start md:justify-between">
-        <div className="flex flex-col gap-4">
-          <Badge variant="secondary" className="w-fit">
-            WYDARZENIE
-          </Badge>
-          <h1 className="text-3xl font-bold md:text-4xl">{event.name}</h1>
-          {(event.starts_at || event.location) && (
-            <p className="text-lg text-muted-foreground">
-              {event.starts_at &&
-                formatDateTimeRange(
-                  event.starts_at,
-                  event.ends_at,
-                  event.timezone,
-                )}
-              {event.starts_at && event.location && " · "}
-              {event.location}
-            </p>
-          )}
-          <div className="flex flex-wrap gap-3">
-            <Button asChild size="lg" className="w-full sm:w-auto">
-              <Link href={`/e/${slug}/register`}>Zarejestruj się →</Link>
-            </Button>
-            {sessions.length > 0 && (
-              <Button asChild size="lg" variant="outline" className="w-full sm:w-auto">
-                <a href="#agenda">Zobacz agendę</a>
+      <section className="bg-gradient-to-b from-primary/5 to-transparent">
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10 md:flex-row md:items-start md:justify-between">
+          <div className="flex flex-col gap-4">
+            <Badge variant="secondary" className="w-fit">
+              WYDARZENIE
+            </Badge>
+            <h1 className="text-3xl font-bold md:text-4xl">{event.name}</h1>
+            {(event.starts_at || event.location) && (
+              <p className="text-lg text-muted-foreground">
+                {event.starts_at &&
+                  formatDateTimeRange(
+                    event.starts_at,
+                    event.ends_at,
+                    event.timezone,
+                  )}
+                {event.starts_at && event.location && " · "}
+                {event.location}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-3">
+              <Button asChild size="lg" className="w-full sm:w-auto">
+                <Link href={`/e/${slug}/register`}>Zarejestruj się →</Link>
               </Button>
-            )}
+              {sessions.length > 0 && (
+                <Button asChild size="lg" variant="outline" className="w-full sm:w-auto">
+                  <a href="#agenda">Zobacz agendę</a>
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
 
-        {(speakers.length > 0 || sessions.length > 0) && (
-          <div className="flex flex-wrap gap-3">
-            {speakers.length > 0 && (
-              <div className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-3">
-                <span className="text-2xl font-bold text-primary">{speakers.length}</span>
-                <span className="text-sm text-muted-foreground">Prelegentów</span>
-              </div>
-            )}
-            {sessions.length > 0 && (
-              <div className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-3">
-                <span className="text-2xl font-bold text-primary">{sessions.length}</span>
-                <span className="text-sm text-muted-foreground">Sesji</span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+          {/* Statystyki tylko dla liczb >= 3: małe liczby ("1 Prelegent",
+              "2 Sesje") działają antymarketingowo — świadoma decyzja. Gdy obie
+              < 3, cały blok znika i hero układa się bez niego. */}
+          {(speakers.length >= 3 || sessions.length >= 3) && (
+            <div className="flex flex-wrap gap-3">
+              {speakers.length >= 3 && (
+                <div className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-3">
+                  <span className="text-2xl font-bold text-primary">{speakers.length}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {pluralizePl(speakers.length, [
+                      "Prelegent",
+                      "Prelegenci",
+                      "Prelegentów",
+                    ])}
+                  </span>
+                </div>
+              )}
+              {sessions.length >= 3 && (
+                <div className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-3">
+                  <span className="text-2xl font-bold text-primary">{sessions.length}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {pluralizePl(sessions.length, ["Sesja", "Sesje", "Sesji"])}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
 
       {sections.length > 0 && (
-        <div id="about" className="mx-auto w-full max-w-4xl p-4">
+        <section id="about" className="mx-auto w-full max-w-4xl px-4 py-12">
           <ContentSections sections={sections} />
-        </div>
+        </section>
       )}
 
       {speakers.length > 0 && (
-        <div id="speakers" className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4">
-          <h2 className="text-xl font-semibold">Prelegenci</h2>
-          <SpeakerList speakers={speakers} />
-        </div>
+        <section id="speakers" className="bg-muted/50">
+          <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-12">
+            <h2 className="text-xl font-semibold">Prelegenci</h2>
+            <SpeakerList speakers={speakers} />
+          </div>
+        </section>
       )}
 
       {sessions.length > 0 && (
-        <div id="agenda" className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4">
+        <section id="agenda" className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-12">
           <h2 className="text-xl font-semibold">Agenda</h2>
           <AgendaSessionList
             slug={slug}
@@ -324,14 +339,14 @@ export default async function ParticipantEventPage({
             timezone={event.timezone}
             readOnly
           />
-        </div>
+        </section>
       )}
 
       <div id="register" className="bg-secondary">
         <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-3 p-8 text-center">
           <h2 className="text-2xl font-bold">Dołącz do nas!</h2>
           <p className="text-muted-foreground">
-            Miejsca są ograniczone — zarezerwuj swoje już teraz.
+            Miejsca są ograniczone – zarezerwuj swoje już teraz.
           </p>
           <Button asChild size="lg" className="w-full sm:w-auto">
             <Link href={`/e/${slug}/register`}>Zarejestruj się</Link>
