@@ -144,6 +144,26 @@ export function SessionFormDialog({
         .id ?? NO_MODERATOR_VALUE,
   );
 
+  // Filtr pokazujemy dopiero przy dłuższej liście — małych eventów nie
+  // komplikujemy.
+  const [speakerFilter, setSpeakerFilter] = useState("");
+  const showSpeakerFilter = speakers.length > 8;
+
+  // Zaznaczeni zawsze na górze i zawsze widoczni (także przy aktywnym
+  // filtrze), w kolejności position; filtr zawęża tylko niezaznaczonych.
+  const visibleSpeakers = useMemo(() => {
+    const query = speakerFilter.trim().toLowerCase();
+    const selected = speakerIds
+      .map((id) => speakers.find((item) => item.id === id))
+      .filter((item): item is Speaker => Boolean(item));
+    const unselected = speakers.filter(
+      (item) =>
+        !speakerIds.includes(item.id) &&
+        (!query || speakerFullName(item).toLowerCase().includes(query)),
+    );
+    return [...selected, ...unselected];
+  }, [speakers, speakerIds, speakerFilter]);
+
   function toggleSpeaker(id: string) {
     setSpeakerIds((prev) => {
       if (prev.includes(id)) {
@@ -332,8 +352,16 @@ export function SessionFormDialog({
           )}
           <div className="flex flex-col gap-2">
             <Label>Prelegenci (opcjonalnie)</Label>
-            <div className="flex flex-wrap gap-2">
-              {speakers.map((speaker) => {
+            {showSpeakerFilter && (
+              <Input
+                type="search"
+                value={speakerFilter}
+                onChange={(e) => setSpeakerFilter(e.target.value)}
+                placeholder="Szukaj prelegenta..."
+              />
+            )}
+            <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+              {visibleSpeakers.map((speaker) => {
                 const order = speakerIds.indexOf(speaker.id);
                 const selected = order !== -1;
                 return (
