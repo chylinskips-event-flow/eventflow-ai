@@ -101,7 +101,7 @@ export function LiveNow({
             <CardContent className="py-4">
               <p className="text-sm text-muted-foreground">
                 {nextStart
-                  ? `Przerwa — następna sesja o ${formatTime(nextStart, timezone)}`
+                  ? `Przerwa – następna sesja o ${formatTime(nextStart, timezone)}`
                   : "Brak zaplanowanych sesji."}
               </p>
             </CardContent>

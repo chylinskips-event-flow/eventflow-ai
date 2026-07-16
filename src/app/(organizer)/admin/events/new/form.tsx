@@ -57,7 +57,7 @@ export function NewEventForm() {
         <CardHeader>
           <CardTitle>Nowy event</CardTitle>
           <CardDescription>
-            Event zostanie utworzony jako szkic — opublikujesz go później.
+            Event zostanie utworzony jako szkic – opublikujesz go później.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -135,7 +135,7 @@ export function NewEventForm() {
                 placeholder={"Sala A\nSala B\nSala konferencyjna"}
               />
               <p className="text-xs text-muted-foreground">
-                Jedna nazwa sali w linii — przyda się przy planowaniu agendy.
+                Jedna nazwa sali w linii – przyda się przy planowaniu agendy.
               </p>
             </div>
             <div className="flex flex-col gap-2">

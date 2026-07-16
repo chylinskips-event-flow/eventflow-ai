@@ -173,10 +173,10 @@ export async function createSection(
       revalidatePath(`/admin/events/${eventId}/content`);
       const message =
         result === "invalid_type"
-          ? "Sekcja dodana, ale zdjęcie nie zostało zapisane — dozwolone formaty: JPEG, PNG, WebP."
+          ? "Sekcja dodana, ale zdjęcie nie zostało zapisane – dozwolone formaty: JPEG, PNG, WebP."
           : result === "too_large"
-            ? "Sekcja dodana, ale zdjęcie nie zostało zapisane — plik jest większy niż 5MB."
-            : "Sekcja dodana, ale nie udało się zapisać zdjęcia — możesz dodać je później w edycji.";
+            ? "Sekcja dodana, ale zdjęcie nie zostało zapisane – plik jest większy niż 5MB."
+            : "Sekcja dodana, ale nie udało się zapisać zdjęcia – możesz dodać je później w edycji.";
       return { status: "success", warning: true, message };
     }
 

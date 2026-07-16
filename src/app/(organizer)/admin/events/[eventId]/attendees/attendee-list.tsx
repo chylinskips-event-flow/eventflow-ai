@@ -23,7 +23,7 @@ const STATUS_CLASSES: Record<Attendee["status"], string> = {
 type FilterValue = "all" | AttendeeStatus;
 
 function attendeeName(attendee: Attendee) {
-  return [attendee.first_name, attendee.last_name].filter(Boolean).join(" ") || "—";
+  return [attendee.first_name, attendee.last_name].filter(Boolean).join(" ") || "–";
 }
 
 export function AttendeeList({

@@ -109,7 +109,7 @@ export default async function AttendeesPage({
           <ArrowLeft className="size-4" /> Powrót
         </Link>
       </Button>
-      <h1 className="text-2xl font-semibold">Uczestnicy — {event.name}</h1>
+      <h1 className="text-2xl font-semibold">Uczestnicy – {event.name}</h1>
       <RecommendedContacts
         slug={slug}
         matches={recommended}

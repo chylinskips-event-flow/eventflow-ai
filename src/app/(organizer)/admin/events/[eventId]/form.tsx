@@ -135,7 +135,7 @@ export function EventEditForm({ event }: { event: Event }) {
       try {
         await startEvent(event.id);
         setIsStartOpen(false);
-        toast.success("Wydarzenie rozpoczęte — uczestnicy widzą sekcję na żywo", {
+        toast.success("Wydarzenie rozpoczęte – uczestnicy widzą sekcję na żywo", {
           action: {
             label: "Zobacz stronę",
             onClick: () => window.open(`/e/${event.slug}?preview=1`, "_blank"),
@@ -386,7 +386,7 @@ export function EventEditForm({ event }: { event: Event }) {
                 placeholder={"Sala A\nSala B\nSala konferencyjna"}
               />
               <p className="text-xs text-muted-foreground">
-                Jedna nazwa sali w linii — przyda się przy planowaniu agendy.
+                Jedna nazwa sali w linii – przyda się przy planowaniu agendy.
               </p>
             </div>
             <div className="flex flex-col gap-2">

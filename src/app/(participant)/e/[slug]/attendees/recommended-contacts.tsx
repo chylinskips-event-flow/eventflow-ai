@@ -95,7 +95,7 @@ export function RecommendedContacts({
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-sm text-muted-foreground">
-              Nie znaleźliśmy jeszcze dopasowań — spróbuj ponownie, gdy więcej
+              Nie znaleźliśmy jeszcze dopasowań – spróbuj ponownie, gdy więcej
               osób się zarejestruje.
             </p>
           </CardContent>

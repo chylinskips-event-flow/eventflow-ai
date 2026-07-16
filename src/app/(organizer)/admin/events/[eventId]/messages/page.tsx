@@ -27,7 +27,7 @@ const TEMPLATE_META: {
   channel: "Email" | "UI";
 }[] = [
   { type: "registration_confirmed", label: "Potwierdzenie rejestracji", channel: "Email" },
-  { type: "registration_pending",   label: "Zgłoszenie — oczekiwanie",  channel: "Email" },
+  { type: "registration_pending",   label: "Zgłoszenie – oczekiwanie",  channel: "Email" },
   { type: "registration_approved",  label: "Zatwierdzenie rejestracji", channel: "Email" },
   { type: "registration_rejected",  label: "Odrzucenie rejestracji",    channel: "Email" },
   { type: "welcome_approved",       label: "Strona potwierdzenia",      channel: "UI"    },

@@ -97,7 +97,7 @@ export function SessionFormDialog({
     });
 
     return conflict
-      ? `Ta sala jest zajęta w tym czasie przez sesję „${conflict.title}” — zapis zostanie zablokowany.`
+      ? `Ta sala jest zajęta w tym czasie przez sesję „${conflict.title}” – zapis zostanie zablokowany.`
       : null;
   }, [room, startsAt, endsAt, existingSessions, session, eventTimezone]);
 
@@ -173,7 +173,7 @@ export function SessionFormDialog({
               </Select>
               {roomNames.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Nie masz jeszcze zdefiniowanych sal — dodaj je w Ustawieniach
+                  Nie masz jeszcze zdefiniowanych sal – dodaj je w Ustawieniach
                   eventu.
                 </p>
               )}

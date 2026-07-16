@@ -75,7 +75,7 @@ export function TemplateFormDialog(props: TemplateFormDialogProps) {
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden sm:max-w-xl">
         <DialogHeader className="shrink-0 px-6 pb-4 pt-6">
-          <DialogTitle>Edytuj szablon — {label}</DialogTitle>
+          <DialogTitle>Edytuj szablon – {label}</DialogTitle>
         </DialogHeader>
         <TemplateFormContent
           key={epoch}
@@ -271,7 +271,7 @@ function TemplateFormContent({
           {/* Variable chips */}
           <div className="flex flex-col gap-1.5">
             <p className="text-xs text-muted-foreground">
-              Zmienne — kliknij aby wstawić w aktywne pole:
+              Zmienne – kliknij aby wstawić w aktywne pole:
             </p>
             <div className="flex flex-wrap gap-1.5">
               {VARIABLES.map((v) => (

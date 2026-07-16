@@ -122,10 +122,10 @@ export async function createSpeaker(
       revalidatePath(`/admin/events/${eventId}/speakers`);
       const message =
         result === "invalid_type"
-          ? "Prelegent dodany, ale zdjęcie nie zostało zapisane — dozwolone formaty: JPEG, PNG, WebP."
+          ? "Prelegent dodany, ale zdjęcie nie zostało zapisane – dozwolone formaty: JPEG, PNG, WebP."
           : result === "too_large"
-            ? "Prelegent dodany, ale zdjęcie nie zostało zapisane — plik jest większy niż 5MB."
-            : "Prelegent dodany, ale nie udało się zapisać zdjęcia — możesz dodać je później w edycji.";
+            ? "Prelegent dodany, ale zdjęcie nie zostało zapisane – plik jest większy niż 5MB."
+            : "Prelegent dodany, ale nie udało się zapisać zdjęcia – możesz dodać je później w edycji.";
       return { status: "success", warning: true, message };
     }
   }
@@ -229,7 +229,7 @@ export async function deleteSpeaker(
   if (count && count > 0) {
     return {
       status: "error",
-      message: `Ten prelegent jest przypisany do ${count} sesji — usuń lub zmień przypisanie najpierw.`,
+      message: `Ten prelegent jest przypisany do ${count} sesji – usuń lub zmień przypisanie najpierw.`,
     };
   }
 

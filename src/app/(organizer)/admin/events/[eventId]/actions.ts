@@ -134,7 +134,7 @@ export async function publishEvent(eventId: string) {
 
   if (!data || data.length === 0) {
     throw new Error(
-      "Update affected 0 rows — sprawdź RLS lub czy event istnieje",
+      "Update affected 0 rows – sprawdź RLS lub czy event istnieje",
     );
   }
 
@@ -159,7 +159,7 @@ export async function startEvent(eventId: string) {
 
   if (!data || data.length === 0) {
     throw new Error(
-      "Update affected 0 rows — sprawdź RLS lub czy event istnieje",
+      "Update affected 0 rows – sprawdź RLS lub czy event istnieje",
     );
   }
 
@@ -183,7 +183,7 @@ export async function completeEvent(eventId: string) {
 
   if (!data || data.length === 0) {
     throw new Error(
-      "Update affected 0 rows — sprawdź RLS lub czy event istnieje",
+      "Update affected 0 rows – sprawdź RLS lub czy event istnieje",
     );
   }
 

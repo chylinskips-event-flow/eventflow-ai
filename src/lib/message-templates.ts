@@ -26,14 +26,14 @@ type DefaultTemplate = {
 
 export const DEFAULT_TEMPLATES: Record<MessageTemplateType, DefaultTemplate> = {
   registration_confirmed: {
-    subject: "Potwierdzenie rejestracji — {nazwa_eventu}",
+    subject: "Potwierdzenie rejestracji – {nazwa_eventu}",
     body_heading: "Witaj, {imię}!",
     body_main: "Twoja rejestracja na {nazwa_eventu} została potwierdzona.",
     body_footer: "Pokaż ten kod przy wejściu na wydarzenie.",
   },
 
   registration_pending: {
-    subject: "Zgłoszenie oczekuje na zatwierdzenie — {nazwa_eventu}",
+    subject: "Zgłoszenie oczekuje na zatwierdzenie – {nazwa_eventu}",
     body_heading: "Witaj, {imię}!",
     body_main:
       "Otrzymaliśmy Twoje zgłoszenie na {nazwa_eventu}.\n\n" +
@@ -43,14 +43,14 @@ export const DEFAULT_TEMPLATES: Record<MessageTemplateType, DefaultTemplate> = {
   },
 
   registration_approved: {
-    subject: "Potwierdzenie rejestracji — {nazwa_eventu}",
+    subject: "Potwierdzenie rejestracji – {nazwa_eventu}",
     body_heading: "Witaj, {imię}!",
     body_main: "Twoja rejestracja na {nazwa_eventu} została potwierdzona.",
     body_footer: "Pokaż ten kod przy wejściu na wydarzenie.",
   },
 
   registration_rejected: {
-    subject: "Rejestracja nie została zatwierdzona — {nazwa_eventu}",
+    subject: "Rejestracja nie została zatwierdzona – {nazwa_eventu}",
     body_heading: "Witaj, {imię}.",
     body_main:
       "Niestety Twoja rejestracja na {nazwa_eventu} " +

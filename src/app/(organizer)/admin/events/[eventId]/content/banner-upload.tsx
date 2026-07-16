@@ -67,7 +67,7 @@ export function BannerUpload({
             />
             <p className="text-xs text-muted-foreground">
               Zalecany rozmiar: 1920×960px (proporcje 2:1). Zdjęcie zostanie
-              wykadrowane od góry na szerokich ekranach — umieść kluczowe
+              wykadrowane od góry na szerokich ekranach – umieść kluczowe
               elementy w górnej połowie.
             </p>
           </div>

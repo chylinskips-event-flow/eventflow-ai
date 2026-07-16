@@ -43,7 +43,7 @@ export default async function AgendaPage({
           <ArrowLeft className="size-4" /> Powrót
         </Link>
       </Button>
-      <h1 className="text-2xl font-semibold">Agenda — {event.name}</h1>
+      <h1 className="text-2xl font-semibold">Agenda – {event.name}</h1>
 
       {sessions.length === 0 ? (
         <Card>
