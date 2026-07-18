@@ -74,7 +74,7 @@ export function NewEventForm() {
                 name="name"
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="Konferencja EventFlow 2026"
+                placeholder="Konferencja Tech 2026"
                 required
               />
             </div>
@@ -85,7 +85,7 @@ export function NewEventForm() {
                 name="slug"
                 value={slug}
                 onChange={(e) => handleSlugChange(e.target.value)}
-                placeholder="konferencja-eventflow-2026"
+                placeholder="konferencja-tech-2026"
                 pattern="^[a-z0-9]+(-[a-z0-9]+)*$"
                 required
               />

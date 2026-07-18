@@ -2,8 +2,9 @@ import QRCode from "qrcode";
 import { Resend } from "resend";
 import type { Event } from "@/lib/events";
 import { getTemplate, applyVariables } from "@/lib/message-templates";
+import { BRAND_NAME_SHORT } from "@/lib/brand";
 
-const FROM_ADDRESS = "EventFlow <onboarding@resend.dev>";
+const FROM_ADDRESS = `${BRAND_NAME_SHORT} <onboarding@resend.dev>`;
 
 export async function sendAttendeeConfirmationEmail(params: {
   to: string;

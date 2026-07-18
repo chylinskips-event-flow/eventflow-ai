@@ -1,8 +1,9 @@
 import { Resend } from "resend";
 import type { FollowupContact } from "@/lib/contact-requests";
+import { BRAND_NAME_SHORT } from "@/lib/brand";
 
 // Ten sam adres nadawcy co pozostałe maile (sandbox Resend onboarding@resend.dev).
-const FROM_ADDRESS = "EventFlow <onboarding@resend.dev>";
+const FROM_ADDRESS = `${BRAND_NAME_SHORT} <onboarding@resend.dev>`;
 
 function escapeHtml(value: string): string {
   return value
