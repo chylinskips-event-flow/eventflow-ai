@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { AttendeeActions } from "./attendee-actions";
+import { DeleteAttendeeButton } from "./delete-attendee-button";
 
 const STATUS_LABELS: Record<Attendee["status"], string> = {
   pending: "Oczekuje",
@@ -76,6 +77,11 @@ export function AttendeeList({
                     {attendee.status === "pending" && (
                       <AttendeeActions eventId={eventId} attendeeId={attendee.id} />
                     )}
+                    <DeleteAttendeeButton
+                      eventId={eventId}
+                      attendeeId={attendee.id}
+                      attendeeName={attendeeName(attendee)}
+                    />
                   </div>
                 </CardContent>
               </Card>

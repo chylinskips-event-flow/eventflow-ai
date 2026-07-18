@@ -184,7 +184,16 @@ export function RegisterForm({
                 <Checkbox id="gdpr_consent" name="gdpr_consent" required className="mt-1" />
                 <Label htmlFor="gdpr_consent" className="text-sm leading-snug font-normal">
                   Wyrażam zgodę na przetwarzanie moich danych osobowych w celu
-                  organizacji wydarzenia „{event.name}” zgodnie z RODO.
+                  organizacji wydarzenia „{event.name}” zgodnie z RODO oraz{" "}
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline"
+                  >
+                    Polityką prywatności
+                  </a>
+                  .
                 </Label>
               </div>
               <div className="flex items-start gap-3">

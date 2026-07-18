@@ -1,8 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentAttendee } from "@/lib/attendee-session";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import {
+  getCurrentAttendee,
+  ATTENDEE_TOKEN_COOKIE,
+} from "@/lib/attendee-session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { AVATAR_BUCKET, storagePathFromPublicUrl } from "@/lib/avatar-storage";
+import { deleteAttendeeCompletely } from "@/lib/attendee-deletion";
 
 /**
  * Przełącza widoczność uczestnika na liście networkingowej.
@@ -107,21 +114,12 @@ export type AvatarActionState = {
   avatarUrl?: string | null;
 };
 
-const AVATAR_BUCKET = "attendee-avatars";
 const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
 const EXT_BY_TYPE: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
 };
-
-// Ścieżka obiektu w bucketcie wyciągnięta z publicznego URL-a (bez ?v=...).
-function storagePathFromPublicUrl(url: string): string | null {
-  const marker = `/${AVATAR_BUCKET}/`;
-  const idx = url.indexOf(marker);
-  if (idx === -1) return null;
-  return url.slice(idx + marker.length).split("?")[0];
-}
 
 /**
  * Upload avatara uczestnika.
@@ -240,4 +238,31 @@ export async function removeAttendeeAvatar(
   revalidatePath(`/e/${slug}/profile`);
   revalidatePath(`/e/${slug}/attendees`);
   return { status: "success", message: "Zdjęcie usunięte.", avatarUrl: null };
+}
+
+/**
+ * Samoobsługowe usunięcie WSZYSTKICH danych uczestnika (RODO: prawo do
+ * usunięcia). Tożsamość WYŁĄCZNIE z getCurrentAttendee(slug) (cookie) — nikt
+ * nie usunie cudzych danych podmieniając parametr.
+ *
+ * Po usunięciu czyścimy cookie tokenu (tą samą ścieżką, którą był ustawiony)
+ * i przekierowujemy na stronę eventu z ?deleted=1 → jednorazowy baner.
+ */
+export async function deleteMyAttendeeData(slug: string): Promise<void> {
+  const attendee = await getCurrentAttendee(slug);
+  if (!attendee) {
+    redirect(`/e/${slug}`);
+  }
+
+  const { error } = await deleteAttendeeCompletely(attendee.id);
+  if (error) {
+    // Nie czyścimy cookie ani nie przekierowujemy z ?deleted=1, jeśli kasowanie
+    // nie doszło do skutku — inaczej zakomunikowalibyśmy sukces mimo porażki.
+    throw new Error("Nie udało się usunąć danych. Spróbuj ponownie.");
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.delete({ name: ATTENDEE_TOKEN_COOKIE, path: `/e/${slug}` });
+
+  redirect(`/e/${slug}?deleted=1`);
 }

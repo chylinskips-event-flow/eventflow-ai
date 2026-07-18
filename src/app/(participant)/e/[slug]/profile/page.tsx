@@ -14,6 +14,7 @@ import { ContactQr } from "../contact-qr";
 import { NetworkingToggle } from "./networking-toggle";
 import { ProfileForm } from "./profile-form";
 import { AvatarUpload } from "./avatar-upload";
+import { DeleteAccount } from "./delete-account";
 
 export default async function ProfilePage({
   params,
@@ -156,6 +157,15 @@ export default async function ProfilePage({
             slug={slug}
             initialVisible={attendee.networking_visible}
           />
+        </CardContent>
+      </Card>
+
+      <Card className="border-destructive/30">
+        <CardHeader>
+          <CardTitle className="text-destructive">Usunięcie danych</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DeleteAccount slug={slug} />
         </CardContent>
       </Card>
     </main>

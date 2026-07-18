@@ -72,10 +72,19 @@ export default async function ParticipantEventPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ preview?: string }>;
+  searchParams: Promise<{ preview?: string; deleted?: string }>;
 }) {
   const { slug } = await params;
-  const { preview } = await searchParams;
+  const { preview, deleted } = await searchParams;
+
+  // Jednorazowy baner po samoobsługowym usunięciu danych — sterowany wyłącznie
+  // parametrem URL (?deleted=1), więc znika przy odświeżeniu bez parametru.
+  const deletedBanner =
+    deleted === "1" ? (
+      <div className="bg-emerald-600 px-4 py-2 text-center text-sm font-medium text-white">
+        Twoje dane zostały usunięte.
+      </div>
+    ) : null;
   const event = await getEventBySlugForRegistration(slug);
 
   if (!event) {
@@ -227,15 +236,18 @@ export default async function ParticipantEventPage({
 
   if (unavailableReason) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4">
-        <Card className="w-full max-w-sm">
-          <CardHeader>
-            <CardTitle>{event.name}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">{unavailableReason}</p>
-          </CardContent>
-        </Card>
+      <main className="flex min-h-screen flex-col">
+        {deletedBanner}
+        <div className="flex flex-1 flex-col items-center justify-center p-4">
+          <Card className="w-full max-w-sm">
+            <CardHeader>
+              <CardTitle>{event.name}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">{unavailableReason}</p>
+            </CardContent>
+          </Card>
+        </div>
       </main>
     );
   }
@@ -267,6 +279,7 @@ export default async function ParticipantEventPage({
 
   return (
     <main className="flex flex-col">
+      {deletedBanner}
       {showPreviewBanner && (
         <div className="bg-amber-500 px-4 py-2 text-center text-sm font-medium text-white">
           Podgląd – wydarzenie nie jest jeszcze opublikowane. Widzisz je jako

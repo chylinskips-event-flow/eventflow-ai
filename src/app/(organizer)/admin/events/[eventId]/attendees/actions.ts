@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getOwnEvent } from "@/lib/events";
+import { deleteAttendeeCompletely } from "@/lib/attendee-deletion";
 import {
   sendAttendeeConfirmationEmail,
   sendAttendeeRejectedEmail,
@@ -100,4 +102,47 @@ export async function rejectAttendee(
 
   revalidatePath(`/admin/events/${eventId}/attendees`);
   return { status: "success", message: "Uczestnik odrzucony." };
+}
+
+/**
+ * Trwałe usunięcie danych uczestnika przez organizatora (RODO na żądanie osoby
+ * zgłoszone organizatorowi).
+ *
+ * Własność weryfikowana przez getOwnEvent (RLS na events zwróci event tylko
+ * właścicielowi). Dodatkowo potwierdzamy, że uczestnik należy do TEGO eventu,
+ * zanim skasujemy — attendeeId z klienta nie może wskazać kogoś spoza eventu.
+ */
+export async function deleteAttendeeAsOrganizer(
+  eventId: string,
+  attendeeId: string,
+): Promise<AttendeeModerationState> {
+  const event = await getOwnEvent(eventId);
+  if (!event) {
+    return { status: "error", message: "Event nie został znaleziony." };
+  }
+
+  // Kontrola przynależności do eventu — service_role, bo po chwili i tak
+  // kasujemy adminem; RLS-owy klient i tak nie widzi cudzych uczestników.
+  const admin = createAdminClient();
+  const { data: attendee } = await admin
+    .from("attendees")
+    .select("id")
+    .eq("id", attendeeId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+
+  if (!attendee) {
+    return { status: "error", message: "Uczestnik nie należy do tego wydarzenia." };
+  }
+
+  const { error } = await deleteAttendeeCompletely(attendeeId);
+  if (error) {
+    return {
+      status: "error",
+      message: "Nie udało się usunąć uczestnika. Spróbuj ponownie.",
+    };
+  }
+
+  revalidatePath(`/admin/events/${eventId}/attendees`);
+  return { status: "success", message: "Dane uczestnika usunięte." };
 }

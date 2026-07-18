@@ -1,5 +1,6 @@
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getEventColorVars } from "@/lib/event-theme";
+import { LegalFooter } from "@/components/legal-footer";
 import { EventHeader } from "./event-header";
 
 export default async function ParticipantEventLayout({
@@ -21,10 +22,15 @@ export default async function ParticipantEventLayout({
     ? (getEventColorVars(event.primary_color) as React.CSSProperties)
     : undefined;
 
+  // BRAK cookie bannera jest świadomy: aplikacja używa wyłącznie cookies
+  // NIEZBĘDNYCH (token uczestnika, sesja auth), które nie wymagają zgody w myśl
+  // RODO/ePrivacy. Jeśli w przyszłości dojdą cookies analityczne/marketingowe
+  // (np. analytics), TRZEBA dodać baner zgody i zarządzanie preferencjami.
   return (
-    <div style={colorVars}>
+    <div style={colorVars} className="flex min-h-full flex-col">
       {event && <EventHeader event={event} />}
-      {children}
+      <div className="flex-1">{children}</div>
+      <LegalFooter />
     </div>
   );
 }
