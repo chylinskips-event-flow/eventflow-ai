@@ -219,3 +219,105 @@ export async function getContactSections(
 
   return sections;
 }
+
+// Jeden kontakt na liście w mailu follow-up. Email jest tu zawsze — mail idzie
+// tylko po evencie do osób, które nawiązały kontakt (obopólna zgoda).
+export type FollowupContact = {
+  first_name: string | null;
+  last_name: string | null;
+  company: string | null;
+  job_title: string | null;
+  email: string | null;
+  note: string | null;
+};
+
+// Uczestnik, który ma >=1 kontakt accepted — adresat maila po evencie.
+export type FollowupRecipient = {
+  id: string;
+  first_name: string | null;
+  email: string | null;
+  contacts: FollowupContact[];
+};
+
+type FollowupParty = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  company: string | null;
+  job_title: string | null;
+  email: string | null;
+  status: string;
+};
+
+type FollowupRow = {
+  requester_id: string;
+  recipient_id: string;
+  requester_note: string | null;
+  recipient_note: string | null;
+  requester: FollowupParty | null;
+  recipient: FollowupParty | null;
+};
+
+const FOLLOWUP_FIELDS =
+  "id, first_name, last_name, company, job_title, email, status";
+
+/**
+ * Adresaci maila follow-up dla danego eventu: każdy zatwierdzony uczestnik
+ * z co najmniej jednym kontaktem 'accepted', wraz z listą tych kontaktów.
+ *
+ * JEDNO zapytanie o wszystkie accepted w evencie (obie strony embedowane),
+ * grupowanie per właściciel w pamięci — bez N+1 po uczestnikach. Każdy wiersz
+ * accepted daje DWA wpisy: z perspektywy requestera (kontakt = recipient,
+ * notatka = requester_note) i recipienta (odwrotnie). Adresatem jest tylko
+ * strona ze statusem 'approved'.
+ */
+export async function getEventFollowupRecipients(
+  eventId: string,
+): Promise<FollowupRecipient[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("contact_requests")
+    .select(
+      `requester_id, recipient_id, requester_note, recipient_note, ` +
+        `requester:attendees!contact_requests_requester_id_fkey(${FOLLOWUP_FIELDS}), ` +
+        `recipient:attendees!contact_requests_recipient_id_fkey(${FOLLOWUP_FIELDS})`,
+    )
+    .eq("event_id", eventId)
+    .eq("status", "accepted");
+
+  const rows = (data ?? []) as unknown as FollowupRow[];
+  const byOwner = new Map<string, FollowupRecipient>();
+
+  function add(owner: FollowupParty, other: FollowupParty, note: string | null) {
+    // Adresatem jest tylko zatwierdzony uczestnik — jeśli status zmieniono po
+    // akceptacji (np. wykluczenie), nie wysyłamy do niego maila.
+    if (owner.status !== "approved") return;
+
+    let entry = byOwner.get(owner.id);
+    if (!entry) {
+      entry = {
+        id: owner.id,
+        first_name: owner.first_name,
+        email: owner.email,
+        contacts: [],
+      };
+      byOwner.set(owner.id, entry);
+    }
+    entry.contacts.push({
+      first_name: other.first_name,
+      last_name: other.last_name,
+      company: other.company,
+      job_title: other.job_title,
+      email: other.email,
+      note,
+    });
+  }
+
+  for (const row of rows) {
+    if (!row.requester || !row.recipient) continue;
+    add(row.requester, row.recipient, row.requester_note);
+    add(row.recipient, row.requester, row.recipient_note);
+  }
+
+  return Array.from(byOwner.values());
+}

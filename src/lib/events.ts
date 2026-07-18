@@ -27,6 +27,7 @@ export type Event = {
   interest_options: string[] | null;
   registration_open: boolean;
   requires_approval: boolean;
+  followup_sent_at: string | null;
   created_at: string;
   updated_at: string;
 };
