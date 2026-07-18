@@ -16,6 +16,7 @@ import {
   getEventContentSectionsForPreview,
 } from "@/lib/event-content";
 import { formatDate, formatDateTimeRange, pluralizePl } from "@/lib/format";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +24,7 @@ import { AgendaSessionList } from "./agenda/agenda-session-list";
 import { SpeakerList } from "./speaker-list";
 import { ContentSections } from "./content-sections";
 import { LiveNow } from "./live-now";
+import { ContactQr } from "./contact-qr";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -103,6 +105,52 @@ export default async function ParticipantEventPage({
   const attendee = previewMode ? null : await getCurrentAttendee(slug);
 
   if (attendee) {
+    const fullName = [attendee.first_name, attendee.last_name]
+      .filter(Boolean)
+      .join(" ");
+    const initials = [attendee.first_name?.[0], attendee.last_name?.[0]]
+      .filter(Boolean)
+      .join("");
+
+    // Kompaktowa wizytówka z kodem QR — szybki dostęp na ekranie głównym.
+    // Pełna wersja zostaje na /profile. Mobile: dane u góry, QR pod nimi;
+    // sm+: dane po lewej, QR po prawej.
+    const businessCard = (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-4 py-4 text-center sm:flex-row sm:justify-between sm:text-left">
+          <div className="flex items-center gap-3">
+            <Avatar className="size-16 shrink-0">
+              {attendee.avatar_url && (
+                <AvatarImage src={attendee.avatar_url} alt={fullName} />
+              )}
+              <AvatarFallback className="text-lg">
+                {initials || "?"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex min-w-0 flex-col">
+              <span className="font-semibold">{fullName || "Uczestnik"}</span>
+              {attendee.company && (
+                <span className="text-sm text-muted-foreground">
+                  {attendee.company}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <ContactQr
+              slug={slug}
+              contactCode={attendee.contact_code}
+              size={150}
+              className="rounded-lg border bg-background p-1.5"
+            />
+            <span className="text-xs text-muted-foreground">
+              Twój kod kontaktowy
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+
     const navButtons = (
       <div className="flex flex-col gap-2">
         <Button asChild>
@@ -138,6 +186,7 @@ export default async function ParticipantEventPage({
             </h1>
             <p className="text-muted-foreground">{event.name}</p>
           </div>
+          {businessCard}
           <LiveNow
             slug={slug}
             sessions={sessions}
@@ -157,6 +206,7 @@ export default async function ParticipantEventPage({
           </h1>
           <p className="text-muted-foreground">{event.name}</p>
         </div>
+        {businessCard}
         <Card>
           <CardContent className="py-6">
             <p className="text-sm text-muted-foreground">

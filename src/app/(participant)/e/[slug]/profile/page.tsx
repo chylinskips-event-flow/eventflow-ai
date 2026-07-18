@@ -1,10 +1,7 @@
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import QRCode from "qrcode";
 import { getCurrentAttendee } from "@/lib/attendee-session";
-import { getOrigin } from "@/lib/request-origin";
 import {
   getEventBySlugForRegistration,
   DEFAULT_INTEREST_OPTIONS,
@@ -13,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ContactQr } from "../contact-qr";
 import { NetworkingToggle } from "./networking-toggle";
 import { ProfileForm } from "./profile-form";
 import { AvatarUpload } from "./avatar-upload";
@@ -49,16 +47,6 @@ export default async function ProfilePage({
     (interest) => !baseInterests.includes(interest),
   );
   const interestOptions = [...baseInterests, ...extraInterests];
-
-  // Kod QR do wymiany kontaktów — generowany server-side jako data-URL tą samą
-  // biblioteką co QR w mailach (qrcode), tu przez toDataURL zamiast toBuffer.
-  // origin na GET-renderze bierze gałąź fallback getOrigin (brak nagłówka Origin).
-  const origin = getOrigin(await headers());
-  const connectUrl = `${origin}/e/${slug}/connect/${attendee.contact_code}`;
-  const qrDataUrl = await QRCode.toDataURL(connectUrl, {
-    width: 240,
-    margin: 2,
-  });
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
@@ -112,13 +100,10 @@ export default async function ProfilePage({
           <CardTitle>Twój kod kontaktowy</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-3 text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element -- data-URL, nie
-              zdalny zasób; next/image tu nie ma czego optymalizować */}
-          <img
-            src={qrDataUrl}
-            alt="Kod QR do wymiany kontaktu"
-            width={240}
-            height={240}
+          <ContactQr
+            slug={slug}
+            contactCode={attendee.contact_code}
+            size={240}
             className="rounded-lg border bg-background p-2"
           />
           <p className="max-w-xs text-sm text-muted-foreground">
