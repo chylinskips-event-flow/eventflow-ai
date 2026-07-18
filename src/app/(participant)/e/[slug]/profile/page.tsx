@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import QRCode from "qrcode";
 import { getCurrentAttendee } from "@/lib/attendee-session";
+import { getOrigin } from "@/lib/request-origin";
 import {
   getEventBySlugForRegistration,
   DEFAULT_INTEREST_OPTIONS,
@@ -42,6 +45,16 @@ export default async function ProfilePage({
   );
   const interestOptions = [...baseInterests, ...extraInterests];
 
+  // Kod QR do wymiany kontaktów — generowany server-side jako data-URL tą samą
+  // biblioteką co QR w mailach (qrcode), tu przez toDataURL zamiast toBuffer.
+  // origin na GET-renderze bierze gałąź fallback getOrigin (brak nagłówka Origin).
+  const origin = getOrigin(await headers());
+  const connectUrl = `${origin}/e/${slug}/connect/${attendee.contact_code}`;
+  const qrDataUrl = await QRCode.toDataURL(connectUrl, {
+    width: 240,
+    margin: 2,
+  });
+
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
       <Button asChild variant="outline" size="sm" className="w-fit">
@@ -61,6 +74,27 @@ export default async function ProfilePage({
           )}
           <p className="text-sm text-muted-foreground">
             Aby zmienić dane osobowe, skontaktuj się z organizatorem.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Mój kod QR do wymiany kontaktów</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center gap-3 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element -- data-URL, nie
+              zdalny zasób; next/image tu nie ma czego optymalizować */}
+          <img
+            src={qrDataUrl}
+            alt="Kod QR do wymiany kontaktu"
+            width={240}
+            height={240}
+            className="rounded-lg border"
+          />
+          <p className="max-w-xs text-sm text-muted-foreground">
+            Pokaż ten kod osobie, którą poznasz — po zeskanowaniu nawiążecie
+            kontakt.
           </p>
         </CardContent>
       </Card>

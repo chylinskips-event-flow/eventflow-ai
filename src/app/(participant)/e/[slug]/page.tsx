@@ -117,6 +117,9 @@ export default async function ParticipantEventPage({
         <Button asChild variant="outline">
           <Link href={`/e/${slug}/contacts`}>Kontakty</Link>
         </Button>
+        <Button asChild variant="outline">
+          <Link href={`/e/${slug}/profile`}>Mój profil</Link>
+        </Button>
       </div>
     );
 

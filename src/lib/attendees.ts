@@ -22,6 +22,7 @@ export type Attendee = {
   level: string;
   status: AttendeeStatus;
   qr_code_token: string;
+  contact_code: string;
   checked_in_at: string | null;
   matches_generated_at: string | null;
   created_at: string;

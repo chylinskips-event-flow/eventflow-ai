@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { Attendee } from "@/lib/attendees";
 
 export type ContactRequestStatus = "pending" | "accepted" | "declined";
 
@@ -100,6 +101,29 @@ async function getRowsForAttendee(
     .order("created_at", { ascending: false });
 
   return (data ?? []) as Row[];
+}
+
+/**
+ * Znajduje uczestnika po contact_code w obrębie danego eventu.
+ *
+ * Zawężenie do eventId jest granicą bezpieczeństwa: kod z innego wydarzenia
+ * jest dla tej trasy "nieprawidłowy", a nie oknem na cudzy event. Zwraca tylko
+ * zatwierdzonych (approved) — kodu niezatwierdzonego uczestnika nie honorujemy.
+ */
+export async function getAttendeeByContactCode(
+  code: string,
+  eventId: string,
+): Promise<Attendee | null> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("attendees")
+    .select("*")
+    .eq("contact_code", code)
+    .eq("event_id", eventId)
+    .eq("status", "approved")
+    .maybeSingle();
+
+  return (data as Attendee | null) ?? null;
 }
 
 /**
