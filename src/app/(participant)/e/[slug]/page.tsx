@@ -15,11 +15,13 @@ import {
   getEventContentSections,
   getEventContentSectionsForPreview,
 } from "@/lib/event-content";
+import { computeLevel, computeNextLevelThreshold, LEVEL_LABELS } from "@/lib/gamification";
 import { formatDate, formatDateTimeRange, pluralizePl } from "@/lib/format";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { AgendaSessionList } from "./agenda/agenda-session-list";
 import { SpeakerList } from "./speaker-list";
 import { ContentSections } from "./content-sections";
@@ -121,6 +123,47 @@ export default async function ParticipantEventPage({
       .filter(Boolean)
       .join("");
 
+    // Dane grywalizacji — tylko gdy włączona
+    let gamificationBar: React.ReactNode = null;
+    let hasRewards = false;
+    if (event.gamification_enabled) {
+      const adminSupabase = createAdminClient();
+      const { count } = await adminSupabase
+        .from("rewards")
+        .select("id", { count: "exact", head: true })
+        .eq("event_id", event.id);
+      hasRewards = (count ?? 0) > 0;
+
+      const pts = attendee.points ?? 0;
+      const level = computeLevel(pts);
+      const nextThreshold = computeNextLevelThreshold(pts);
+      const prevThreshold = level === "explorer" ? 0 : level === "connector" ? 100 : 250;
+      const progressPct = nextThreshold
+        ? Math.min(100, Math.round(((pts - prevThreshold) / (nextThreshold - prevThreshold)) * 100))
+        : 100;
+
+      gamificationBar = (
+        <Link href={`/e/${slug}/quests`} className="block">
+          <Card className="transition-colors hover:bg-muted/50">
+            <CardContent className="flex flex-col gap-2 py-4">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">⭐ {pts} pkt</span>
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                  {LEVEL_LABELS[level]}
+                </span>
+              </div>
+              <Progress value={progressPct} className="h-1.5" />
+              <p className="text-xs text-muted-foreground">
+                {nextThreshold
+                  ? `${nextThreshold - pts} pkt do poziomu ${LEVEL_LABELS[computeLevel(nextThreshold)]}`
+                  : "Najwyższy poziom osiągnięty!"}
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+      );
+    }
+
     // Kompaktowa wizytówka z kodem QR — szybki dostęp na ekranie głównym.
     // Pełna wersja zostaje na /profile. Mobile: dane u góry, QR pod nimi;
     // sm+: dane po lewej, QR po prawej.
@@ -174,6 +217,21 @@ export default async function ParticipantEventPage({
         <Button asChild variant="outline">
           <Link href={`/e/${slug}/contacts`}>Kontakty</Link>
         </Button>
+        {event.gamification_enabled && (
+          <>
+            <Button asChild variant="outline">
+              <Link href={`/e/${slug}/quests`}>Zadania</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href={`/e/${slug}/ranking`}>Ranking</Link>
+            </Button>
+            {hasRewards && (
+              <Button asChild variant="outline">
+                <Link href={`/e/${slug}/rewards`}>Nagrody</Link>
+              </Button>
+            )}
+          </>
+        )}
         <Button asChild variant="outline">
           <Link href={`/e/${slug}/profile`}>Mój profil</Link>
         </Button>
@@ -196,6 +254,7 @@ export default async function ParticipantEventPage({
             <p className="text-muted-foreground">{event.name}</p>
           </div>
           {businessCard}
+          {gamificationBar}
           <LiveNow
             slug={slug}
             sessions={sessions}
@@ -216,6 +275,7 @@ export default async function ParticipantEventPage({
           <p className="text-muted-foreground">{event.name}</p>
         </div>
         {businessCard}
+        {gamificationBar}
         <Card>
           <CardContent className="py-6">
             <p className="text-sm text-muted-foreground">

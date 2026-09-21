@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { pluralizePl } from "@/lib/format";
+import { computeLevel, LEVEL_LABELS } from "@/lib/gamification";
 import { cn } from "@/lib/utils";
 import type { ContactCardState } from "@/lib/contact-requests";
 import { ContactRequestButton } from "./contact-request-button";
@@ -29,6 +30,7 @@ export type AttendeeListItem = {
   looking_for: string | null;
   avatar_url: string | null;
   networking_visible: boolean;
+  points?: number;
 };
 
 const ALL_INDUSTRIES = "__all__";
@@ -38,12 +40,14 @@ export function AttendeeList({
   attendees,
   currentAttendeeId,
   contactStates,
+  gamificationEnabled = false,
 }: {
   slug: string;
   attendees: AttendeeListItem[];
   currentAttendeeId: string;
   /** Mapa attendeeId → stan przycisku kontaktu, policzona server-side. */
   contactStates: Record<string, ContactCardState>;
+  gamificationEnabled?: boolean;
 }) {
   const [industry, setIndustry] = useState(ALL_INDUSTRIES);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
@@ -222,6 +226,11 @@ export function AttendeeList({
                       {initials || "?"}
                     </AvatarFallback>
                   </Avatar>
+                  {gamificationEnabled && a.points !== undefined && a.points > 0 && (
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                      {LEVEL_LABELS[computeLevel(a.points)]}
+                    </span>
+                  )}
                   <span className="font-semibold">
                     {fullName || "Uczestnik"}
                   </span>

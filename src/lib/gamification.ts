@@ -15,6 +15,19 @@ export function computeLevel(points: number): GamificationLevel {
   return "explorer";
 }
 
+export const LEVEL_LABELS: Record<GamificationLevel, string> = {
+  explorer: "Explorer",
+  connector: "Connector",
+  ambassador: "Ambassador",
+};
+
+/** Próg następnego poziomu, lub null gdy Ambassador (maks). */
+export function computeNextLevelThreshold(points: number): number | null {
+  if (points < 100) return 100;
+  if (points < 250) return 250;
+  return null;
+}
+
 export type CompleteQuestParams = {
   attendeeId: string;
   questId: string;

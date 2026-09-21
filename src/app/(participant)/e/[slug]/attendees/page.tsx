@@ -66,7 +66,7 @@ export default async function AttendeesPage({
   const { data } = await supabase
     .from("attendees")
     .select(
-      "id, first_name, last_name, company, job_title, industry, interests, looking_for, avatar_url, networking_visible",
+      "id, first_name, last_name, company, job_title, industry, interests, looking_for, avatar_url, networking_visible, points",
     )
     .eq("event_id", event.id)
     .eq("status", "approved")
@@ -129,6 +129,7 @@ export default async function AttendeesPage({
         attendees={attendees}
         currentAttendeeId={attendee.id}
         contactStates={contactStates}
+        gamificationEnabled={event.gamification_enabled}
       />
     </main>
   );
