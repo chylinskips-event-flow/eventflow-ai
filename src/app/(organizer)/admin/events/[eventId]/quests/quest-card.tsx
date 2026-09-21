@@ -1,11 +1,21 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toggleQuestActive, deleteQuest } from "./actions";
 import { QuestFormDialog, type QuestForEdit } from "./quest-form-dialog";
 import type { Partner } from "@/lib/partners";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -37,6 +47,8 @@ export function QuestCard({
 }) {
   const [isToggling, startToggle] = useTransition();
   const [isDeleting, startDelete] = useTransition();
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function handleToggle(checked: boolean) {
     startToggle(async () => {
@@ -45,9 +57,14 @@ export function QuestCard({
   }
 
   function handleDelete() {
-    if (!confirm(`Usunąć quest „${quest.title}"? Tej operacji nie można cofnąć.`)) return;
+    setDeleteError(null);
     startDelete(async () => {
-      await deleteQuest(eventId, quest.id);
+      const result = await deleteQuest(eventId, quest.id);
+      if (result.status === "error") {
+        setDeleteError(result.message ?? "Nie udało się usunąć questa.");
+        return;
+      }
+      setIsDeleteOpen(false);
     });
   }
 
@@ -104,15 +121,47 @@ export function QuestCard({
               </Button>
             }
           />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className="text-destructive hover:text-destructive"
+          <AlertDialog
+            open={isDeleteOpen}
+            onOpenChange={(open) => {
+              if (isDeleting) return;
+              setIsDeleteOpen(open);
+            }}
           >
-            Usuń
-          </Button>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+              >
+                Usuń
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Usunąć quest?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Usunięcie questa „{quest.title}" jest nieodwracalne. Skasuje
+                  też historię jego zaliczenia przez uczestników.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {deleteError && (
+                <p className="text-sm text-destructive">{deleteError}</p>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>
+                  Anuluj
+                </AlertDialogCancel>
+                <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? "Usuwanie..." : "Usuń"}
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </CardContent>
     </Card>

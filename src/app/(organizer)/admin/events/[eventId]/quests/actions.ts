@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getOwnEvent } from "@/lib/events";
 
 export type QuestFormState = {
@@ -90,7 +90,7 @@ export async function createQuest(
   const { config, error: configError } = parseConfig(type, formData);
   if (configError) return { status: "error", message: configError };
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { error } = await supabase.from("quests").insert({
     event_id: eventId,
     type,
@@ -147,7 +147,7 @@ export async function updateQuest(
   const { config, error: configError } = parseConfig(type, formData);
   if (configError) return { status: "error", message: configError };
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { error } = await supabase
     .from("quests")
     .update({
@@ -183,7 +183,7 @@ export async function toggleQuestActive(
   const event = await getOwnEvent(eventId);
   if (!event) return { status: "error", message: "Event nie znaleziony." };
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { error } = await supabase
     .from("quests")
     .update({ is_active: isActive })
@@ -207,7 +207,7 @@ export async function deleteQuest(
   const event = await getOwnEvent(eventId);
   if (!event) return { status: "error", message: "Event nie znaleziony." };
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { error } = await supabase
     .from("quests")
     .delete()
@@ -230,7 +230,7 @@ export async function seedQuests(
   const event = await getOwnEvent(eventId);
   if (!event) return { status: "error", message: "Event nie znaleziony." };
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const seeds = [
     {
