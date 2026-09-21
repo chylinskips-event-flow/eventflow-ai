@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { getAttendeeByContactCode } from "@/lib/contact-requests";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkNetworkingQuestProgress } from "@/lib/gamification";
 
 export type ConnectActionState = {
   status: "error";
@@ -97,5 +98,16 @@ export async function connectViaCode(
 
   revalidatePath(`/e/${slug}/contacts`);
   revalidatePath(`/e/${slug}/attendees`);
+
+  // Quest networking_contacts — obie strony zaakceptowanego skanu
+  try {
+    await Promise.all([
+      checkNetworkingQuestProgress(scanner.id, scanner.event_id),
+      checkNetworkingQuestProgress(owner.id, owner.event_id),
+    ]);
+  } catch (err) {
+    console.error("[quest] networking hook error (connectViaCode):", err);
+  }
+
   redirect(`/e/${slug}/contacts`);
 }

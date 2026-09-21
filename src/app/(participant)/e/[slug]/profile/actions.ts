@@ -8,6 +8,7 @@ import {
   ATTENDEE_TOKEN_COOKIE,
 } from "@/lib/attendee-session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkProfileQuestProgress } from "@/lib/gamification";
 import { AVATAR_BUCKET, storagePathFromPublicUrl } from "@/lib/avatar-storage";
 import { deleteAttendeeCompletely } from "@/lib/attendee-deletion";
 
@@ -105,6 +106,14 @@ export async function updateAttendeeProfile(
 
   revalidatePath(`/e/${slug}/profile`);
   revalidatePath(`/e/${slug}/attendees`);
+
+  // Quest profile_complete — no-op gdy gamification off lub quest brak/zaliczony
+  try {
+    await checkProfileQuestProgress(attendee.id, attendee.event_id);
+  } catch (err) {
+    console.error("[quest] profile hook error:", err);
+  }
+
   return { status: "success", message: "Zapisano ✓" };
 }
 

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkNetworkingQuestProgress } from "@/lib/gamification";
 
 export type ContactActionState = {
   status: "idle" | "success" | "error";
@@ -85,6 +86,17 @@ export async function sendContactRequest(
     }
 
     revalidateContactPaths(slug);
+
+    // Quest networking_contacts — obie strony, no-op gdy gamification off
+    try {
+      await Promise.all([
+        checkNetworkingQuestProgress(attendee.id, attendee.event_id),
+        checkNetworkingQuestProgress(recipientId, attendee.event_id),
+      ]);
+    } catch (err) {
+      console.error("[quest] networking hook error (sendContactRequest reverse):", err);
+    }
+
     return { status: "success", message: "Kontakt nawiązany ✓" };
   }
 
@@ -139,7 +151,7 @@ export async function respondToContactRequest(
     .eq("id", requestId)
     .eq("recipient_id", attendee.id)
     .eq("status", "pending")
-    .select("id");
+    .select("id, requester_id");
 
   if (error) {
     return {
@@ -156,6 +168,20 @@ export async function respondToContactRequest(
   }
 
   revalidateContactPaths(slug);
+
+  // Quest networking_contacts — obie strony przy akceptacji
+  if (accept) {
+    const requesterId = (data[0] as { requester_id: string }).requester_id;
+    try {
+      await Promise.all([
+        checkNetworkingQuestProgress(attendee.id, attendee.event_id),
+        checkNetworkingQuestProgress(requesterId, attendee.event_id),
+      ]);
+    } catch (err) {
+      console.error("[quest] networking hook error (respondToContactRequest):", err);
+    }
+  }
+
   return {
     status: "success",
     message: accept ? "Kontakt nawiązany ✓" : "Prośba odrzucona.",
