@@ -216,7 +216,9 @@ function QuestFormContent({
       {/* Partner — tylko typy stoiskowe */}
       {isBooth && (
         <div className="flex flex-col gap-2">
-          <Label htmlFor="partner_id">Partner (opcjonalnie)</Label>
+          <Label htmlFor="partner_id">
+            Partner <span className="text-destructive">*</span>
+          </Label>
           <input
             type="hidden"
             name="partner_id"
@@ -224,10 +226,10 @@ function QuestFormContent({
           />
           <Select value={partnerId} onValueChange={setPartnerId}>
             <SelectTrigger id="partner_id">
-              <SelectValue placeholder="Nie przypisano" />
+              <SelectValue placeholder="Wybierz partnera" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NO_PARTNER}>Nie przypisano</SelectItem>
+              <SelectItem value={NO_PARTNER}>— wybierz —</SelectItem>
               {partners.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.name}
@@ -235,6 +237,9 @@ function QuestFormContent({
               ))}
             </SelectContent>
           </Select>
+          <p className="text-xs text-muted-foreground">
+            Quest stoiskowy wymaga partnera — uczestnik skanuje QR konkretnego stoiska.
+          </p>
         </div>
       )}
 

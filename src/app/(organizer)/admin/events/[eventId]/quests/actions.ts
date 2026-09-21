@@ -87,6 +87,10 @@ export async function createQuest(
     return { status: "error", message: "Podaj cel liczbowy (min. 1 kontakt)." };
   }
 
+  if (["booth_visit", "booth_quiz", "booth_password"].includes(type) && !partnerId) {
+    return { status: "error", message: "Wybierz partnera dla questa stoiskowego." };
+  }
+
   const { config, error: configError } = parseConfig(type, formData);
   if (configError) return { status: "error", message: configError };
 
@@ -142,6 +146,10 @@ export async function updateQuest(
 
   if (type === "networking_contacts" && (!targetValue || targetValue < 1)) {
     return { status: "error", message: "Podaj cel liczbowy (min. 1 kontakt)." };
+  }
+
+  if (["booth_visit", "booth_quiz", "booth_password"].includes(type) && !partnerId) {
+    return { status: "error", message: "Wybierz partnera dla questa stoiskowego." };
   }
 
   const { config, error: configError } = parseConfig(type, formData);
@@ -232,7 +240,13 @@ export async function seedQuests(
 
   const supabase = createAdminClient();
 
-  const seeds = [
+  const { data: partners } = await supabase
+    .from("partners")
+    .select("id, name")
+    .eq("event_id", eventId)
+    .order("name", { ascending: true });
+
+  const seeds: object[] = [
     {
       event_id: eventId,
       type: "profile_complete",
@@ -250,15 +264,19 @@ export async function seedQuests(
       target_value: 3,
       is_active: true,
     },
-    {
+  ];
+
+  for (const partner of partners ?? []) {
+    seeds.push({
       event_id: eventId,
       type: "booth_visit",
-      title: "Odwiedź stoisko",
+      title: `Odwiedź stoisko: ${(partner as { id: string; name: string }).name}`,
       description: "Zeskanuj kod QR przy stoisku partnera.",
       points_value: 10,
+      partner_id: (partner as { id: string; name: string }).id,
       is_active: true,
-    },
-  ];
+    });
+  }
 
   const { error } = await supabase.from("quests").insert(seeds);
 
