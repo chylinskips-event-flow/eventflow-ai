@@ -4,7 +4,9 @@ import { useActionState, useState } from "react";
 import { createPartner, updatePartner, type PartnerFormState } from "./actions";
 import type { Partner } from "@/lib/partners";
 import { PARTNER_TIERS } from "@/lib/partner-options";
+import { validateImageFile, MB } from "@/lib/upload-validation";
 import { Button } from "@/components/ui/button";
+import { FileInput } from "@/components/ui/file-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,12 +43,29 @@ export function PartnerFormDialog({
   const [lastStatus, setLastStatus] =
     useState<PartnerFormState["status"]>("idle");
   const [tier, setTier] = useState(partner?.tier ?? NO_TIER_VALUE);
+  const [logoClientError, setLogoClientError] = useState<string | null>(null);
 
   const action = partner
     ? updatePartner.bind(null, eventId, partner.id)
     : createPartner.bind(null, eventId);
 
   const [state, formAction, isPending] = useActionState(action, initialState);
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    if (!partner) {
+      const input = e.currentTarget.elements.namedItem("logo") as HTMLInputElement | null;
+      const file = input?.files?.[0];
+      if (file) {
+        const err = validateImageFile(file, 5 * MB);
+        if (err) {
+          e.preventDefault();
+          setLogoClientError(err);
+          return;
+        }
+      }
+      setLogoClientError(null);
+    }
+  }
 
   if (state.status !== lastStatus) {
     setLastStatus(state.status);
@@ -72,6 +91,7 @@ export function PartnerFormDialog({
 
         <form
           action={formAction}
+          onSubmit={handleSubmit}
           encType="multipart/form-data"
           className="flex flex-col gap-4"
         >
@@ -127,12 +147,15 @@ export function PartnerFormDialog({
           {!partner && (
             <div className="flex flex-col gap-2">
               <Label htmlFor="logo">Logo (opcjonalnie)</Label>
-              <Input
+              <FileInput
                 id="logo"
                 name="logo"
-                type="file"
                 accept="image/jpeg,image/png,image/webp"
+                disabled={isPending}
               />
+              {logoClientError && (
+                <p className="text-sm text-destructive">{logoClientError}</p>
+              )}
             </div>
           )}
           {state.status === "error" && (
