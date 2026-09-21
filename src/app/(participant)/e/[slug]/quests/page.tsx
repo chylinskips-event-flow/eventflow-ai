@@ -91,7 +91,10 @@ export default async function QuestsPage({
     ? Math.min(100, Math.round(((points - prevThreshold) / (nextThreshold - prevThreshold)) * 100))
     : 100;
 
-  const totalPossible = quests.reduce((s, q) => s + (q.points_value ?? 0), 0);
+  const remainingPoints = quests
+    .filter((q) => !q.done)
+    .reduce((s, q) => s + (q.points_value ?? 0), 0);
+  const allDone = quests.length > 0 && quests.every((q) => q.done);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
@@ -125,9 +128,11 @@ export default async function QuestsPage({
             {nextThreshold
               ? `${nextThreshold - points} pkt do poziomu ${LEVEL_LABELS[computeLevel(nextThreshold)]}`
               : "Osiągnąłeś/-aś najwyższy poziom!"}
-            {totalPossible > 0 && (
-              <span className="ml-2 opacity-70">· Do zdobycia: {totalPossible} pkt</span>
-            )}
+            {allDone ? (
+              <span className="ml-2">· Wszystkie zadania ukończone 🎉</span>
+            ) : remainingPoints > 0 ? (
+              <span className="ml-2 opacity-70">· Pozostało do zdobycia: {remainingPoints} pkt</span>
+            ) : null}
           </p>
           <Button asChild variant="outline" size="sm" className="w-fit">
             <Link href={`/e/${slug}/ranking`}>
