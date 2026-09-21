@@ -59,6 +59,12 @@ export async function submitBoothVisit(
         .eq("attendee_id", attendee.id)
         .eq("partner_id", partner.id);
     }
+    await supabase.from("event_analytics_log").insert({
+      event_id: partner.event_id,
+      attendee_id: attendee.id,
+      action_type: "booth_checkin",
+      metadata: { partner_id: partner.id, partner_name: partner.name, points_awarded: 0, quest_type: null },
+    });
     return { status: "success", pointsAwarded: 0, newLevel: attendee.level, levelUp: false };
   }
 
@@ -74,6 +80,13 @@ export async function submitBoothVisit(
       pointsAwarded: (quest.points_value as number) ?? 0,
       leadConsent,
       consentTextVersion: leadConsent ? CONSENT_TEXT_VERSION : null,
+    });
+    const pts = result.ok ? result.pointsAwarded : 0;
+    await supabase.from("event_analytics_log").insert({
+      event_id: partner.event_id,
+      attendee_id: attendee.id,
+      action_type: "booth_checkin",
+      metadata: { partner_id: partner.id, partner_name: partner.name, points_awarded: pts, quest_type: "booth_visit" },
     });
     if (!result.ok) {
       return { status: "success", pointsAwarded: 0, newLevel: attendee.level, levelUp: false };
@@ -149,6 +162,12 @@ export async function submitBoothVisit(
         leadConsent,
         consentTextVersion: leadConsent ? CONSENT_TEXT_VERSION : null,
       });
+      await supabase.from("event_analytics_log").insert({
+        event_id: partner.event_id,
+        attendee_id: attendee.id,
+        action_type: "booth_checkin",
+        metadata: { partner_id: partner.id, partner_name: partner.name, points_awarded: 0, quest_type: questType, answered_correctly: false },
+      });
       return { status: "no_attempts" };
     }
     return { status: "wrong_answer", attemptsUsed: newAttemptsUsed };
@@ -166,6 +185,14 @@ export async function submitBoothVisit(
     pointsAwarded,
     leadConsent,
     consentTextVersion: leadConsent ? CONSENT_TEXT_VERSION : null,
+  });
+
+  const pts = result.ok ? result.pointsAwarded : 0;
+  await supabase.from("event_analytics_log").insert({
+    event_id: partner.event_id,
+    attendee_id: attendee.id,
+    action_type: "booth_checkin",
+    metadata: { partner_id: partner.id, partner_name: partner.name, points_awarded: pts, quest_type: questType, answered_correctly: true },
   });
 
   if (!result.ok) {

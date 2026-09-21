@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { drawLotteryWinner } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,38 +14,39 @@ type Attendee = {
   points: number;
 };
 
+type Winner = Attendee & { tickets: number };
+
 export function LotteryClient({
+  eventId,
   pointsPerTicket,
   eligible,
 }: {
+  eventId: string;
   pointsPerTicket: number;
   eligible: Attendee[];
 }) {
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
-  const [winner, setWinner] = useState<Attendee | null>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const [winner, setWinner] = useState<Winner | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
-  const pool = eligible.filter((a) => !excludedIds.has(a.id));
+  const poolSize = eligible.filter((a) => !excludedIds.has(a.id)).length;
+  const totalTickets = eligible
+    .filter((a) => !excludedIds.has(a.id))
+    .reduce((s, a) => s + Math.floor(a.points / pointsPerTicket), 0);
 
   function draw() {
-    if (pool.length === 0) return;
-    setIsDrawing(true);
-
-    // Ważone losowanie — każdy bilet to jeden "kupon" w puli
-    const tickets: Attendee[] = [];
-    for (const a of pool) {
-      const count = Math.floor(a.points / pointsPerTicket);
-      for (let i = 0; i < count; i++) {
-        tickets.push(a);
+    setError(null);
+    startTransition(async () => {
+      const result = await drawLotteryWinner(eventId, [...excludedIds]);
+      if (result.status === "error") {
+        setError(result.message);
+      } else if (result.status === "empty") {
+        setError("Pula losowania jest pusta.");
+      } else {
+        setWinner(result.winner);
       }
-    }
-
-    // Krótka animacja (300ms), potem wylosowanie
-    setTimeout(() => {
-      const idx = Math.floor(Math.random() * tickets.length);
-      setWinner(tickets[idx]);
-      setIsDrawing(false);
-    }, 300);
+    });
   }
 
   function excludeWinner() {
@@ -56,12 +58,8 @@ export function LotteryClient({
   function reset() {
     setExcludedIds(new Set());
     setWinner(null);
+    setError(null);
   }
-
-  const totalTickets = pool.reduce(
-    (sum, a) => sum + Math.floor(a.points / pointsPerTicket),
-    0,
-  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -72,19 +70,16 @@ export function LotteryClient({
             <CardTitle className="text-lg">Wylosowany uczestnik</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col">
-                <span className="text-xl font-semibold">
-                  {[winner.first_name, winner.last_name].filter(Boolean).join(" ") || "Uczestnik"}
-                </span>
-                {winner.company && (
-                  <span className="text-sm text-muted-foreground">{winner.company}</span>
-                )}
-                <span className="text-sm text-muted-foreground">
-                  {winner.points} pkt ·{" "}
-                  {Math.floor(winner.points / pointsPerTicket)} biletów
-                </span>
-              </div>
+            <div className="flex flex-col">
+              <span className="text-xl font-semibold">
+                {[winner.first_name, winner.last_name].filter(Boolean).join(" ") || "Uczestnik"}
+              </span>
+              {winner.company && (
+                <span className="text-sm text-muted-foreground">{winner.company}</span>
+              )}
+              <span className="text-sm text-muted-foreground">
+                {winner.points} pkt · {winner.tickets} biletów
+              </span>
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={excludeWinner}>
@@ -101,7 +96,7 @@ export function LotteryClient({
       {/* Kontrolki */}
       <Card>
         <CardContent className="flex flex-col gap-4 pt-6">
-          {pool.length === 0 ? (
+          {poolSize === 0 ? (
             <p className="text-sm text-muted-foreground">
               Pula losowania jest pusta — wszyscy kwalifikujący się uczestnicy
               zostali wykluczeni lub nikt nie ma wystarczającej liczby punktów.
@@ -109,18 +104,20 @@ export function LotteryClient({
           ) : (
             <div className="flex items-center justify-between gap-4">
               <div className="text-sm text-muted-foreground">
-                {pool.length} uczestników · {totalTickets} biletów
+                {poolSize} uczestników · {totalTickets} biletów
                 {excludedIds.size > 0 && (
                   <span className="ml-2 text-yellow-600 dark:text-yellow-400">
                     ({excludedIds.size} wykluczonych)
                   </span>
                 )}
               </div>
-              <Button onClick={draw} disabled={isDrawing || pool.length === 0}>
-                {isDrawing ? "Losowanie..." : "Losuj"}
+              <Button onClick={draw} disabled={isPending || poolSize === 0}>
+                {isPending ? "Losowanie..." : "Losuj"}
               </Button>
             </div>
           )}
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
           {excludedIds.size > 0 && (
             <Button variant="ghost" size="sm" className="self-start" onClick={reset}>

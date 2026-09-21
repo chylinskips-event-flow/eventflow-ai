@@ -58,6 +58,7 @@ export default async function LotteryPage({
       </div>
 
       <LotteryClient
+        eventId={eventId}
         pointsPerTicket={pointsPerTicket}
         eligible={eligible}
       />
