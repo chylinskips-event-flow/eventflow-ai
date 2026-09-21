@@ -110,6 +110,9 @@ export function EventEditForm({ event }: { event: Event }) {
   const [requiresApproval, setRequiresApproval] = useState(
     event.requires_approval,
   );
+  const [gamificationEnabled, setGamificationEnabled] = useState(
+    event.gamification_enabled,
+  );
 
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [isPublishing, startPublishTransition] = useTransition();
@@ -443,6 +446,46 @@ export function EventEditForm({ event }: { event: Event }) {
                   Każda rejestracja będzie wymagać Twojej akceptacji, zanim
                   uczestnik otrzyma dostęp i QR kod. Przydatne np. dla eventów
                   z ograniczeniem dostępu dla konkurencji.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-4 border-t pt-4">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="gamification_enabled"
+                  name="gamification_enabled"
+                  checked={gamificationEnabled}
+                  onCheckedChange={(checked) =>
+                    setGamificationEnabled(checked === true)
+                  }
+                  className="mt-1"
+                />
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="gamification_enabled" className="font-normal">
+                    Grywalizacja włączona
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Zadania przy stoiskach, punkty i loteria. Gdy wyłączona,
+                    uczestnicy nie widzą żadnych elementów grywalizacji.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="lottery_points_per_ticket">
+                  Punkty na 1 los loterii (opcjonalnie)
+                </Label>
+                <Input
+                  id="lottery_points_per_ticket"
+                  name="lottery_points_per_ticket"
+                  type="number"
+                  min={1}
+                  step={1}
+                  defaultValue={event.lottery_points_per_ticket ?? ""}
+                  className="w-40"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Ile punktów odpowiada jednemu losowi. Pozostaw puste, aby
+                  wyłączyć loterię.
                 </p>
               </div>
             </div>

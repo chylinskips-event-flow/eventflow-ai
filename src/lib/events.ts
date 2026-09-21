@@ -28,6 +28,8 @@ export type Event = {
   registration_open: boolean;
   requires_approval: boolean;
   followup_sent_at: string | null;
+  gamification_enabled: boolean;
+  lottery_points_per_ticket: number | null;
   created_at: string;
   updated_at: string;
 };

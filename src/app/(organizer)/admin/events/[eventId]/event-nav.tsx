@@ -20,6 +20,7 @@ export function EventNav({
     { href: `/admin/events/${eventId}/speakers`, label: "Prelegenci" },
     { href: `/admin/events/${eventId}/sessions`, label: "Agenda" },
     { href: `/admin/events/${eventId}/attendees`, label: "Uczestnicy" },
+    { href: `/admin/events/${eventId}/partners`, label: "Partnerzy" },
     { href: `/admin/events/${eventId}/content`, label: "Treść" },
     { href: `/admin/events/${eventId}/messages`, label: "Komunikaty" },
   ];

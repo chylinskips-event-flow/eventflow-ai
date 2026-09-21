@@ -27,6 +27,22 @@ export async function updateEvent(
   const roomNames = parseLines(formData.get("room_names"));
   const interestOptions = parseLines(formData.get("interest_options"));
   const requiresApproval = formData.get("requires_approval") === "on";
+  const gamificationEnabled = formData.get("gamification_enabled") === "on";
+
+  // Punkty na 1 los loterii: pusta wartość = loteria wyłączona (NULL).
+  // Dodatnia liczba całkowita albo błąd — zero/ujemne nie mają sensu.
+  const lotteryRaw = formData.get("lottery_points_per_ticket");
+  let lotteryPointsPerTicket: number | null = null;
+  if (typeof lotteryRaw === "string" && lotteryRaw.trim()) {
+    const parsedLottery = Number(lotteryRaw);
+    if (!Number.isInteger(parsedLottery) || parsedLottery < 1) {
+      return {
+        status: "error",
+        message: "Punkty na 1 los muszą być dodatnią liczbą całkowitą.",
+      };
+    }
+    lotteryPointsPerTicket = parsedLottery;
+  }
 
   if (typeof name !== "string" || !name.trim()) {
     return { status: "error", message: "Podaj nazwę eventu." };
@@ -104,6 +120,8 @@ export async function updateEvent(
       // Pusta lista -> NULL: fallback do domyślnej, zahardkodowanej listy.
       interest_options: interestOptions.length > 0 ? interestOptions : null,
       requires_approval: requiresApproval,
+      gamification_enabled: gamificationEnabled,
+      lottery_points_per_ticket: lotteryPointsPerTicket,
     })
     .eq("id", eventId);
 
