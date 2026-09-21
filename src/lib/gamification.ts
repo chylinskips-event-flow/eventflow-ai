@@ -1,11 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export type GamificationLevel = "explorer" | "connector" | "ambassador";
+export type GamificationLevel = "explorer" | "connector" | "networker" | "ambassador";
 
 const LEVEL_THRESHOLDS: { name: GamificationLevel; min: number }[] = [
-  { name: "ambassador", min: 250 },
-  { name: "connector", min: 100 },
-  { name: "explorer", min: 0 },
+  { name: "ambassador", min: 500 },
+  { name: "networker",  min: 250 },
+  { name: "connector",  min: 100 },
+  { name: "explorer",   min: 0 },
 ];
 
 export function computeLevel(points: number): GamificationLevel {
@@ -16,8 +17,9 @@ export function computeLevel(points: number): GamificationLevel {
 }
 
 export const LEVEL_LABELS: Record<GamificationLevel, string> = {
-  explorer: "Explorer",
-  connector: "Connector",
+  explorer:   "Explorer",
+  connector:  "Connector",
+  networker:  "Networker",
   ambassador: "Ambassador",
 };
 
@@ -25,6 +27,7 @@ export const LEVEL_LABELS: Record<GamificationLevel, string> = {
 export function computeNextLevelThreshold(points: number): number | null {
   if (points < 100) return 100;
   if (points < 250) return 250;
+  if (points < 500) return 500;
   return null;
 }
 

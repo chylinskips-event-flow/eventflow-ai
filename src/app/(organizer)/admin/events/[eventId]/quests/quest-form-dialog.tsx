@@ -344,7 +344,7 @@ function QuestFormContent({
             name="config_password"
             required
             defaultValue={quest?.config?.password ?? ""}
-            placeholder="np. EventFlow2026"
+            placeholder="np. Eventro2026"
             autoComplete="off"
           />
           <p className="text-xs text-muted-foreground">
