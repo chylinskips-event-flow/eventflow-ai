@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { MapPin, QrCode, Building2 } from "lucide-react";
+import { MapPin, QrCode, Building2, Download } from "lucide-react";
 import { deletePartner } from "./actions";
 import type { Partner } from "@/lib/partners";
 import { partnerTierLabel } from "@/lib/partner-options";
@@ -32,10 +32,12 @@ export function PartnerCard({
   eventId,
   partner,
   checkinCount,
+  leadCount,
 }: {
   eventId: string;
   partner: Partner;
   checkinCount: number;
+  leadCount: number;
 }) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
@@ -89,6 +91,10 @@ export function PartnerCard({
               {checkinCount}{" "}
               {checkinCount === 1 ? "check-in" : "check-inów"}
             </span>
+            <span>
+              {leadCount}{" "}
+              {leadCount === 1 ? "lead" : "leadów"}
+            </span>
           </div>
         </div>
         <Button asChild variant="outline" size="sm">
@@ -100,6 +106,16 @@ export function PartnerCard({
             <QrCode className="size-4" /> QR stoiska
           </a>
         </Button>
+        {leadCount > 0 && (
+          <Button asChild variant="outline" size="sm">
+            <a
+              href={`/admin/events/${eventId}/partners/${partner.id}/leads.csv`}
+              download
+            >
+              <Download className="size-4" /> Leady CSV
+            </a>
+          </Button>
+        )}
         <PartnerFormDialog
           eventId={eventId}
           partner={partner}

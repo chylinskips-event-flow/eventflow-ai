@@ -14,7 +14,15 @@ export default async function EventLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <EventNav eventId={eventId} slug={event?.slug ?? null} />
+      <EventNav
+        eventId={eventId}
+        slug={event?.slug ?? null}
+        gamificationEnabled={event?.gamification_enabled ?? false}
+        hasLottery={
+          (event?.gamification_enabled ?? false) &&
+          event?.lottery_points_per_ticket != null
+        }
+      />
       {children}
     </div>
   );

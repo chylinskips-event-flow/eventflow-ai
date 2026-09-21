@@ -9,9 +9,13 @@ import { cn } from "@/lib/utils";
 export function EventNav({
   eventId,
   slug,
+  gamificationEnabled = false,
+  hasLottery = false,
 }: {
   eventId: string;
   slug: string | null;
+  gamificationEnabled?: boolean;
+  hasLottery?: boolean;
 }) {
   const pathname = usePathname();
 
@@ -22,6 +26,12 @@ export function EventNav({
     { href: `/admin/events/${eventId}/attendees`, label: "Uczestnicy" },
     { href: `/admin/events/${eventId}/partners`, label: "Partnerzy" },
     { href: `/admin/events/${eventId}/quests`, label: "Questy" },
+    ...(gamificationEnabled
+      ? [{ href: `/admin/events/${eventId}/rewards`, label: "Nagrody" }]
+      : []),
+    ...(hasLottery
+      ? [{ href: `/admin/events/${eventId}/lottery`, label: "Loteria" }]
+      : []),
     { href: `/admin/events/${eventId}/content`, label: "Treść" },
     { href: `/admin/events/${eventId}/messages`, label: "Komunikaty" },
   ];

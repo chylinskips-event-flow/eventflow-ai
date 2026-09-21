@@ -83,3 +83,25 @@ export async function getPartnerCheckinCounts(
   }
   return counts;
 }
+
+/**
+ * Liczba check-inów i leadów (lead_consent_given=true) per partner.
+ * Zwraca mapę partnerId → { checkins, leads }.
+ */
+export async function getPartnerStats(
+  eventId: string,
+): Promise<Record<string, { checkins: number; leads: number }>> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("checkins")
+    .select("partner_id, lead_consent_given, partners!inner(event_id)")
+    .eq("partners.event_id", eventId);
+
+  const stats: Record<string, { checkins: number; leads: number }> = {};
+  for (const row of (data ?? []) as { partner_id: string; lead_consent_given: boolean }[]) {
+    if (!stats[row.partner_id]) stats[row.partner_id] = { checkins: 0, leads: 0 };
+    stats[row.partner_id].checkins += 1;
+    if (row.lead_consent_given) stats[row.partner_id].leads += 1;
+  }
+  return stats;
+}
