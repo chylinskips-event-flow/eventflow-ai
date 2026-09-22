@@ -64,38 +64,59 @@ export function SectionHero({
   media?: React.ReactNode;
   /** Mały pill-dymek nad nagłówkiem (np. „Małe punkty. Wielkie możliwości."). */
   callout?: string;
-  /** Zdjęcie w blobie po prawej stronie (1:1, WebP). Gdy ustawione, zastępuje ConnectionLineDeco i media. */
+  /** Zdjęcie-panel flush po prawej (1:1, WebP). Gdy ustawione, zastępuje ConnectionLineDeco i media. */
   imageSrc?: string;
   imageAlt?: string;
   /** Link „← Wróć" widoczny tylko na md+ (mobile ma dolny pasek nawigacji). */
   backHref?: string;
   className?: string;
 }) {
-  const textBlock = (
-    <div className={cn(!imageSrc && "relative z-10 max-w-[62%]", imageSrc && "flex-1 min-w-0")}>
-      {backHref && (
-        <Link
-          href={backHref}
-          className="mb-2 hidden md:inline-flex items-center gap-0.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ChevronLeft className="size-4" />
-          Wróć
-        </Link>
-      )}
-      {callout && (
-        <span className="mb-2 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary">
-          {callout}
-        </span>
-      )}
-      <h1 className="text-xl font-bold leading-snug text-foreground sm:text-2xl">
-        {headline}{" "}
-        <span className="text-primary">{headlineAccent}</span>
-      </h1>
-      {subtitle && (
-        <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>
-      )}
-    </div>
-  );
+  if (imageSrc) {
+    return (
+      <div
+        className={cn(
+          "flex min-h-[200px] items-stretch overflow-hidden rounded-2xl border bg-card",
+          className,
+        )}
+      >
+        {/* Lewa kolumna — tekst */}
+        <div className="flex flex-1 flex-col justify-center p-6 min-w-0">
+          {backHref && (
+            <Link
+              href={backHref}
+              className="mb-2 hidden md:inline-flex items-center gap-0.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ChevronLeft className="size-4" />
+              Wróć
+            </Link>
+          )}
+          {callout && (
+            <span className="mb-2 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary">
+              {callout}
+            </span>
+          )}
+          <h1 className="text-xl font-bold leading-snug text-foreground sm:text-2xl">
+            {headline}{" "}
+            <span className="text-primary">{headlineAccent}</span>
+          </h1>
+          {subtitle && (
+            <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>
+          )}
+        </div>
+
+        {/* Prawy panel — zdjęcie flush */}
+        <div className="relative w-[42%] shrink-0 self-stretch overflow-hidden rounded-l-[3rem] sm:w-[44%]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageSrc}
+            alt={imageAlt ?? ""}
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -104,29 +125,36 @@ export function SectionHero({
         className,
       )}
     >
-      {imageSrc ? (
-        <div className="flex items-center gap-4">
-          {textBlock}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={imageSrc}
-            alt={imageAlt ?? ""}
-            loading="lazy"
-            className="w-28 shrink-0 rounded-[44%_56%_52%_48%/48%_44%_56%_52%] aspect-square object-cover sm:w-48"
-          />
+      {media ? (
+        <div className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2">
+          {media}
         </div>
       ) : (
-        <>
-          {media ? (
-            <div className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2">
-              {media}
-            </div>
-          ) : (
-            <ConnectionLineDeco />
-          )}
-          {textBlock}
-        </>
+        <ConnectionLineDeco />
       )}
+      <div className="relative z-10 max-w-[62%]">
+        {backHref && (
+          <Link
+            href={backHref}
+            className="mb-2 hidden md:inline-flex items-center gap-0.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronLeft className="size-4" />
+            Wróć
+          </Link>
+        )}
+        {callout && (
+          <span className="mb-2 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary">
+            {callout}
+          </span>
+        )}
+        <h1 className="text-xl font-bold leading-snug text-foreground sm:text-2xl">
+          {headline}{" "}
+          <span className="text-primary">{headlineAccent}</span>
+        </h1>
+        {subtitle && (
+          <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>
+        )}
+      </div>
     </div>
   );
 }
