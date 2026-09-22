@@ -42,6 +42,16 @@
   /* Dedykowane tokeny marki — NIE podpinać pod destructive ani przyciski akcji */
   --aqua:  #18B8A5;   /* networking, ikony */
   --coral: #FF6B5E;   /* gamifikacja; ZAWSZE ciemny tekst (#171A2B) na tle coral */
+
+  /* Panel organizatora — ciemny sidebar, NIE odwraca się w dark mode.
+     Definiowane tylko w :root, pominięte w .dark {} — sygnatura designu. */
+  --ev-sidebar:            #171A2B;
+  --ev-sidebar-fg:         #F5F6FA;
+  --ev-sidebar-muted:      #A8ACBC;
+  --ev-sidebar-active:     #5146E5;
+  --ev-sidebar-active-fg:  #FFFFFF;
+  --ev-sidebar-border:     #2A2E42;
+  --ev-sidebar-hover:      #1E2236;
 }
 
 .dark {
@@ -119,6 +129,13 @@
   --color-sidebar-ring:             var(--sidebar-ring);
   --color-aqua:                     var(--aqua);
   --color-coral:                    var(--coral);
+  --color-ev-sidebar:               var(--ev-sidebar);
+  --color-ev-sidebar-fg:            var(--ev-sidebar-fg);
+  --color-ev-sidebar-muted:         var(--ev-sidebar-muted);
+  --color-ev-sidebar-active:        var(--ev-sidebar-active);
+  --color-ev-sidebar-active-fg:     var(--ev-sidebar-active-fg);
+  --color-ev-sidebar-border:        var(--ev-sidebar-border);
+  --color-ev-sidebar-hover:         var(--ev-sidebar-hover);
   --radius-sm:  calc(var(--radius) * 0.6);
   --radius-md:  calc(var(--radius) * 0.8);
   --radius-lg:  var(--radius);
