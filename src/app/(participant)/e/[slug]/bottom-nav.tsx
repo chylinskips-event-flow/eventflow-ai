@@ -11,6 +11,7 @@ import {
   MoreHorizontal,
   X,
   Handshake,
+  MicVocal,
   Trophy,
   Gift,
   User,
@@ -45,14 +46,15 @@ export function BottomNav({
   }
 
   const sheetItems: NavItem[] = [
-    { href: `${base}/contacts`, icon: Handshake, label: "Kontakty" },
+    { href: `${base}/contacts`,  icon: Handshake, label: "Kontakty"    },
+    { href: `${base}/speakers`,  icon: MicVocal,  label: "Prelegenci"  },
     ...(gamificationEnabled
       ? [
           { href: `${base}/ranking`, icon: Trophy, label: "Ranking" },
           { href: `${base}/rewards`, icon: Gift,   label: "Nagrody" },
         ]
       : []),
-    { href: `${base}/profile`, icon: User, label: "Profil" },
+    { href: `${base}/profile`,   icon: User,      label: "Profil"      },
   ];
 
   function isMainActive(href: string) {
@@ -90,7 +92,7 @@ export function BottomNav({
           </button>
         </div>
 
-        <div className="grid grid-cols-4 p-2">
+        <div className="grid grid-cols-3 p-2">
           {sheetItems.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
