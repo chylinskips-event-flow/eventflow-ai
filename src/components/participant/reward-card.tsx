@@ -52,7 +52,7 @@ export function RewardCard({
     )}>
       <CardContent className="flex items-start gap-4 py-4">
         {/* Zdjęcie / fallback */}
-        <div className="relative shrink-0">
+        <div className="shrink-0">
           {imageUrl ? (
             <img
               src={imageUrl}
@@ -64,18 +64,15 @@ export function RewardCard({
               <Gift className="size-6 text-muted-foreground" />
             </div>
           )}
-          {badgeLabel && (
-            <Badge
-              variant="indigo"
-              className="absolute -left-2 -top-2 px-1.5 py-0 text-[9px] leading-4 shadow-sm"
-            >
-              {badgeLabel}
-            </Badge>
-          )}
         </div>
 
         <div className="flex flex-1 flex-col gap-1.5 min-w-0">
-          <span className="font-medium leading-snug">{name}</span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="font-medium leading-snug">{name}</span>
+            {badgeLabel && (
+              <Badge variant="secondary">{badgeLabel}</Badge>
+            )}
+          </div>
           {description && (
             <p className="text-sm text-muted-foreground line-clamp-2">{description}</p>
           )}
@@ -102,7 +99,7 @@ export function RewardCard({
           ) : canAfford ? (
             <span className="flex items-center gap-1 text-xs font-semibold text-aqua">
               <CheckCircle2 className="size-4" />
-              Stać Cię!
+              Wymień punkty
             </span>
           ) : (
             <span className="text-xs text-muted-foreground">
