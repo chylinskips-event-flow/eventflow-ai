@@ -7,7 +7,7 @@ type TileConfig = { icon: LucideIcon; tileCls: string; iconCls: string };
 
 const TYPE_TILE: Record<string, TileConfig> = {
   profile_complete:    { icon: User,     tileCls: "bg-primary/10", iconCls: "text-primary"   },
-  networking_contacts: { icon: Users,    tileCls: "bg-aqua/10",    iconCls: "text-aqua"       },
+  networking_contacts: { icon: Users,    tileCls: "bg-aqua/10",    iconCls: "text-aqua-ink"   },
   booth_visit:         { icon: MapPin,   tileCls: "bg-coral/10",   iconCls: "text-[#171A2B]" },
   booth_quiz:          { icon: Trophy,   tileCls: "bg-coral/10",   iconCls: "text-[#171A2B]" },
   booth_password:      { icon: KeyRound, tileCls: "bg-coral/10",   iconCls: "text-[#171A2B]" },
@@ -56,7 +56,7 @@ export function QuestCard({
           done ? "bg-aqua/10" : tile.tileCls,
         )}>
           {done ? (
-            <CheckCircle2 className="size-5 text-aqua" />
+            <CheckCircle2 className="size-5 text-aqua-ink" />
           ) : (
             <TileIcon className={cn("size-5", tile.iconCls)} />
           )}
@@ -96,7 +96,7 @@ export function QuestCard({
         {/* Pill punktów */}
         {pointsValue != null && (
           done ? (
-            <span className="shrink-0 rounded-full bg-aqua/10 px-2.5 py-0.5 text-xs font-semibold text-aqua">
+            <span className="shrink-0 rounded-full bg-aqua/15 px-2.5 py-0.5 text-xs font-semibold text-aqua-ink">
               ✓ Zdobyte {pointsValue} pkt
             </span>
           ) : (

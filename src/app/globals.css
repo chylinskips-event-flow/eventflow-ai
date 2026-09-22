@@ -40,8 +40,9 @@
   --sidebar-ring:           #5146E5;
 
   /* Dedykowane tokeny marki — NIE podpinać pod destructive ani przyciski akcji */
-  --aqua:  #18B8A5;   /* networking, ikony */
-  --coral: #FF6B5E;   /* gamifikacja; ZAWSZE ciemny tekst (#171A2B) na tle coral */
+  --aqua:     #18B8A5;   /* networking, ikony */
+  --aqua-ink: #0E766B;   /* ciemna aqua — tekst/ikona na jasnym tle aqua (kontrast ≥ 4.8:1) */
+  --coral: #FF6B5E;      /* gamifikacja; ZAWSZE ciemny tekst (#171A2B) na tle coral */
 
   /* Panel organizatora — ciemny sidebar, NIE odwraca się w dark mode.
      Definiowane tylko w :root, pominięte w .dark {} — sygnatura designu. */
@@ -90,8 +91,9 @@
   --sidebar-ring:           #8179FF;
 
   /* Dedykowane tokeny marki */
-  --aqua:  #45D4C2;   /* networking, ikony */
-  --coral: #FF8278;   /* gamifikacja; ZAWSZE ciemny tekst na tle coral */
+  --aqua:     #45D4C2;   /* networking, ikony */
+  --aqua-ink: #0A5C52;   /* ciemna aqua dark-mode — tekst na jasnym tle aqua */
+  --coral: #FF8278;      /* gamifikacja; ZAWSZE ciemny tekst na tle coral */
 }
 
 @theme inline {
@@ -128,6 +130,7 @@
   --color-sidebar-border:           var(--sidebar-border);
   --color-sidebar-ring:             var(--sidebar-ring);
   --color-aqua:                     var(--aqua);
+  --color-aqua-ink:                 var(--aqua-ink);
   --color-coral:                    var(--coral);
   --color-ev-sidebar:               var(--ev-sidebar);
   --color-ev-sidebar-fg:            var(--ev-sidebar-fg);
