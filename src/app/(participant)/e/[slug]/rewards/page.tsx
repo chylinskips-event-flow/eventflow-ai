@@ -115,6 +115,8 @@ export default async function RewardsPage({
         headlineAccent={event.name}
         subtitle="Wymień zebrane punkty na nagrody u organizatora."
         callout="Małe punkty. Wielkie możliwości."
+        imageSrc="/hero/hero-nagrody.webp"
+        imageAlt="Uczestniczka z trofeum i medalem"
       />
 
       <PointsLevelWidget

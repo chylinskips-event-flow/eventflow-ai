@@ -29,6 +29,8 @@ export default async function SpeakersPage({
         headline="Poznaj"
         headlineAccent="prelegentów"
         subtitle="Eksperci, którzy dzielą się wiedzą i doświadczeniem."
+        imageSrc="/hero/hero-prelegenci.webp"
+        imageAlt="Prelegentka przemawiająca z mikrofonem"
       />
 
       {speakers.length === 0 ? (

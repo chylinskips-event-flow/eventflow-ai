@@ -82,6 +82,8 @@ export default async function AgendaPage({
         headline="Twój plan na"
         headlineAccent="wyjątkowy dzień"
         subtitle="Prelekcje, panele, warsztaty i networking. Sprawdź, co Cię czeka!"
+        imageSrc="/hero/hero-agenda.webp"
+        imageAlt="Uczestniczka przeglądająca agendę wydarzenia"
       />
 
       {isMultiDay && (
