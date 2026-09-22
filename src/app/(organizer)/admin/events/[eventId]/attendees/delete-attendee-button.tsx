@@ -60,9 +60,9 @@ export function DeleteAttendeeButton({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPending}>Anuluj</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               onClick={handleDelete}
               disabled={isPending}
-              className="bg-destructive text-white hover:bg-destructive/90"
             >
               {isPending ? "Usuwanie..." : "Usuń trwale"}
             </AlertDialogAction>

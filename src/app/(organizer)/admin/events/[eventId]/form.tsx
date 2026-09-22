@@ -513,7 +513,7 @@ export function EventEditForm({ event }: { event: Event }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Logo eventu</CardTitle>
+          <CardTitle>Logo wydarzenia</CardTitle>
         </CardHeader>
         <CardContent>
           <form
