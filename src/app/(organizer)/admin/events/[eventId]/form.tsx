@@ -201,9 +201,7 @@ export function EventEditForm({ event }: { event: Event }) {
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">{event.name}</h1>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-end gap-2">
           {event.status === "draft" ? (
           <AlertDialog
             open={isPublishOpen}
@@ -303,7 +301,6 @@ export function EventEditForm({ event }: { event: Event }) {
           ) : (
             <Badge variant="secondary">{STATUS_LABELS[event.status]}</Badge>
           )}
-        </div>
       </div>
 
       <Card>

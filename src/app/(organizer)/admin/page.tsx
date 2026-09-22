@@ -66,7 +66,7 @@ export default async function OrganizerAdminPage() {
 
       <main className="flex flex-1 flex-col gap-6 p-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">{organization.name}</h1>
+          <h1 className="text-2xl font-semibold">Twoje wydarzenia</h1>
           <Button asChild>
             <Link href="/admin/events/new">Nowe wydarzenie</Link>
           </Button>
