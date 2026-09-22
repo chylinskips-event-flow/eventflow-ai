@@ -84,6 +84,7 @@ export default async function AgendaPage({
         subtitle="Prelekcje, panele, warsztaty i networking. Sprawdź, co Cię czeka!"
         imageSrc="/hero/hero-agenda.webp"
         imageAlt="Uczestniczka przeglądająca agendę wydarzenia"
+        backHref={`/e/${slug}`}
       />
 
       {isMultiDay && (

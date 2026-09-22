@@ -92,6 +92,7 @@ export default async function QuestsPage({
         subtitle="Realizuj questy, zbieraj punkty i wymieniaj je na nagrody."
         imageSrc="/hero/hero-questy.webp"
         imageAlt="Uczestniczka skanująca kod QR na stoisku"
+        backHref={`/e/${slug}`}
       />
 
       <PointsLevelWidget

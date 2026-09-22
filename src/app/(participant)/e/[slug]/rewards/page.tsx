@@ -117,6 +117,7 @@ export default async function RewardsPage({
         callout="Małe punkty. Wielkie możliwości."
         imageSrc="/hero/hero-nagrody.webp"
         imageAlt="Uczestniczka z trofeum i medalem"
+        backHref={`/e/${slug}`}
       />
 
       <PointsLevelWidget

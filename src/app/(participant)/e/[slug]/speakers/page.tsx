@@ -31,6 +31,7 @@ export default async function SpeakersPage({
         subtitle="Eksperci, którzy dzielą się wiedzą i doświadczeniem."
         imageSrc="/hero/hero-prelegenci.webp"
         imageAlt="Prelegentka przemawiająca z mikrofonem"
+        backHref={`/e/${slug}`}
       />
 
       {speakers.length === 0 ? (

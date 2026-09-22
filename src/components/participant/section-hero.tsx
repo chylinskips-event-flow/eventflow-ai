@@ -1,4 +1,6 @@
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function ConnectionLineDeco() {
@@ -52,6 +54,7 @@ export function SectionHero({
   callout,
   imageSrc,
   imageAlt,
+  backHref,
   className,
 }: {
   headline: string;
@@ -64,10 +67,21 @@ export function SectionHero({
   /** Zdjęcie w blobie po prawej stronie (1:1, WebP). Gdy ustawione, zastępuje ConnectionLineDeco i media. */
   imageSrc?: string;
   imageAlt?: string;
+  /** Link „← Wróć" widoczny tylko na md+ (mobile ma dolny pasek nawigacji). */
+  backHref?: string;
   className?: string;
 }) {
   const textBlock = (
     <div className={cn(!imageSrc && "relative z-10 max-w-[62%]", imageSrc && "flex-1 min-w-0")}>
+      {backHref && (
+        <Link
+          href={backHref}
+          className="mb-2 hidden md:inline-flex items-center gap-0.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ChevronLeft className="size-4" />
+          Wróć
+        </Link>
+      )}
       {callout && (
         <span className="mb-2 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary">
           {callout}
