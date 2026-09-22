@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import sharp from "sharp";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOwnEvent } from "@/lib/events";
 import { validateImageFile, MB } from "@/lib/upload-validation";
@@ -138,13 +139,25 @@ export async function uploadRewardImage(
   const validationError = validateImageFile(file, 5 * MB);
   if (validationError) return { status: "error", message: validationError };
 
-  const ext = file.name.split(".").pop() ?? "jpg";
-  const path = `${eventId}/${rewardId}-${Date.now()}.${ext}`;
+  // Resize + konwersja do WebP przed uploadem
+  const inputBuffer = Buffer.from(await file.arrayBuffer());
+  let webpBuffer: Buffer;
+  try {
+    webpBuffer = await sharp(inputBuffer)
+      .rotate()
+      .resize({ width: 800, height: 800, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 78 })
+      .toBuffer();
+  } catch {
+    return { status: "error", message: "Nie udało się przetworzyć obrazu." };
+  }
+
+  const path = `${eventId}/${rewardId}-${Date.now()}.webp`;
 
   const supabase = createAdminClient();
   const { error: uploadError } = await supabase.storage
     .from("reward-images")
-    .upload(path, file, { upsert: true, contentType: file.type });
+    .upload(path, webpBuffer, { upsert: true, contentType: "image/webp" });
 
   if (uploadError)
     return { status: "error", message: "Nie udało się wgrać zdjęcia." };

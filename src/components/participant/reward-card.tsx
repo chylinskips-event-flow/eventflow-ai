@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 export type RewardCardProps = {
@@ -41,54 +41,47 @@ export function RewardCard({
   const canAfford = !outOfStock && !redeemed && attendeePoints >= pointsRequired;
   const missing = pointsRequired - attendeePoints;
 
-  const dimmed = outOfStock;
-
   const inner = (
     <Card className={cn(
-      "transition-colors",
-      dimmed && "opacity-60",
+      "overflow-hidden transition-colors",
+      outOfStock && "opacity-60",
       canAfford && "border-aqua/50",
       redeemed && "border-green-500/40 bg-green-50/40 dark:bg-green-900/10",
     )}>
-      <CardContent className="flex items-start gap-4 py-4">
-        {/* Zdjęcie / fallback */}
-        <div className="shrink-0">
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={name}
-              className="h-14 w-14 rounded-lg object-cover"
-            />
-          ) : (
-            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-muted">
-              <Gift className="size-6 text-muted-foreground" />
-            </div>
+      {/* Baner — obraz lub fallback Gift */}
+      <div className="flex h-44 w-full items-center justify-center bg-muted/30">
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageUrl}
+            alt={name}
+            className="max-h-full max-w-full object-contain p-3"
+          />
+        ) : (
+          <Gift className="size-10 text-muted-foreground/50" />
+        )}
+      </div>
+
+      {/* Treść pod banerem */}
+      <div className="flex flex-col gap-2 px-6 pb-6 pt-4">
+        {/* Nazwa + odznaka */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-semibold leading-snug">{name}</span>
+          {badgeLabel && (
+            <Badge variant="secondary">{badgeLabel}</Badge>
           )}
         </div>
 
-        <div className="flex flex-1 flex-col gap-1.5 min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="font-medium leading-snug">{name}</span>
-            {badgeLabel && (
-              <Badge variant="secondary">{badgeLabel}</Badge>
-            )}
-          </div>
-          {description && (
-            <p className="text-sm text-muted-foreground line-clamp-2">{description}</p>
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-coral px-2.5 py-0.5 text-xs font-semibold text-[#171A2B]">
-              {pointsRequired} pkt
-            </span>
-            {stock !== null && !outOfStock && (
-              <span className="text-xs text-muted-foreground">
-                {stock} szt.
-              </span>
-            )}
-          </div>
-        </div>
+        {description && (
+          <p className="text-sm text-muted-foreground line-clamp-2">{description}</p>
+        )}
 
-        <div className="shrink-0 self-center">
+        {/* Punkty + stan */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="rounded-full bg-coral px-2.5 py-0.5 text-xs font-semibold text-[#171A2B]">
+            {pointsRequired} pkt
+          </span>
+
           {redeemed ? (
             <span className="flex items-center gap-1 text-xs font-semibold text-green-600 dark:text-green-400">
               <CheckCircle2 className="size-4" />
@@ -107,7 +100,7 @@ export function RewardCard({
             </span>
           )}
         </div>
-      </CardContent>
+      </div>
     </Card>
   );
 
