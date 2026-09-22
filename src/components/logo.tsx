@@ -1,26 +1,55 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
+type LogoVariant = "onDark" | "adaptive" | "symbol";
+
 export function Logo({
-  variant = "full",
+  variant = "adaptive",
   className,
 }: {
-  variant?: "full" | "compact";
+  variant?: LogoVariant;
   className?: string;
 }) {
-  const symbol = (
-    <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-white font-[family-name:var(--font-manrope)]">
-      E
-    </div>
-  );
-
-  if (variant === "compact") {
-    return <div className={cn("flex items-center", className)}>{symbol}</div>;
+  if (variant === "onDark") {
+    return (
+      <div className={cn("flex items-center", className)}>
+        <Image
+          src="/brand/eventro-logo-full-dark.png"
+          alt="Eventro"
+          width={112}
+          height={32}
+          priority
+        />
+      </div>
+    );
   }
 
+  if (variant === "symbol") {
+    return (
+      <div className={cn("flex items-center", className)}>
+        <Image
+          src="/brand/eventro-symbol.png"
+          alt="Eventro"
+          width={26}
+          height={32}
+          priority
+        />
+      </div>
+    );
+  }
+
+  // adaptive: symbol + wordmark text that follows the color scheme
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      {symbol}
-      <span className="text-sm font-semibold font-[family-name:var(--font-manrope)]">
+      <Image
+        src="/brand/eventro-symbol.png"
+        alt=""
+        aria-hidden
+        width={26}
+        height={32}
+        priority
+      />
+      <span className="text-sm font-semibold text-foreground font-[family-name:var(--font-manrope)]">
         Eventro
       </span>
     </div>

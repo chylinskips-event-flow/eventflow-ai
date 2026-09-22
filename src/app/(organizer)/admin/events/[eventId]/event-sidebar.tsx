@@ -66,7 +66,7 @@ export function EventSidebar({
     <div className="flex h-full flex-col overflow-hidden bg-ev-sidebar">
       {/* Logo */}
       <div className="flex h-16 shrink-0 items-center border-b border-ev-sidebar-border px-5">
-        <Logo variant="full" className="text-ev-sidebar-fg" />
+        <Logo variant="onDark" />
       </div>
 
       {/* Nav items — scrollable */}

@@ -13,9 +13,9 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import { BRAND_NAME } from "@/lib/brand";
 import { Button } from "@/components/ui/button";
 import { LegalFooter } from "@/components/legal-footer";
+import { Logo } from "@/components/logo";
 
 // Wariant B jako meta description (SEO) — reszta metadanych (title template,
 // tagline) dziedziczy z root layoutu.
@@ -110,9 +110,7 @@ export default function Home() {
     <div className="flex min-h-screen flex-col">
       {/* Header */}
       <header className="flex items-center justify-between border-b px-4 py-3 sm:px-6">
-        <span className="text-base font-semibold text-primary">
-          {BRAND_NAME}
-        </span>
+        <Logo variant="adaptive" />
         <Button asChild variant="outline" size="sm">
           <Link href="/login">Panel organizatora</Link>
         </Button>

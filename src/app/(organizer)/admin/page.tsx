@@ -54,7 +54,7 @@ export default async function OrganizerAdminPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex items-center justify-between border-b bg-background px-6 py-3">
-        <Logo variant="full" />
+        <Logo variant="adaptive" />
         <div className="flex items-center gap-4">
           {user?.email && (
             <span className="text-sm text-muted-foreground">{user.email}</span>
