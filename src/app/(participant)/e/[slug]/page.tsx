@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import {
   Calendar, MapPin,
-  CalendarDays, Users, Handshake, Trophy, BarChart2, Gift, User, CalendarCheck, ChevronRight,
+  CalendarDays, Users, Handshake, Trophy, Gift, User, CalendarCheck, ChevronRight,
 } from "lucide-react";
 import {
   getEventBySlugForRegistration,
@@ -179,64 +179,56 @@ export default async function ParticipantEventPage({
       );
     }
 
-    // Kompaktowa wizytówka z kodem QR — szybki dostęp na ekranie głównym.
-    // Pełna wersja zostaje na /profile. Mobile: dane u góry, QR pod nimi;
-    // sm+: dane po lewej, QR po prawej.
+    const roleInfo = [attendee.job_title, attendee.company].filter(Boolean).join(" · ");
+
     const businessCard = (
       <Card>
-        <CardContent className="flex flex-col items-center gap-4 py-4 text-center sm:flex-row sm:justify-between sm:text-left">
-          <div className="flex items-center gap-3">
-            <Avatar className="size-16 shrink-0">
-              {attendee.avatar_url && (
-                <AvatarImage src={attendee.avatar_url} alt={fullName} />
-              )}
-              <AvatarFallback className="text-lg">
-                {initials || "?"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex min-w-0 flex-col">
-              <span className="font-semibold">{fullName || "Uczestnik"}</span>
-              {attendee.company && (
-                <span className="text-sm text-muted-foreground">
-                  {attendee.company}
-                </span>
-              )}
-            </div>
+        <CardContent className="flex items-center gap-3 px-4 py-3">
+          <Avatar className="size-12 shrink-0 ring-2 ring-primary/20">
+            {attendee.avatar_url && (
+              <AvatarImage src={attendee.avatar_url} alt={fullName} />
+            )}
+            <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">
+              {initials || "?"}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate font-semibold">{fullName || "Uczestnik"}</span>
+            {roleInfo && (
+              <span className="truncate text-xs text-muted-foreground">{roleInfo}</span>
+            )}
           </div>
-          <div className="flex flex-col items-center gap-1">
+          <div className="flex shrink-0 flex-col items-center gap-0.5">
             <ContactQr
               slug={slug}
               contactCode={attendee.contact_code}
-              size={150}
-              className="rounded-lg border bg-background p-1.5"
+              size={120}
+              className="rounded-lg border bg-white p-1"
             />
-            <span className="text-xs text-muted-foreground">
-              Twój kod kontaktowy
-            </span>
+            <span className="text-[10px] text-muted-foreground">Kod kontaktowy</span>
           </div>
         </CardContent>
       </Card>
     );
 
-    type NavItem = { href: string; icon: LucideIcon; label: string; cls: string };
+    type NavItem = { href: string; icon: LucideIcon; label: string; bgCls: string; iconCls: string };
     type SecItem = { href: string; icon: LucideIcon; label: string };
 
     const primaryItems: NavItem[] = [
-      { href: `/e/${slug}/agenda`,    icon: CalendarDays, label: "Agenda",     cls: "text-primary" },
-      { href: `/e/${slug}/attendees`, icon: Users,        label: "Uczestnicy", cls: "text-aqua"    },
-      { href: `/e/${slug}/contacts`,  icon: Handshake,    label: "Kontakty",   cls: "text-primary" },
+      { href: `/e/${slug}/agenda`,    icon: CalendarDays, label: "Agenda",     bgCls: "bg-primary/10", iconCls: "text-primary" },
+      { href: `/e/${slug}/attendees`, icon: Users,        label: "Uczestnicy", bgCls: "bg-aqua/10",    iconCls: "text-aqua"    },
+      { href: `/e/${slug}/contacts`,  icon: Handshake,    label: "Kontakty",   bgCls: "bg-primary/10", iconCls: "text-primary" },
     ];
     if (event.gamification_enabled) {
-      primaryItems.push({ href: `/e/${slug}/quests`,    icon: Trophy,        label: "Zadania",     cls: "text-coral"   });
+      primaryItems.push({ href: `/e/${slug}/quests`,    icon: Trophy,        label: "Zadania",     bgCls: "bg-coral/10",   iconCls: "text-coral"   });
     } else {
-      primaryItems.push({ href: `/e/${slug}/my-agenda`, icon: CalendarCheck, label: "Moja agenda", cls: "text-primary" });
+      primaryItems.push({ href: `/e/${slug}/my-agenda`, icon: CalendarCheck, label: "Moja agenda", bgCls: "bg-primary/10", iconCls: "text-primary" });
     }
 
     const secondaryItems: SecItem[] = [];
     if (event.gamification_enabled) {
-      secondaryItems.push({ href: `/e/${slug}/ranking`,   icon: BarChart2,     label: "Ranking"     });
-      if (hasRewards) secondaryItems.push({ href: `/e/${slug}/rewards`, icon: Gift, label: "Nagrody" });
-      secondaryItems.push({ href: `/e/${slug}/my-agenda`, icon: CalendarCheck, label: "Moja agenda" });
+      if (hasRewards) secondaryItems.push({ href: `/e/${slug}/rewards`,   icon: Gift,        label: "Nagrody"      });
+      secondaryItems.push(              { href: `/e/${slug}/my-agenda`,   icon: CalendarCheck, label: "Moja agenda" });
     }
     secondaryItems.push({ href: `/e/${slug}/profile`, icon: User, label: "Mój profil" });
 
@@ -249,11 +241,25 @@ export default async function ParticipantEventPage({
               href={item.href}
               className="flex min-h-[96px] flex-col items-center justify-center gap-2.5 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/50"
             >
-              <item.icon className={`size-7 ${item.cls}`} />
+              <div className={`flex size-12 items-center justify-center rounded-xl ${item.bgCls}`}>
+                <item.icon className={`size-6 ${item.iconCls}`} />
+              </div>
               <span className="text-sm font-semibold">{item.label}</span>
             </Link>
           ))}
         </div>
+        {event.gamification_enabled && (
+          <Link
+            href={`/e/${slug}/ranking`}
+            className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 shadow-sm transition-colors hover:bg-primary/10"
+          >
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
+              <Trophy className="size-5 text-primary" />
+            </div>
+            <span className="text-sm font-semibold text-primary">Ranking</span>
+            <ChevronRight className="ml-auto size-4 text-primary/60" />
+          </Link>
+        )}
         <div className="flex flex-col gap-2">
           {secondaryItems.map((item) => (
             <Link
@@ -283,7 +289,9 @@ export default async function ParticipantEventPage({
             <h1 className="text-2xl font-bold">
               Cześć, {attendee.first_name}! 👋
             </h1>
-            <p className="text-muted-foreground">{event.name}</p>
+            <p className="text-muted-foreground">
+              {event.gamification_enabled ? "Gotowy na networking?" : event.name}
+            </p>
           </div>
           {businessCard}
           {gamificationBar}
@@ -304,7 +312,9 @@ export default async function ParticipantEventPage({
           <h1 className="text-2xl font-bold">
             Cześć, {attendee.first_name}! 👋
           </h1>
-          <p className="text-muted-foreground">{event.name}</p>
+          <p className="text-muted-foreground">
+            {event.gamification_enabled ? "Gotowy na networking?" : event.name}
+          </p>
         </div>
         {businessCard}
         {gamificationBar}
