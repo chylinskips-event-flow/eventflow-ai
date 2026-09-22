@@ -6,7 +6,7 @@ import { getEventSessionsForParticipant } from "@/lib/sessions";
 import { getAttendeeAgendaSessionIds } from "@/lib/agenda-items";
 import { getDateGroupKey } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
-import { SectionHero, SectionHeroMedia } from "@/components/participant/section-hero";
+import { SectionHero } from "@/components/participant/section-hero";
 import { DaySelector } from "./day-selector";
 import type { DayOption } from "./day-selector";
 import { AgendaSessionList } from "./agenda-session-list";
@@ -82,7 +82,6 @@ export default async function AgendaPage({
         headline="Twój plan na"
         headlineAccent="wyjątkowy dzień"
         subtitle="Prelekcje, panele, warsztaty i networking. Sprawdź, co Cię czeka!"
-        media={<SectionHeroMedia icon={CalendarDays} />}
       />
 
       {isMultiDay && (

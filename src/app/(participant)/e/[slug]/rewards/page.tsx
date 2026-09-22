@@ -4,7 +4,7 @@ import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
-import { SectionHero, SectionHeroMedia } from "@/components/participant/section-hero";
+import { SectionHero } from "@/components/participant/section-hero";
 import { PointsLevelWidget } from "@/components/participant/points-level-widget";
 import { FilterPills } from "@/components/participant/filter-pills";
 import type { TierFilter } from "@/components/participant/filter-pills";
@@ -112,7 +112,6 @@ export default async function RewardsPage({
         headline="Nagrody"
         headlineAccent={event.name}
         subtitle="Wymień zebrane punkty na nagrody u organizatora."
-        media={<SectionHeroMedia icon={Gift} />}
         callout="Małe punkty. Wielkie możliwości."
       />
 

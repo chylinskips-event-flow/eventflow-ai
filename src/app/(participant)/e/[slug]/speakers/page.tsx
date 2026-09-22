@@ -5,7 +5,7 @@ import { getCurrentAttendee } from "@/lib/attendee-session";
 import { getEventSpeakersForParticipant } from "@/lib/speakers";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { SectionHero, SectionHeroMedia } from "@/components/participant/section-hero";
+import { SectionHero } from "@/components/participant/section-hero";
 import { SpeakerBio } from "../speaker-bio";
 
 export default async function SpeakersPage({
@@ -29,7 +29,6 @@ export default async function SpeakersPage({
         headline="Poznaj"
         headlineAccent="prelegentów"
         subtitle="Eksperci, którzy dzielą się wiedzą i doświadczeniem."
-        media={<SectionHeroMedia icon={MicVocal} />}
       />
 
       {speakers.length === 0 ? (
