@@ -43,7 +43,7 @@ export function RewardCard({
 
   const inner = (
     <Card className={cn(
-      "overflow-hidden transition-colors",
+      "overflow-hidden py-0 gap-0 transition-colors",
       outOfStock && "opacity-60",
       canAfford && "border-aqua/50",
       redeemed && "border-green-500/40 bg-green-50/40 dark:bg-green-900/10",
