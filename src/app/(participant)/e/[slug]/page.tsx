@@ -183,13 +183,14 @@ export default async function ParticipantEventPage({
 
     const businessCard = (
       <Card>
-        <CardContent className="flex items-start gap-4 px-4 py-4">
-          <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
-            <Avatar className="size-28 ring-2 ring-primary/20">
+        <CardContent className="flex items-start justify-between gap-3 px-4 py-4">
+          {/* Lewa kolumna: avatar + tekst */}
+          <div className="flex w-[45%] min-w-0 flex-col items-start gap-2">
+            <Avatar className="w-full h-auto aspect-square ring-2 ring-primary/20">
               {attendee.avatar_url && (
-                <AvatarImage src={attendee.avatar_url} alt={fullName} />
+                <AvatarImage src={attendee.avatar_url} alt={fullName} className="size-full object-cover" />
               )}
-              <AvatarFallback className="bg-primary/10 text-2xl font-semibold text-primary">
+              <AvatarFallback className="bg-primary/10 text-3xl font-semibold text-primary">
                 {initials || "?"}
               </AvatarFallback>
             </Avatar>
@@ -200,12 +201,13 @@ export default async function ParticipantEventPage({
               )}
             </div>
           </div>
-          <div className="flex shrink-0 flex-col items-center gap-0.5">
+          {/* Prawa kolumna: QR */}
+          <div className="flex w-[45%] flex-col items-center gap-1">
             <ContactQr
               slug={slug}
               contactCode={attendee.contact_code}
               size={120}
-              className="rounded-lg border bg-white p-1"
+              className="w-full aspect-square rounded-lg border bg-white p-1 min-w-[120px]"
             />
             <span className="text-[10px] text-muted-foreground">Kod kontaktowy</span>
           </div>
