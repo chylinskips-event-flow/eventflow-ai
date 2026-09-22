@@ -39,7 +39,7 @@ export default async function EventContentPage({
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
             <p className="text-muted-foreground">
-              Nie masz jeszcze żadnych sekcji opisu tego eventu.
+              Nie masz jeszcze żadnych sekcji opisu tego wydarzenia.
             </p>
           </CardContent>
         </Card>

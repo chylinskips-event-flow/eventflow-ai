@@ -305,7 +305,7 @@ export function EventEditForm({ event }: { event: Event }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Szczegóły eventu</CardTitle>
+          <CardTitle>Szczegóły wydarzenia</CardTitle>
           <CardDescription>
             Status: {STATUS_LABELS[event.status]}
           </CardDescription>
@@ -313,7 +313,7 @@ export function EventEditForm({ event }: { event: Event }) {
         <CardContent>
           <form action={formAction} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="name">Nazwa eventu</Label>
+              <Label htmlFor="name">Nazwa wydarzenia</Label>
               <Input
                 id="name"
                 name="name"

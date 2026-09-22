@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/logo";
-import { cn } from "@/lib/utils";
 
 const STATUS_LABELS: Record<Event["status"], string> = {
   draft: "Szkic",
@@ -19,12 +18,16 @@ const STATUS_LABELS: Record<Event["status"], string> = {
   archived: "Zarchiwizowany",
 };
 
-const STATUS_CLASSES: Record<Event["status"], string> = {
-  draft: "bg-muted text-muted-foreground",
-  published: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
-  live: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 animate-pulse",
-  completed: "bg-muted text-muted-foreground line-through",
-  archived: "bg-muted text-muted-foreground",
+const STATUS_VARIANTS: Record<Event["status"], "secondary" | "success" | "indigo"> = {
+  draft: "secondary",
+  published: "success",
+  live: "indigo",
+  completed: "secondary",
+  archived: "secondary",
+};
+
+const STATUS_LIVE: Record<Event["status"], boolean> = {
+  draft: false, published: false, live: true, completed: false, archived: false,
 };
 
 function formatDateRange(
@@ -92,7 +95,10 @@ export default async function OrganizerAdminPage() {
                         {formatDateRange(event.starts_at, event.ends_at, event.timezone)}
                       </span>
                     </div>
-                    <Badge className={cn(STATUS_CLASSES[event.status])}>
+                    <Badge
+                      variant={STATUS_VARIANTS[event.status]}
+                      className={STATUS_LIVE[event.status] ? "animate-pulse" : undefined}
+                    >
                       {STATUS_LABELS[event.status]}
                     </Badge>
                   </CardContent>

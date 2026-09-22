@@ -3,6 +3,7 @@ import { getOwnEvent } from "@/lib/events";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "../../../actions";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { EventSidebar } from "./event-sidebar";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -13,12 +14,12 @@ const STATUS_LABELS: Record<string, string> = {
   archived:  "Zarchiwizowany",
 };
 
-const STATUS_BADGE: Record<string, string> = {
-  draft:     "bg-muted text-muted-foreground",
-  published: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
-  live:      "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 animate-pulse",
-  completed: "bg-muted text-muted-foreground",
-  archived:  "bg-muted text-muted-foreground",
+const STATUS_VARIANTS: Record<string, "secondary" | "success" | "indigo"> = {
+  draft:     "secondary",
+  published: "success",
+  live:      "indigo",
+  completed: "secondary",
+  archived:  "secondary",
 };
 
 export default async function EventLayout({
@@ -63,13 +64,12 @@ export default async function EventLayout({
               {event?.name ?? "Wydarzenie"}
             </span>
             {event?.status && (
-              <span
-                className={`mt-0.5 inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-medium ${
-                  STATUS_BADGE[event.status] ?? "bg-muted text-muted-foreground"
-                }`}
+              <Badge
+                variant={STATUS_VARIANTS[event.status] ?? "secondary"}
+                className={event.status === "live" ? "mt-0.5 animate-pulse" : "mt-0.5"}
               >
                 {STATUS_LABELS[event.status] ?? event.status}
-              </span>
+              </Badge>
             )}
           </div>
           {event?.slug && (

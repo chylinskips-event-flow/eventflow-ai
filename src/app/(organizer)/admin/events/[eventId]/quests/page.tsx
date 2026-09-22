@@ -52,7 +52,7 @@ export default async function QuestsPage({
           </p>
           {!event.gamification_enabled && (
             <p className="mt-2 text-sm font-medium text-yellow-600 dark:text-yellow-400">
-              Grywalizacja jest wyłączona dla tego eventu. Włącz ją w Ustawieniach, aby questy były widoczne dla uczestników.
+              Grywalizacja jest wyłączona dla tego wydarzenia. Włącz ją w Ustawieniach, aby questy były widoczne dla uczestników.
             </p>
           )}
         </div>

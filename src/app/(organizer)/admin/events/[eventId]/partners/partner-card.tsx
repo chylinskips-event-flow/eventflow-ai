@@ -89,7 +89,7 @@ export function PartnerCard({
             )}
             <span>
               {checkinCount}{" "}
-              {checkinCount === 1 ? "check-in" : "check-inów"}
+              {checkinCount === 1 ? "wizyta u partnera" : "wizyty u partnerów"}
             </span>
             <span>
               {leadCount}{" "}
@@ -133,7 +133,7 @@ export function PartnerCard({
           }}
         >
           <AlertDialogTrigger asChild>
-            <Button variant="outline" size="sm">
+            <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10">
               Usuń
             </Button>
           </AlertDialogTrigger>

@@ -7,8 +7,8 @@ import {
 } from "@/lib/message-templates";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import { TemplateFormDialog } from "./template-form-dialog";
 import { DeleteTemplateButton } from "./delete-template-button";
 
@@ -95,19 +95,10 @@ export default async function MessagesPage({
                 <div className="flex flex-1 flex-col gap-1">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{label}</span>
-                    <span className="rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                      {channel}
-                    </span>
-                    <span
-                      className={cn(
-                        "rounded-full px-2 py-0.5 text-xs font-medium",
-                        isCustom
-                          ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
-                          : "bg-muted text-muted-foreground",
-                      )}
-                    >
+                    <Badge variant="outline">{channel}</Badge>
+                    <Badge variant={isCustom ? "success" : "secondary"}>
                       {isCustom ? "Własny" : "Domyślny"}
-                    </span>
+                    </Badge>
                   </div>
                   {currentSubject && (
                     <span className="truncate text-sm text-muted-foreground">

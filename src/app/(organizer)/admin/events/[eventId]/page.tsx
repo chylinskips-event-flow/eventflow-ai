@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Handshake, Users, Target } from "lucide-react";
 import { getOwnEvent } from "@/lib/events";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { EventEditForm } from "./form";
@@ -61,20 +62,23 @@ export default async function EventDetailPage({
           </h2>
           <div className="grid grid-cols-3 gap-3">
             <Card>
-              <CardContent className="flex flex-col gap-1 py-4 text-center">
-                <span className="text-2xl font-bold">{stats.totalCheckins}</span>
-                <span className="text-xs text-muted-foreground">Check-inów u partnerów</span>
+              <CardContent className="flex flex-col items-center gap-1 py-4 text-center">
+                <Handshake className="mb-1 size-5 text-primary" />
+                <span className="text-2xl font-bold text-primary">{stats.totalCheckins}</span>
+                <span className="text-xs text-muted-foreground">Wizyty u partnerów</span>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="flex flex-col gap-1 py-4 text-center">
-                <span className="text-2xl font-bold">{stats.activePlayers}</span>
+              <CardContent className="flex flex-col items-center gap-1 py-4 text-center">
+                <Users className="mb-1 size-5 text-primary" />
+                <span className="text-2xl font-bold text-primary">{stats.activePlayers}</span>
                 <span className="text-xs text-muted-foreground">Aktywnych graczy</span>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="flex flex-col gap-1 py-4 text-center">
-                <span className="text-2xl font-bold">{stats.completedQuests}</span>
+              <CardContent className="flex flex-col items-center gap-1 py-4 text-center">
+                <Target className="mb-1 size-5 text-primary" />
+                <span className="text-2xl font-bold text-primary">{stats.completedQuests}</span>
                 <span className="text-xs text-muted-foreground">Ukończonych questów</span>
               </CardContent>
             </Card>

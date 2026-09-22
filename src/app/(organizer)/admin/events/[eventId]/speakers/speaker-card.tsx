@@ -78,7 +78,7 @@ export function SpeakerCard({
           }}
         >
           <AlertDialogTrigger asChild>
-            <Button variant="outline" size="sm">
+            <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10">
               Usuń
             </Button>
           </AlertDialogTrigger>

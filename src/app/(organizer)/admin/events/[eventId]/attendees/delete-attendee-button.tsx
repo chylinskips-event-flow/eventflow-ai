@@ -45,7 +45,7 @@ export function DeleteAttendeeButton({
     <div className="flex flex-col items-end gap-1">
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button size="sm" variant="outline" disabled={isPending}>
+          <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10" disabled={isPending}>
             Usuń
           </Button>
         </AlertDialogTrigger>
