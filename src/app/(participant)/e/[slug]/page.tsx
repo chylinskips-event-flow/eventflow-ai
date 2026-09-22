@@ -184,11 +184,11 @@ export default async function ParticipantEventPage({
     const businessCard = (
       <Card>
         <CardContent className="flex items-center gap-3 px-4 py-3">
-          <Avatar className="size-12 shrink-0 ring-2 ring-primary/20">
+          <Avatar className="size-16 shrink-0 ring-2 ring-primary/20">
             {attendee.avatar_url && (
               <AvatarImage src={attendee.avatar_url} alt={fullName} />
             )}
-            <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">
+            <AvatarFallback className="bg-primary/10 text-xl font-semibold text-primary">
               {initials || "?"}
             </AvatarFallback>
           </Avatar>
