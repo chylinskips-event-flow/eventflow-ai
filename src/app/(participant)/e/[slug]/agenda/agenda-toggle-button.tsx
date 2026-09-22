@@ -32,12 +32,13 @@ export function AgendaToggleButton({
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col items-stretch gap-1 sm:items-end">
       <Button
         size="sm"
         variant={inAgenda ? "outline" : "default"}
         onClick={handleClick}
         disabled={isPending}
+        className="w-full justify-center sm:w-auto"
       >
         {inAgenda ? "✓ W mojej agendzie" : "Dodaj do mojej agendy"}
       </Button>

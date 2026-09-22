@@ -152,7 +152,7 @@ export function AgendaSessionList({
                         "border-green-500/30 bg-green-50/40 dark:bg-green-900/10",
                     )}
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
                       <div className="flex min-w-0 flex-col gap-1.5">
                         {/* Badges row */}
                         {(isOngoing || session.track) && (

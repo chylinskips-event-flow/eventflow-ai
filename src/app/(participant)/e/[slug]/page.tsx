@@ -183,20 +183,22 @@ export default async function ParticipantEventPage({
 
     const businessCard = (
       <Card>
-        <CardContent className="flex items-center gap-3 px-4 py-3">
-          <Avatar className="size-16 shrink-0 ring-2 ring-primary/20">
-            {attendee.avatar_url && (
-              <AvatarImage src={attendee.avatar_url} alt={fullName} />
-            )}
-            <AvatarFallback className="bg-primary/10 text-xl font-semibold text-primary">
-              {initials || "?"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate font-semibold">{fullName || "Uczestnik"}</span>
-            {roleInfo && (
-              <span className="truncate text-xs text-muted-foreground">{roleInfo}</span>
-            )}
+        <CardContent className="flex items-start gap-4 px-4 py-4">
+          <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
+            <Avatar className="size-28 ring-2 ring-primary/20">
+              {attendee.avatar_url && (
+                <AvatarImage src={attendee.avatar_url} alt={fullName} />
+              )}
+              <AvatarFallback className="bg-primary/10 text-2xl font-semibold text-primary">
+                {initials || "?"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex w-full min-w-0 flex-col">
+              <span className="truncate text-base font-semibold">{fullName || "Uczestnik"}</span>
+              {roleInfo && (
+                <span className="truncate text-xs text-muted-foreground">{roleInfo}</span>
+              )}
+            </div>
           </div>
           <div className="flex shrink-0 flex-col items-center gap-0.5">
             <ContactQr
