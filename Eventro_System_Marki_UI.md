@@ -213,4 +213,43 @@ Kolejność od fundamentu do detali, każde zadanie osobno (propozycja → revie
 
 ---
 
+## 12. Panel uczestnika v2 — kierunek wizualny (wizualizacje GPT, wrz 2026)
+
+Bazuje na 7 wizualizacjach wygenerowanych przez GPT (Loteria, Nagrody, Questy, Partnerzy, Uczestnicy, Agenda, Prelegenci). GPT nie znał zawartości sekcji, więc dorysował część funkcji — poniżej rozdzielone od tego, co realnie mamy.
+
+### Decyzje
+1. **Platforma: mobile-first, styl w górę.** Zostajemy przy mobile-first (event = telefon), a język wizualny z wizek przenosimy na mobile i lekko na desktop. NIE przechodzimy na desktop-first. Desktop = warstwa „przeglądanie przed wydarzeniem".
+2. **Kolejność: najpierw domknąć U2 (panel organizatora), potem osobny trak „Uczestnik v2".**
+
+### Język wizualny do przeniesienia (z wizek)
+- **Hero sekcji:** duży nagłówek dwukolorowy (Midnight + Indigo), podtytuł, zdjęcie osoby w organicznym kształcie + **Connection Line** (pływające gradientowe kule niebiesko-turkusowo-koralowe + łuki linii). Sygnatura „LUDZIE · KONTAKTY · DOŚWIADCZENIA".
+- **Karty:** białe, miękkie cienie, duże zaokrąglenia; odznaki narożne (Najpopularniejsze / Nowość / Premium / Bestseller); ikona zakładki (bookmark) w rogu.
+- **Widgety w sidebarze:** Twój poziom (donut + pasek), Twoje szanse / progres, „Jak zdobyć więcej…", listy (ostatni zwycięzcy / odbiory, TOP uczestników). Na mobile → sekcje jedna pod drugą (nie kolumna boczna).
+- **Paski filtrów:** pigułki kategorii + wyszukiwarka + sortowanie.
+- **Coral/Aqua z prawem do energii** (grywalizacja) — zgodnie z sekcją 8.
+
+### Mapa: wizka → stan realny → nowe funkcje → koszt
+| Sekcja | Mamy? | Nowe (funkcja, nie tylko styl) | Koszt |
+|---|---|---|---|
+| Nagrody | ✅ katalog, punkty, odbiór, historia | kategorie, stan „Brakuje X pkt", karta podarunkowa (realna wartość → temat prawny) | niski (reskin) |
+| Prelegenci | ✅ | ~1:1 | niski |
+| Agenda | ✅ sesje, sceny | „Dodaj do mojego planu", filtry formatów | niski/średni |
+| Questy | ✅ questy, kategorie, punkty, QR, ranking | quest-quiz, stan „W trakcie", donut postępu | średni |
+| Partnerzy | ✅ partnerzy, stoiska, wizyty | poziomy (Sponsor gł./Partner/Wystawca), Strefy tematyczne | średni |
+| Uczestnicy | ✅ lista + matchmaking (powód + pytanie) | % dopasowania, „Umów rozmowę" (kalendarz spotkań), status dostępności, cytat os. | wysoki |
+| Loteria | ⚠️ tylko losowanie po stronie organizatora | system „losów" (bilety za aktywność), zapisy per-nagroda, odliczanie, ostatni zwycięzcy | wysoki (inny model) |
+
+### Kolejność wewnątrz traku (rekomendacja)
+Najpierw tanie i wartościowe reskiny: **Nagrody → Prelegenci → Agenda → Questy**, potem **Partnerzy**, na końcu decyzje funkcjonalne: **Uczestnicy** (% match, spotkania) i **Loteria** (model losów).
+
+### Logo (kierunek z wizek)
+Wizki pokazują kolorowe **„Connected E"** (gradient niebiesko-turkusowo-koralowy) + wordmark; na gadżetach inny wariant + deskryptor „PEOPLE CONNECT EVENTS". Do **ujednolicenia i wektoryzacji jako finalne logo SVG** (zastępuje placeholder „E" z U1). Uwaga: prawdziwe loga firm na wizkach (ING, Microsoft, Allegro…) to przykłady — u nas dane wprowadza organizator, nie zaszywamy cudzych marek.
+
+### Uwagi produktowo-prawne (przed budową Uczestników/Loterii)
+- Nagrody o realnej wartości (np. karta podarunkowa) — decyzja biznesowa/podatkowa.
+- „Umów rozmowę" — wymaga modelu spotkań (sloty, zgody, powiadomienia).
+- System „losów" — nowy model danych (bilety za aktywność), inny niż obecne losowanie po stronie organizatora.
+
+---
+
 *Dokument roboczy Eventro. Wgraj do repo (obok `Etap2_Partnerzy_Grywalizacja.md`) i poproś Codeksa o `git add` + commit, żeby nie ginął między sesjami.*
