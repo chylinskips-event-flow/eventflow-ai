@@ -105,13 +105,17 @@ export function SectionHero({
         </div>
 
         {/* Prawy panel — zdjęcie flush */}
-        <div className="relative w-[42%] shrink-0 self-stretch overflow-hidden rounded-l-[3rem] sm:w-[44%]">
+        <div className="relative w-[42%] shrink-0 self-stretch overflow-hidden sm:w-[44%]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imageSrc}
             alt={imageAlt ?? ""}
             loading="lazy"
             className="absolute inset-0 h-full w-full object-cover"
+            style={{
+              maskImage: "linear-gradient(to right, transparent 0%, #000 35%)",
+              WebkitMaskImage: "linear-gradient(to right, transparent 0%, #000 35%)",
+            }}
           />
         </div>
       </div>
