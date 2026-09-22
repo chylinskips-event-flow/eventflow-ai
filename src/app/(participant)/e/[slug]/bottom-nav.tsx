@@ -68,53 +68,50 @@ export function BottomNav({
       {/* Overlay */}
       {moreOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/40"
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
           aria-hidden
           onClick={() => setMoreOpen(false)}
         />
       )}
 
-      {/* Sheet „Więcej" */}
-      <div
-        className={cn(
-          "fixed bottom-16 left-0 right-0 z-50 rounded-t-2xl border-t bg-card shadow-xl transition-transform duration-200",
-          moreOpen ? "translate-y-0" : "translate-y-full pointer-events-none",
-        )}
-      >
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <span className="text-sm font-semibold">Więcej</span>
-          <button
-            onClick={() => setMoreOpen(false)}
-            className="rounded-full p-1 text-muted-foreground hover:bg-muted"
-            aria-label="Zamknij"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
+      {/* Sheet „Więcej" — montowany tylko gdy open */}
+      {moreOpen && (
+        <div className="fixed bottom-16 left-0 right-0 z-50 rounded-t-2xl border-t bg-card shadow-xl md:hidden">
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <span className="text-sm font-semibold">Więcej</span>
+            <button
+              onClick={() => setMoreOpen(false)}
+              className="rounded-full p-1 text-muted-foreground hover:bg-muted"
+              aria-label="Zamknij"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
 
-        <div className="grid grid-cols-3 p-2">
-          {sheetItems.map((item) => {
-            const active = pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex flex-col items-center gap-1.5 rounded-xl p-3 text-[11px] font-medium transition-colors",
-                  active
-                    ? "text-primary"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                )}
-              >
-                <item.icon
-                  className={cn("size-6", active ? "text-primary" : "text-muted-foreground")}
-                />
-                {item.label}
-              </Link>
-            );
-          })}
+          <div className="grid grid-cols-3 p-2">
+            {sheetItems.map((item) => {
+              const active = pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-xl p-3 text-[11px] font-medium transition-colors",
+                    active
+                      ? "text-primary"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                  )}
+                >
+                  <item.icon
+                    className={cn("size-6", active ? "text-primary" : "text-muted-foreground")}
+                  />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Nav bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-card md:hidden">
