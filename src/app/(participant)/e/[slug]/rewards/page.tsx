@@ -1,18 +1,33 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Gift } from "lucide-react";
+import { Gift } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
-import { createClient } from "@/lib/supabase/server";
-import { Button } from "@/components/ui/button";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
+import { SectionHero } from "@/components/participant/section-hero";
+import { PointsLevelWidget } from "@/components/participant/points-level-widget";
+import { FilterPills } from "@/components/participant/filter-pills";
+import type { TierFilter } from "@/components/participant/filter-pills";
+import { RewardCard } from "@/components/participant/reward-card";
+
+function tierRange(tier: TierFilter): [number, number] | null {
+  if (tier === "0-100")   return [0, 100];
+  if (tier === "101-300") return [101, 300];
+  if (tier === "301-500") return [301, 500];
+  if (tier === "500+")    return [501, Infinity];
+  return null;
+}
 
 export default async function RewardsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ tier?: string }>;
 }) {
   const { slug } = await params;
+  const { tier: tierParam } = await searchParams;
+
   const attendee = await getCurrentAttendee(slug);
   if (!attendee) redirect(`/e/${slug}`);
 
@@ -20,15 +35,21 @@ export default async function RewardsPage({
   if (!event) redirect(`/e/${slug}`);
   if (!event.gamification_enabled) redirect(`/e/${slug}`);
 
-  // Nagrody mają RLS SELECT dla authenticated — session client wystarczy
-  const supabase = await createClient();
-  const { data } = await supabase
+  const myPoints = attendee.points ?? 0;
+
+  const validTiers: TierFilter[] = ["all", "0-100", "101-300", "301-500", "500+"];
+  const activeTier: TierFilter =
+    validTiers.includes(tierParam as TierFilter) ? (tierParam as TierFilter) : "all";
+
+  const supabase = createAdminClient();
+
+  const { data: allRewards } = await supabase
     .from("rewards")
     .select("id, name, description, points_required, stock")
     .eq("event_id", event.id)
     .order("points_required", { ascending: true });
 
-  const rewards = (data ?? []) as {
+  const rewards = (allRewards ?? []) as {
     id: string;
     name: string;
     description: string | null;
@@ -36,33 +57,38 @@ export default async function RewardsPage({
     stock: number | null;
   }[];
 
-  const myPoints = attendee.points ?? 0;
+  // Fetch which rewards this attendee has already redeemed
+  const { data: redemptionRows } = await supabase
+    .from("reward_redemptions")
+    .select("reward_id")
+    .eq("attendee_id", attendee.id);
+
+  const redeemedIds = new Set((redemptionRows ?? []).map((r: { reward_id: string }) => r.reward_id));
+
+  // Apply tier filter
+  const range = tierRange(activeTier);
+  const filtered = range
+    ? rewards.filter((r) => r.points_required >= range[0] && r.points_required <= range[1])
+    : rewards;
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 pb-8">
-      <div className="flex items-center gap-3">
-        <Button asChild variant="outline" size="sm">
-          <Link href={`/e/${slug}`}>
-            <ArrowLeft className="size-4" /> Powrót
-          </Link>
-        </Button>
-      </div>
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-5 p-4 pb-8">
+      <SectionHero
+        headline="Nagrody"
+        headlineAccent={event.name}
+        subtitle="Wymień zebrane punkty na nagrody u organizatora."
+      />
 
-      <div>
-        <h1 className="text-2xl font-bold">Nagrody</h1>
-        <p className="text-sm text-muted-foreground">{event.name}</p>
-      </div>
+      <PointsLevelWidget
+        points={myPoints}
+        rankingHref={`/e/${slug}/ranking`}
+      />
 
-      <Card className="border-dashed">
-        <CardContent className="flex items-center gap-3 py-4">
-          <span className="rounded-full bg-coral px-3 py-1 text-sm font-bold tabular-nums text-[#171A2B]">
-            {myPoints} pkt
-          </span>
-          <span className="text-sm text-muted-foreground">Twoje punkty</span>
-        </CardContent>
-      </Card>
+      {rewards.length > 0 && (
+        <FilterPills active={activeTier} />
+      )}
 
-      {rewards.length === 0 ? (
+      {filtered.length === 0 && rewards.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <Gift className="size-10 text-muted-foreground" />
@@ -71,61 +97,28 @@ export default async function RewardsPage({
             </p>
           </CardContent>
         </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+            <p className="text-muted-foreground text-sm">
+              Brak nagród w tym przedziale punktowym.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="flex flex-col gap-3">
-          {rewards.map((r) => {
-            const canAfford = myPoints >= r.points_required;
-            const missing = r.points_required - myPoints;
-            const outOfStock = r.stock !== null && r.stock <= 0;
-
-            return (
-              <Card
-                key={r.id}
-                className={
-                  outOfStock
-                    ? "opacity-60"
-                    : canAfford
-                      ? "border-aqua/50"
-                      : undefined
-                }
-              >
-                <CardContent className="flex items-start gap-4 py-4">
-                  <div className="flex flex-1 flex-col gap-1.5 min-w-0">
-                    <span className="font-medium">{r.name}</span>
-                    {r.description && (
-                      <p className="text-sm text-muted-foreground">{r.description}</p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-coral px-2.5 py-0.5 text-xs font-semibold text-[#171A2B]">
-                        {r.points_required} pkt
-                      </span>
-                      {r.stock !== null && (
-                        <span className="text-xs text-muted-foreground">
-                          {r.stock > 0 ? `Dostępność: ${r.stock} szt.` : "Wyczerpane"}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    {outOfStock ? (
-                      <span className="text-xs font-medium text-muted-foreground">
-                        Wyczerpane
-                      </span>
-                    ) : canAfford ? (
-                      <span className="flex items-center gap-1 text-xs font-semibold text-aqua">
-                        <CheckCircle2 className="size-4" />
-                        Stać Cię!
-                      </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">
-                        Brakuje {missing} pkt
-                      </span>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {filtered.map((r) => (
+            <RewardCard
+              key={r.id}
+              id={r.id}
+              name={r.name}
+              description={r.description}
+              pointsRequired={r.points_required}
+              stock={r.stock}
+              attendeePoints={myPoints}
+              redeemed={redeemedIds.has(r.id)}
+            />
+          ))}
         </div>
       )}
 
