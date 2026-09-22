@@ -20,6 +20,8 @@ export type RewardForEdit = {
   description: string | null;
   points_required: number;
   stock: number | null;
+  badge_label: string | null;
+  image_url: string | null;
 };
 
 const initialState: RewardFormState = { status: "idle" };
@@ -118,6 +120,17 @@ function RewardFormContent({
           min={0}
           defaultValue={reward?.stock ?? ""}
           placeholder="np. 5"
+        />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="badge_label">Odznaka narożna (opcjonalnie, maks. 20 znaków)</Label>
+        <Input
+          id="badge_label"
+          name="badge_label"
+          maxLength={20}
+          defaultValue={reward?.badge_label ?? ""}
+          placeholder="np. Bestseller"
         />
       </div>
 

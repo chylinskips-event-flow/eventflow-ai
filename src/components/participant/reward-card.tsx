@@ -1,6 +1,7 @@
 "use client";
 
 import { CheckCircle2, Gift } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +23,8 @@ export type RewardCardProps = {
   stock: number | null;
   attendeePoints: number;
   redeemed: boolean;
+  imageUrl?: string | null;
+  badgeLabel?: string | null;
 };
 
 export function RewardCard({
@@ -31,6 +34,8 @@ export function RewardCard({
   stock,
   attendeePoints,
   redeemed,
+  imageUrl,
+  badgeLabel,
 }: RewardCardProps) {
   const outOfStock = stock !== null && stock <= 0;
   const canAfford = !outOfStock && !redeemed && attendeePoints >= pointsRequired;
@@ -46,9 +51,27 @@ export function RewardCard({
       redeemed && "border-green-500/40 bg-green-50/40 dark:bg-green-900/10",
     )}>
       <CardContent className="flex items-start gap-4 py-4">
-        {/* Image placeholder */}
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-muted">
-          <Gift className="size-6 text-muted-foreground" />
+        {/* Zdjęcie / fallback */}
+        <div className="relative shrink-0">
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={name}
+              className="h-14 w-14 rounded-lg object-cover"
+            />
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-muted">
+              <Gift className="size-6 text-muted-foreground" />
+            </div>
+          )}
+          {badgeLabel && (
+            <Badge
+              variant="indigo"
+              className="absolute -left-2 -top-2 px-1.5 py-0 text-[9px] leading-4 shadow-sm"
+            >
+              {badgeLabel}
+            </Badge>
+          )}
         </div>
 
         <div className="flex flex-1 flex-col gap-1.5 min-w-0">

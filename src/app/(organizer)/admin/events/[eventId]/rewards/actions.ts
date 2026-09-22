@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOwnEvent } from "@/lib/events";
+import { validateImageFile, MB } from "@/lib/upload-validation";
 
 export type RewardFormState = {
   status: "idle" | "success" | "error";
@@ -30,6 +31,7 @@ export async function createReward(
   const pointsRaw = parseInt(formData.get("points_required") as string, 10);
   const stockRaw = formData.get("stock") as string;
   const stock = stockRaw.trim() === "" ? null : parseInt(stockRaw, 10);
+  const badge_label = (formData.get("badge_label") as string)?.trim() || null;
 
   if (!name) return { status: "error", message: "Podaj nazwę nagrody." };
   if (isNaN(pointsRaw) || pointsRaw < 0)
@@ -44,6 +46,7 @@ export async function createReward(
     description,
     points_required: pointsRaw,
     stock,
+    badge_label,
   });
 
   if (error) return { status: "error", message: "Nie udało się dodać nagrody." };
@@ -70,6 +73,7 @@ export async function updateReward(
   const pointsRaw = parseInt(formData.get("points_required") as string, 10);
   const stockRaw = formData.get("stock") as string;
   const stock = stockRaw.trim() === "" ? null : parseInt(stockRaw, 10);
+  const badge_label = (formData.get("badge_label") as string)?.trim() || null;
 
   if (!name) return { status: "error", message: "Podaj nazwę nagrody." };
   if (isNaN(pointsRaw) || pointsRaw < 0)
@@ -80,7 +84,7 @@ export async function updateReward(
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("rewards")
-    .update({ name, description, points_required: pointsRaw, stock })
+    .update({ name, description, points_required: pointsRaw, stock, badge_label })
     .eq("id", rewardId)
     .eq("event_id", eventId);
 
@@ -112,6 +116,54 @@ export async function deleteReward(
 
   revalidate(eventId);
   return { status: "success" };
+}
+
+// ---------------------------------------------------------------------------
+// Upload image
+// ---------------------------------------------------------------------------
+
+export async function uploadRewardImage(
+  eventId: string,
+  rewardId: string,
+  _prev: RewardFormState,
+  formData: FormData,
+): Promise<RewardFormState> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return { status: "error", message: "Event nie znaleziony." };
+
+  const file = formData.get("image") as File | null;
+  if (!file || file.size === 0)
+    return { status: "error", message: "Nie wybrano pliku." };
+
+  const validationError = validateImageFile(file, 5 * MB);
+  if (validationError) return { status: "error", message: validationError };
+
+  const ext = file.name.split(".").pop() ?? "jpg";
+  const path = `${eventId}/${rewardId}-${Date.now()}.${ext}`;
+
+  const supabase = createAdminClient();
+  const { error: uploadError } = await supabase.storage
+    .from("reward-images")
+    .upload(path, file, { upsert: true, contentType: file.type });
+
+  if (uploadError)
+    return { status: "error", message: "Nie udało się wgrać zdjęcia." };
+
+  const { data: { publicUrl } } = supabase.storage
+    .from("reward-images")
+    .getPublicUrl(path);
+
+  const { error: dbError } = await supabase
+    .from("rewards")
+    .update({ image_url: publicUrl })
+    .eq("id", rewardId)
+    .eq("event_id", eventId);
+
+  if (dbError)
+    return { status: "error", message: "Nie udało się zapisać URL zdjęcia." };
+
+  revalidate(eventId);
+  return { status: "success", message: "Zdjęcie wgrane." };
 }
 
 // ---------------------------------------------------------------------------

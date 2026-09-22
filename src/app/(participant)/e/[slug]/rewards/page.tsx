@@ -70,7 +70,7 @@ export default async function RewardsPage({
   ] = await Promise.all([
     supabase
       .from("rewards")
-      .select("id, name, description, points_required, stock")
+      .select("id, name, description, points_required, stock, image_url, badge_label")
       .eq("event_id", event.id)
       .order("points_required", { ascending: true }),
     supabase
@@ -91,6 +91,8 @@ export default async function RewardsPage({
     description: string | null;
     points_required: number;
     stock: number | null;
+    image_url: string | null;
+    badge_label: string | null;
   }[];
 
   const redeemedIds = new Set(
@@ -187,6 +189,8 @@ export default async function RewardsPage({
               stock={r.stock}
               attendeePoints={myPoints}
               redeemed={redeemedIds.has(r.id)}
+              imageUrl={r.image_url}
+              badgeLabel={r.badge_label}
             />
           ))}
         </div>

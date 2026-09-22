@@ -25,7 +25,7 @@ export default async function RewardsPage({
   ] = await Promise.all([
     supabase
       .from("rewards")
-      .select("id, name, description, points_required, stock")
+      .select("id, name, description, points_required, stock, image_url, badge_label")
       .eq("event_id", eventId)
       .order("points_required", { ascending: true }),
     supabase
@@ -50,6 +50,8 @@ export default async function RewardsPage({
     description: r.description as string | null,
     points_required: r.points_required as number,
     stock: r.stock as number | null,
+    image_url: (r.image_url as string | null) ?? null,
+    badge_label: (r.badge_label as string | null) ?? null,
   }));
 
   // Pobierz redempcje dla rzeczywistych ID nagród
