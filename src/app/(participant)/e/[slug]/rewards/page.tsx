@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Gift } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Gift } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { createClient } from "@/lib/supabase/server";
@@ -39,7 +39,7 @@ export default async function RewardsPage({
   const myPoints = attendee.points ?? 0;
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 pb-8">
       <div className="flex items-center gap-3">
         <Button asChild variant="outline" size="sm">
           <Link href={`/e/${slug}`}>
@@ -49,14 +49,16 @@ export default async function RewardsPage({
       </div>
 
       <div>
-        <h1 className="text-2xl font-semibold">Nagrody</h1>
+        <h1 className="text-2xl font-bold">Nagrody</h1>
         <p className="text-sm text-muted-foreground">{event.name}</p>
       </div>
 
       <Card className="border-dashed">
         <CardContent className="flex items-center gap-3 py-4">
-          <span className="text-xl font-bold">⭐ {myPoints} pkt</span>
-          <span className="text-sm text-muted-foreground">· Twoje punkty</span>
+          <span className="rounded-full bg-coral px-3 py-1 text-sm font-bold tabular-nums text-[#171A2B]">
+            {myPoints} pkt
+          </span>
+          <span className="text-sm text-muted-foreground">Twoje punkty</span>
         </CardContent>
       </Card>
 
@@ -79,26 +81,39 @@ export default async function RewardsPage({
             return (
               <Card
                 key={r.id}
-                className={canAfford && !outOfStock ? "border-green-500/50" : undefined}
+                className={
+                  outOfStock
+                    ? "opacity-60"
+                    : canAfford
+                      ? "border-aqua/50"
+                      : undefined
+                }
               >
-                <CardContent className="flex items-center gap-4 py-4">
-                  <div className="flex flex-1 flex-col gap-1 min-w-0">
+                <CardContent className="flex items-start gap-4 py-4">
+                  <div className="flex flex-1 flex-col gap-1.5 min-w-0">
                     <span className="font-medium">{r.name}</span>
                     {r.description && (
                       <p className="text-sm text-muted-foreground">{r.description}</p>
                     )}
-                    <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                      <span>{r.points_required} pkt</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-coral px-2.5 py-0.5 text-xs font-semibold text-[#171A2B]">
+                        {r.points_required} pkt
+                      </span>
                       {r.stock !== null && (
-                        <span>Dostępność: {r.stock > 0 ? `${r.stock} szt.` : "Wyczerpane"}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {r.stock > 0 ? `Dostępność: ${r.stock} szt.` : "Wyczerpane"}
+                        </span>
                       )}
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
                     {outOfStock ? (
-                      <span className="text-xs font-medium text-muted-foreground">Wyczerpane</span>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Wyczerpane
+                      </span>
                     ) : canAfford ? (
-                      <span className="text-xs font-semibold text-green-600 dark:text-green-400">
+                      <span className="flex items-center gap-1 text-xs font-semibold text-aqua">
+                        <CheckCircle2 className="size-4" />
                         Stać Cię!
                       </span>
                     ) : (

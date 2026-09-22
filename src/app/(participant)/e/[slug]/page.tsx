@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Calendar, MapPin } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import {
+  Calendar, MapPin,
+  CalendarDays, Users, Handshake, Trophy, BarChart2, Gift, User, CalendarCheck, ChevronRight,
+} from "lucide-react";
 import {
   getEventBySlugForRegistration,
   getRegistrationUnavailableReason,
@@ -137,7 +141,11 @@ export default async function ParticipantEventPage({
       const pts = attendee.points ?? 0;
       const level = computeLevel(pts);
       const nextThreshold = computeNextLevelThreshold(pts);
-      const prevThreshold = level === "explorer" ? 0 : level === "connector" ? 100 : 250;
+      const prevThreshold =
+        level === "explorer"   ? 0   :
+        level === "connector"  ? 100 :
+        level === "networker"  ? 250 :
+        500;
       const progressPct = nextThreshold
         ? Math.min(100, Math.round(((pts - prevThreshold) / (nextThreshold - prevThreshold)) * 100))
         : 100;
@@ -145,18 +153,25 @@ export default async function ParticipantEventPage({
       gamificationBar = (
         <Link href={`/e/${slug}/quests`} className="block">
           <Card className="transition-colors hover:bg-muted/50">
-            <CardContent className="flex flex-col gap-2 py-4">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold">⭐ {pts} pkt</span>
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-                  {LEVEL_LABELS[level]}
-                </span>
+            <CardContent className="flex flex-col gap-3 py-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-coral px-2.5 py-0.5 text-xs font-semibold text-[#171A2B]">
+                    {LEVEL_LABELS[level]}
+                  </span>
+                  <span className="text-xl font-bold tabular-nums">{pts} pkt</span>
+                </div>
+                {nextThreshold && (
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {pts} / {nextThreshold}
+                  </span>
+                )}
               </div>
-              <Progress value={progressPct} className="h-1.5" />
+              <Progress value={progressPct} className="h-2" />
               <p className="text-xs text-muted-foreground">
                 {nextThreshold
-                  ? `${nextThreshold - pts} pkt do poziomu ${LEVEL_LABELS[computeLevel(nextThreshold)]}`
-                  : "Najwyższy poziom osiągnięty!"}
+                  ? `Pozostało do ${LEVEL_LABELS[computeLevel(nextThreshold)]}: ${nextThreshold - pts} pkt`
+                  : "Najwyższy poziom 🏆"}
               </p>
             </CardContent>
           </Card>
@@ -203,38 +218,55 @@ export default async function ParticipantEventPage({
       </Card>
     );
 
-    const navButtons = (
-      <div className="flex flex-col gap-2">
-        <Button asChild>
-          <Link href={`/e/${slug}/agenda`}>Agenda</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href={`/e/${slug}/my-agenda`}>Moja agenda</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href={`/e/${slug}/attendees`}>Uczestnicy</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href={`/e/${slug}/contacts`}>Kontakty</Link>
-        </Button>
-        {event.gamification_enabled && (
-          <>
-            <Button asChild variant="outline">
-              <Link href={`/e/${slug}/quests`}>Zadania</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href={`/e/${slug}/ranking`}>Ranking</Link>
-            </Button>
-            {hasRewards && (
-              <Button asChild variant="outline">
-                <Link href={`/e/${slug}/rewards`}>Nagrody</Link>
-              </Button>
-            )}
-          </>
-        )}
-        <Button asChild variant="outline">
-          <Link href={`/e/${slug}/profile`}>Mój profil</Link>
-        </Button>
+    type NavItem = { href: string; icon: LucideIcon; label: string; cls: string };
+    type SecItem = { href: string; icon: LucideIcon; label: string };
+
+    const primaryItems: NavItem[] = [
+      { href: `/e/${slug}/agenda`,    icon: CalendarDays, label: "Agenda",     cls: "text-primary" },
+      { href: `/e/${slug}/attendees`, icon: Users,        label: "Uczestnicy", cls: "text-aqua"    },
+      { href: `/e/${slug}/contacts`,  icon: Handshake,    label: "Kontakty",   cls: "text-primary" },
+    ];
+    if (event.gamification_enabled) {
+      primaryItems.push({ href: `/e/${slug}/quests`,    icon: Trophy,        label: "Zadania",     cls: "text-coral"   });
+    } else {
+      primaryItems.push({ href: `/e/${slug}/my-agenda`, icon: CalendarCheck, label: "Moja agenda", cls: "text-primary" });
+    }
+
+    const secondaryItems: SecItem[] = [];
+    if (event.gamification_enabled) {
+      secondaryItems.push({ href: `/e/${slug}/ranking`,   icon: BarChart2,     label: "Ranking"     });
+      if (hasRewards) secondaryItems.push({ href: `/e/${slug}/rewards`, icon: Gift, label: "Nagrody" });
+      secondaryItems.push({ href: `/e/${slug}/my-agenda`, icon: CalendarCheck, label: "Moja agenda" });
+    }
+    secondaryItems.push({ href: `/e/${slug}/profile`, icon: User, label: "Mój profil" });
+
+    const navGrid = (
+      <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 gap-3">
+          {primaryItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex min-h-[96px] flex-col items-center justify-center gap-2.5 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/50"
+            >
+              <item.icon className={`size-7 ${item.cls}`} />
+              <span className="text-sm font-semibold">{item.label}</span>
+            </Link>
+          ))}
+        </div>
+        <div className="flex flex-col gap-2">
+          {secondaryItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3.5 shadow-sm transition-colors hover:bg-muted/50"
+            >
+              <item.icon className="size-5 text-muted-foreground" />
+              <span className="text-sm font-medium">{item.label}</span>
+              <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+            </Link>
+          ))}
+        </div>
       </div>
     );
 
@@ -246,10 +278,10 @@ export default async function ParticipantEventPage({
       ]);
 
       return (
-        <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
+        <main className="mx-auto flex w-full max-w-2xl flex-col gap-5 p-4 pb-8">
           <div>
-            <h1 className="text-2xl font-semibold">
-              Cześć, {attendee.first_name}!
+            <h1 className="text-2xl font-bold">
+              Cześć, {attendee.first_name}! 👋
             </h1>
             <p className="text-muted-foreground">{event.name}</p>
           </div>
@@ -261,16 +293,16 @@ export default async function ParticipantEventPage({
             agendaSessionIds={agendaSessionIds}
             timezone={event.timezone}
           />
-          {navButtons}
+          {navGrid}
         </main>
       );
     }
 
     return (
-      <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
+      <main className="mx-auto flex w-full max-w-2xl flex-col gap-5 p-4 pb-8">
         <div>
-          <h1 className="text-2xl font-semibold">
-            Cześć, {attendee.first_name}!
+          <h1 className="text-2xl font-bold">
+            Cześć, {attendee.first_name}! 👋
           </h1>
           <p className="text-muted-foreground">{event.name}</p>
         </div>
@@ -285,7 +317,7 @@ export default async function ParticipantEventPage({
             </p>
           </CardContent>
         </Card>
-        {navButtons}
+        {navGrid}
       </main>
     );
   }

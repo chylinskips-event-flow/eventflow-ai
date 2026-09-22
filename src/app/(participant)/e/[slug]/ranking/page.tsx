@@ -5,9 +5,27 @@ import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { computeLevel, LEVEL_LABELS } from "@/lib/gamification";
+import type { GamificationLevel } from "@/lib/gamification";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+
+const LEVEL_BADGE: Record<GamificationLevel, string> = {
+  explorer:   "bg-secondary text-muted-foreground",
+  connector:  "bg-coral text-[#171A2B]",
+  networker:  "bg-aqua text-[#171A2B]",
+  ambassador: "bg-amber-400 text-[#171A2B]",
+};
+
+function RankBadge({ rank }: { rank: number }) {
+  if (rank === 1)
+    return <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-[#171A2B]">1</span>;
+  if (rank === 2)
+    return <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-300 text-xs font-bold text-slate-700">2</span>;
+  if (rank === 3)
+    return <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-700 text-xs font-bold text-white">3</span>;
+  return <span className="w-8 shrink-0 text-center text-sm text-muted-foreground">#{rank}</span>;
+}
 
 export default async function RankingPage({
   params,
@@ -24,14 +42,13 @@ export default async function RankingPage({
 
   const supabase = createAdminClient();
 
-  // Wszyscy zatwierdzeni uczestnicy z punktami — potrzebujemy globalnej rangi
   const { data: allRows } = await supabase
     .from("attendees")
     .select("id, first_name, last_name, company, avatar_url, points, networking_visible")
     .eq("event_id", event.id)
     .eq("status", "approved")
     .order("points", { ascending: false })
-    .order("created_at", { ascending: true }); // tie-break deterministyczny
+    .order("created_at", { ascending: true });
 
   const rows = (allRows ?? []) as {
     id: string;
@@ -43,11 +60,9 @@ export default async function RankingPage({
     networking_visible: boolean;
   }[];
 
-  // Globalna ranga (1-based): pozycja w pełnym posortowanym zbiorze
   const globalRankMap = new Map<string, number>();
   rows.forEach((r, i) => globalRankMap.set(r.id, i + 1));
 
-  // TOP 10 = widoczni networkingowo, max 10
   const top10 = rows.filter((r) => r.networking_visible).slice(0, 10);
 
   const myRank = globalRankMap.get(attendee.id) ?? null;
@@ -62,7 +77,7 @@ export default async function RankingPage({
       : null;
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 pb-8">
       <div className="flex items-center gap-3">
         <Button asChild variant="outline" size="sm">
           <Link href={`/e/${slug}`}>
@@ -73,7 +88,7 @@ export default async function RankingPage({
 
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Ranking</h1>
+          <h1 className="text-2xl font-bold">Ranking</h1>
           <p className="text-sm text-muted-foreground">{event.name}</p>
         </div>
         <Button asChild variant="outline" size="sm">
@@ -101,20 +116,11 @@ export default async function RankingPage({
 
             return (
               <Card key={r.id} className={isSelf ? "border-primary bg-primary/5" : undefined}>
-                <CardContent className="flex items-center gap-4 py-3">
-                  <span className="w-8 shrink-0 text-center text-lg font-bold text-muted-foreground">
-                    #{globalRank}
-                  </span>
+                <CardContent className="flex items-center gap-3 py-3">
+                  <RankBadge rank={globalRank} />
                   <Avatar className="size-10 shrink-0">
-                    {r.avatar_url && <AvatarFallback>{initials || "?"}</AvatarFallback>}
-                    {r.avatar_url && (
-                      <img
-                        src={r.avatar_url}
-                        alt={fullName}
-                        className="size-full rounded-full object-cover"
-                      />
-                    )}
-                    {!r.avatar_url && <AvatarFallback>{initials || "?"}</AvatarFallback>}
+                    <AvatarImage src={r.avatar_url ?? undefined} alt={fullName} />
+                    <AvatarFallback>{initials || "?"}</AvatarFallback>
                   </Avatar>
                   <div className="flex flex-1 flex-col min-w-0">
                     <span className="font-medium truncate">
@@ -126,10 +132,10 @@ export default async function RankingPage({
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${LEVEL_BADGE[level] ?? "bg-secondary text-muted-foreground"}`}>
                       {LEVEL_LABELS[level]}
                     </span>
-                    <span className="text-sm font-bold">{r.points} pkt</span>
+                    <span className="text-sm font-bold tabular-nums">{r.points} pkt</span>
                   </div>
                 </CardContent>
               </Card>
@@ -141,22 +147,13 @@ export default async function RankingPage({
       {/* Własna pozycja gdy poza TOP 10 */}
       {!inTop10 && myRank !== null && (
         <Card className="border-primary/40 bg-primary/5">
-          <CardContent className="flex items-center gap-4 py-3">
-            <span className="w-8 shrink-0 text-center text-lg font-bold text-muted-foreground">
-              #{myRank}
-            </span>
+          <CardContent className="flex items-center gap-3 py-3">
+            <RankBadge rank={myRank} />
             <Avatar className="size-10 shrink-0">
-              {attendee.avatar_url ? (
-                <img
-                  src={attendee.avatar_url}
-                  alt=""
-                  className="size-full rounded-full object-cover"
-                />
-              ) : (
-                <AvatarFallback>
-                  {[attendee.first_name?.[0], attendee.last_name?.[0]].filter(Boolean).join("") || "?"}
-                </AvatarFallback>
-              )}
+              <AvatarImage src={attendee.avatar_url ?? undefined} alt="" />
+              <AvatarFallback>
+                {[attendee.first_name?.[0], attendee.last_name?.[0]].filter(Boolean).join("") || "?"}
+              </AvatarFallback>
             </Avatar>
             <div className="flex flex-1 flex-col min-w-0">
               <span className="font-medium">
@@ -166,10 +163,10 @@ export default async function RankingPage({
               <span className="text-xs text-muted-foreground">Twoja pozycja</span>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${LEVEL_BADGE[myLevel] ?? "bg-secondary text-muted-foreground"}`}>
                 {LEVEL_LABELS[myLevel]}
               </span>
-              <span className="text-sm font-bold">{myPoints} pkt</span>
+              <span className="text-sm font-bold tabular-nums">{myPoints} pkt</span>
             </div>
           </CardContent>
         </Card>

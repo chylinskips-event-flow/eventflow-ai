@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Circle, Trophy } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { CheckCircle2, MapPin, Trophy, Users, User } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -20,6 +21,15 @@ const TYPE_LABELS: Record<string, string> = {
   networking_contacts: "Networking",
   profile_complete: "Profil",
 };
+
+const QUEST_ICONS: Record<string, { icon: LucideIcon; cls: string }> = {
+  booth_visit:         { icon: MapPin, cls: "text-primary" },
+  booth_quiz:          { icon: MapPin, cls: "text-primary" },
+  booth_password:      { icon: MapPin, cls: "text-primary" },
+  networking_contacts: { icon: Users,  cls: "text-aqua"   },
+  profile_complete:    { icon: User,   cls: "text-primary" },
+};
+const FALLBACK_ICON = QUEST_ICONS.booth_visit;
 
 export default async function QuestsPage({
   params,
@@ -86,7 +96,11 @@ export default async function QuestsPage({
   const points = attendee.points ?? 0;
   const level = computeLevel(points);
   const nextThreshold = computeNextLevelThreshold(points);
-  const prevThreshold = level === "explorer" ? 0 : level === "connector" ? 100 : 250;
+  const prevThreshold =
+    level === "explorer"   ? 0   :
+    level === "connector"  ? 100 :
+    level === "networker"  ? 250 :
+    500;
   const progressPct = nextThreshold
     ? Math.min(100, Math.round(((points - prevThreshold) / (nextThreshold - prevThreshold)) * 100))
     : 100;
@@ -97,48 +111,51 @@ export default async function QuestsPage({
   const allDone = quests.length > 0 && quests.every((q) => q.done);
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 pb-8">
       <div className="flex items-center gap-3">
         <Button asChild variant="outline" size="sm">
-          <Link href={`/e/${slug}`}>
-            <ArrowLeft className="size-4" /> Powrót
-          </Link>
+          <Link href={`/e/${slug}`}>← Powrót</Link>
         </Button>
       </div>
 
       <div>
-        <h1 className="text-2xl font-semibold">Zadania</h1>
+        <h1 className="text-2xl font-bold">Zadania</h1>
         <p className="text-sm text-muted-foreground">{event.name}</p>
       </div>
 
       {/* Pasek postępu punktów */}
       <Card>
-        <CardContent className="flex flex-col gap-3 py-5">
-          <div className="flex items-center justify-between">
+        <CardContent className="flex flex-col gap-3 py-4">
+          <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold">⭐ {points}</span>
-              <span className="text-sm text-muted-foreground">pkt</span>
+              <span className="rounded-full bg-coral px-2.5 py-0.5 text-xs font-semibold text-[#171A2B]">
+                {LEVEL_LABELS[level]}
+              </span>
+              <span className="text-xl font-bold tabular-nums">{points} pkt</span>
             </div>
-            <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
-              {LEVEL_LABELS[level]}
-            </span>
+            {nextThreshold && (
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {points} / {nextThreshold}
+              </span>
+            )}
           </div>
           <Progress value={progressPct} className="h-2" />
-          <p className="text-xs text-muted-foreground">
-            {nextThreshold
-              ? `${nextThreshold - points} pkt do poziomu ${LEVEL_LABELS[computeLevel(nextThreshold)]}`
-              : "Osiągnąłeś/-aś najwyższy poziom!"}
-            {allDone ? (
-              <span className="ml-2">· Wszystkie zadania ukończone 🎉</span>
-            ) : remainingPoints > 0 ? (
-              <span className="ml-2 opacity-70">· Pozostało do zdobycia: {remainingPoints} pkt</span>
-            ) : null}
-          </p>
-          <Button asChild variant="outline" size="sm" className="w-fit">
-            <Link href={`/e/${slug}/ranking`}>
-              <Trophy className="size-4" /> Zobacz ranking
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              {nextThreshold
+                ? `Pozostało do ${LEVEL_LABELS[computeLevel(nextThreshold)]}: ${nextThreshold - points} pkt`
+                : "Najwyższy poziom 🏆"}
+              {allDone && <span className="ml-2">· Wszystkie zadania ukończone 🎉</span>}
+              {!allDone && remainingPoints > 0 && (
+                <span className="ml-2 opacity-70">· Do zdobycia: {remainingPoints} pkt</span>
+              )}
+            </p>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/e/${slug}/ranking`}>
+                <Trophy className="size-4" /> Ranking
+              </Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -150,46 +167,52 @@ export default async function QuestsPage({
         </Card>
       ) : (
         <div className="flex flex-col gap-3">
-          {quests.map((q) => (
-            <Card key={q.id} className={q.done ? "opacity-75" : undefined}>
-              <CardContent className="flex items-start gap-4 py-4">
-                <div className="mt-0.5 shrink-0">
-                  {q.done ? (
-                    <CheckCircle2 className="size-5 text-green-600 dark:text-green-400" />
-                  ) : (
-                    <Circle className="size-5 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="flex flex-1 flex-col gap-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{q.title}</span>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                      {TYPE_LABELS[q.type] ?? q.type}
-                    </span>
+          {quests.map((q) => {
+            const iconDef = QUEST_ICONS[q.type] ?? FALLBACK_ICON;
+            const QIcon = iconDef.icon;
+            return (
+              <Card key={q.id} className={q.done ? "opacity-60" : undefined}>
+                <CardContent className="flex items-start gap-4 py-4">
+                  <div className="mt-0.5 shrink-0">
+                    {q.done ? (
+                      <CheckCircle2 className="size-5 text-aqua" />
+                    ) : (
+                      <QIcon className={`size-5 ${iconDef.cls}`} />
+                    )}
                   </div>
-                  {q.description && (
-                    <p className="text-sm text-muted-foreground">{q.description}</p>
-                  )}
-                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                    {q.partnerName && (
-                      <span>
-                        {q.partnerName}
-                        {q.boothLocation ? ` · ${q.boothLocation}` : ""}
+                  <div className="flex flex-1 flex-col gap-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`font-medium${q.done ? " line-through decoration-muted-foreground/50" : ""}`}>
+                        {q.title}
                       </span>
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        {TYPE_LABELS[q.type] ?? q.type}
+                      </span>
+                    </div>
+                    {q.description && (
+                      <p className="text-sm text-muted-foreground">{q.description}</p>
                     )}
-                    {q.target_value != null && (
-                      <span>Cel: {q.target_value} kontaktów</span>
-                    )}
+                    <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                      {q.partnerName && (
+                        <span>
+                          {q.partnerName}
+                          {q.boothLocation ? ` · ${q.boothLocation}` : ""}
+                        </span>
+                      )}
+                      {q.target_value != null && (
+                        <span>Cel: {q.target_value} kontaktów</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-                {q.points_value != null && (
-                  <span className="shrink-0 text-sm font-semibold text-primary">
-                    {q.done ? "✓ " : ""}{q.points_value} pkt
-                  </span>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                  {q.points_value != null && (
+                    <span className="shrink-0 rounded-full bg-coral px-2.5 py-0.5 text-xs font-semibold text-[#171A2B]">
+                      {q.done ? "✓ " : "+"}{q.points_value} pkt
+                    </span>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </main>
