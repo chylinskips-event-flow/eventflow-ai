@@ -38,20 +38,25 @@ export function Logo({
     );
   }
 
-  // adaptive: symbol + wordmark text that follows the color scheme
+  // adaptive: full logo image, light/dark versions toggled via Tailwind
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div className={cn("flex items-center", className)}>
       <Image
-        src="/brand/eventro-symbol.png"
-        alt=""
-        aria-hidden
-        width={26}
+        src="/brand/eventro-logo-full.png"
+        alt="Eventro"
+        width={112}
         height={32}
         priority
+        className="dark:hidden"
       />
-      <span className="text-sm font-semibold text-foreground font-[family-name:var(--font-manrope)]">
-        Eventro
-      </span>
+      <Image
+        src="/brand/eventro-logo-full-dark.png"
+        alt="Eventro"
+        width={112}
+        height={32}
+        priority
+        className="hidden dark:block"
+      />
     </div>
   );
 }
