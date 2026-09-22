@@ -48,16 +48,21 @@ export async function generateMatches(slug: string): Promise<CachedMatch[]> {
   if (!fresh) {
     const top = await getTopMatches(event.id, attendee.id, 3);
 
-    // Zachowaj dotychczasowe reason — istniejący reason = zero wywołań LLM.
+    // Zachowaj dotychczasowe reason + first_question — istniejące pola = zero wywołań LLM.
     const { data: existing } = await supabase
       .from("match_suggestions")
-      .select("suggested_attendee_id, reason")
+      .select("suggested_attendee_id, reason, first_question")
       .eq("event_id", event.id)
       .eq("attendee_id", attendee.id);
-    const priorReasons = new Map(
+
+    type PriorFields = { reason: string | null; first_question: string | null };
+    const priorMap = new Map<string, PriorFields>(
       (existing ?? []).map((row) => [
         row.suggested_attendee_id as string,
-        row.reason as string | null,
+        {
+          reason: row.reason as string | null,
+          first_question: row.first_question as string | null,
+        },
       ]),
     );
 
@@ -69,22 +74,23 @@ export async function generateMatches(slug: string): Promise<CachedMatch[]> {
       .eq("attendee_id", attendee.id);
 
     for (const match of top) {
-      const priorReason = priorReasons.get(match.attendee.id) ?? null;
+      const prior = priorMap.get(match.attendee.id) ?? { reason: null, first_question: null };
 
       await supabase.from("match_suggestions").insert({
         event_id: event.id,
         attendee_id: attendee.id,
         suggested_attendee_id: match.attendee.id,
         score: match.score,
-        reason: priorReason,
+        reason: prior.reason,
+        first_question: prior.first_question,
       });
 
-      if (!priorReason) {
-        const reason = await generateMatchReason(attendee, match.attendee);
-        if (reason) {
+      if (!prior.reason) {
+        const { reason, first_question } = await generateMatchReason(attendee, match.attendee);
+        if (reason || first_question) {
           await supabase
             .from("match_suggestions")
-            .update({ reason })
+            .update({ reason, first_question })
             .eq("event_id", event.id)
             .eq("attendee_id", attendee.id)
             .eq("suggested_attendee_id", match.attendee.id);

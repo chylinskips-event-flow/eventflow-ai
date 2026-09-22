@@ -21,6 +21,7 @@ export type RecommendedMatch = {
   looking_for: string | null;
   avatar_url: string | null;
   reason: string;
+  first_question: string | null;
 };
 
 export function RecommendedContacts({
@@ -165,6 +166,11 @@ export function RecommendedContacts({
                     {match.reason}
                   </span>
                 </div>
+                {match.first_question && (
+                  <p className="border-l-2 border-aqua/40 pl-2 text-left text-xs text-muted-foreground">
+                    💬 {match.first_question}
+                  </p>
+                )}
               </CardContent>
             </Card>
           );

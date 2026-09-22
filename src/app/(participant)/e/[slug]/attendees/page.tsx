@@ -94,6 +94,7 @@ export default async function AttendeesPage({
     looking_for: match.attendee.looking_for,
     avatar_url: match.attendee.avatar_url,
     reason: match.reason ?? buildFallbackReason(attendee, match.attendee),
+    first_question: match.first_question,
   }));
 
   // Stan przycisku kontaktu dla całej siatki — JEDNO zapytanie zwracające mapę

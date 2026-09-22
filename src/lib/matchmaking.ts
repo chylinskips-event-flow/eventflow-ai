@@ -133,6 +133,7 @@ export type CachedMatch = {
   attendee: Attendee;
   score: number;
   reason: string | null;
+  first_question: string | null;
 };
 
 /**
@@ -148,7 +149,7 @@ export async function getCachedMatches(
 
   const { data: rows } = await supabase
     .from("match_suggestions")
-    .select("suggested_attendee_id, score, reason")
+    .select("suggested_attendee_id, score, reason, first_question")
     .eq("event_id", eventId)
     .eq("attendee_id", attendeeId)
     .order("score", { ascending: false })
@@ -178,6 +179,7 @@ export async function getCachedMatches(
             attendee: suggested,
             score: row.score as number,
             reason: row.reason as string | null,
+            first_question: row.first_question as string | null,
           }
         : null;
     })
@@ -203,16 +205,74 @@ function llmProfile(attendee: Attendee) {
   return profile;
 }
 
+export type MatchInsight = { reason: string | null; first_question: string | null };
+
 /**
- * Generuje jednozdaniowe uzasadnienie dopasowania (po polsku, ≤25 słów, bez
- * imion i powitań). Zwraca null przy dowolnym błędzie — wywołujący traktuje
- * brak uzasadnienia jako dopuszczalny stan (reason w cache pozostaje NULL).
+ * Parsuje odpowiedź LLM na {reason, first_question}. Trzy poziomy prób:
+ * 1. JSON po oczyszczeniu z bloku ```json ... ```.
+ * 2. Wyłuskanie pierwszego {...} regexem (obsługa "Oto JSON: {...}").
+ * 3. Fallback: cały tekst jako reason, first_question = null.
+ * Nigdy nie rzuca wyjątku.
+ */
+function parseMatchInsight(raw: string): MatchInsight {
+  function tryJson(str: string): MatchInsight | null {
+    try {
+      const parsed = JSON.parse(str);
+      if (parsed && typeof parsed === "object") {
+        return {
+          reason:
+            typeof parsed.reason === "string" && parsed.reason.trim()
+              ? parsed.reason.trim()
+              : null,
+          first_question:
+            typeof parsed.first_question === "string" &&
+            parsed.first_question.trim()
+              ? parsed.first_question.trim()
+              : null,
+        };
+      }
+    } catch {
+      // nie-JSON
+    }
+    return null;
+  }
+
+  // Poziom 1: oczyść ewentualny blok ```json i spróbuj parse
+  const cleaned = raw
+    .replace(/^```json\s*/im, "")
+    .replace(/^```\s*/im, "")
+    .replace(/\s*```\s*$/m, "")
+    .trim();
+  const pass1 = tryJson(cleaned);
+  if (pass1) return pass1;
+
+  // Poziom 2: wyłuskaj pierwszy {...} (LLM dodał tekst przed/po JSON-ie)
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    const pass2 = tryJson(jsonMatch[0]);
+    if (pass2) return pass2;
+  }
+
+  // Poziom 3: fallback — cały tekst jako reason, brak pytania
+  const fallback = raw.trim();
+  return { reason: fallback || null, first_question: null };
+}
+
+/**
+ * Generuje uzasadnienie dopasowania i pierwsze pytanie otwierające (po polsku).
+ * Zwraca {reason: null, first_question: null} przy dowolnym błędzie API —
+ * wywołujący traktuje brak pól jako dopuszczalny stan.
  */
 export async function generateMatchReason(
   a: Attendee,
   b: Attendee,
-): Promise<string | null> {
-  const prompt = `Jesteś asystentem networkingowym na wydarzeniu biznesowym. Na podstawie dwóch profili napisz JEDNO zdanie po polsku (maksymalnie 25 słów), dlaczego tym osobom warto porozmawiać. Bez imion, bez powitań, bez cudzysłowów — zwróć samo zdanie. Jeśli profile zawierają pole czego_szuka, potraktuj je jako najważniejszy sygnał dopasowania.
+): Promise<MatchInsight> {
+  const prompt = `Jesteś asystentem networkingowym na wydarzeniu biznesowym. Na podstawie dwóch profili napisz po polsku:
+1. JEDNO zdanie uzasadnienia (maks. 25 słów), dlaczego tym osobom warto porozmawiać. Bez imion, bez powitań, bez cudzysłowów. Jeśli profil zawiera pole czego_szuka, potraktuj je jako najważniejszy sygnał.
+2. Konkretne pytanie otwierające rozmowę (maks. 15 słów), dedykowane tej parze — oparte na ich specjalizacji, branży lub celach. Zacznij od "Zapytaj o…". Nie używaj pytań generycznych.
+
+Zwróć TYLKO obiekt JSON — bez markdown, bez \`\`\`json, bez dodatkowego tekstu:
+{"reason":"…","first_question":"Zapytaj o …"}
 
 Profil odbiorcy sugestii:
 ${JSON.stringify(llmProfile(a), null, 2)}
@@ -223,15 +283,15 @@ ${JSON.stringify(llmProfile(b), null, 2)}`;
   try {
     const message = await anthropic.messages.create({
       model: "claude-haiku-4-5",
-      max_tokens: 100,
+      max_tokens: 200,
       temperature: 0.7,
       messages: [{ role: "user", content: prompt }],
     });
     const block = message.content.find((part) => part.type === "text");
-    const text = block && block.type === "text" ? block.text.trim() : "";
-    return text || null;
+    const raw = block && block.type === "text" ? block.text.trim() : "";
+    return raw ? parseMatchInsight(raw) : { reason: null, first_question: null };
   } catch (error) {
     console.error("generateMatchReason failed:", error);
-    return null;
+    return { reason: null, first_question: null };
   }
 }
