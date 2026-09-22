@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
-import { Gift } from "lucide-react";
+import { CheckCircle2, Gift } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
-import { SectionHero } from "@/components/participant/section-hero";
+import { SectionHero, SectionHeroMedia } from "@/components/participant/section-hero";
 import { PointsLevelWidget } from "@/components/participant/points-level-widget";
 import { FilterPills } from "@/components/participant/filter-pills";
 import type { TierFilter } from "@/components/participant/filter-pills";
@@ -17,6 +17,26 @@ function tierRange(tier: TierFilter): [number, number] | null {
   if (tier === "500+")    return [501, Infinity];
   return null;
 }
+
+function shortDate(isoString: string): string {
+  return new Intl.DateTimeFormat("pl-PL", {
+    day: "numeric",
+    month: "short",
+  }).format(new Date(isoString));
+}
+
+const HOW_TO_EARN = [
+  "Wykonaj questy u partnerów i stoisk",
+  "Nawiązuj kontakty z uczestnikami",
+  "Uzupełnij swój profil",
+  "Bierz udział w sesjach i warsztatach",
+];
+
+type RedemptionRow = {
+  reward_id: string;
+  redeemed_at: string;
+  rewards: { name: string; points_required: number } | null;
+};
 
 export default async function RewardsPage({
   params,
@@ -43,11 +63,27 @@ export default async function RewardsPage({
 
   const supabase = createAdminClient();
 
-  const { data: allRewards } = await supabase
-    .from("rewards")
-    .select("id, name, description, points_required, stock")
-    .eq("event_id", event.id)
-    .order("points_required", { ascending: true });
+  const [
+    { data: allRewards },
+    { data: redemptionRows },
+    { data: recentRedemptions },
+  ] = await Promise.all([
+    supabase
+      .from("rewards")
+      .select("id, name, description, points_required, stock")
+      .eq("event_id", event.id)
+      .order("points_required", { ascending: true }),
+    supabase
+      .from("reward_redemptions")
+      .select("reward_id")
+      .eq("attendee_id", attendee.id),
+    supabase
+      .from("reward_redemptions")
+      .select("reward_id, redeemed_at, rewards(name, points_required)")
+      .eq("attendee_id", attendee.id)
+      .order("redeemed_at", { ascending: false })
+      .limit(3),
+  ]);
 
   const rewards = (allRewards ?? []) as {
     id: string;
@@ -57,18 +93,17 @@ export default async function RewardsPage({
     stock: number | null;
   }[];
 
-  // Fetch which rewards this attendee has already redeemed
-  const { data: redemptionRows } = await supabase
-    .from("reward_redemptions")
-    .select("reward_id")
-    .eq("attendee_id", attendee.id);
+  const redeemedIds = new Set(
+    (redemptionRows ?? []).map((r: { reward_id: string }) => r.reward_id),
+  );
 
-  const redeemedIds = new Set((redemptionRows ?? []).map((r: { reward_id: string }) => r.reward_id));
+  const myRedemptions = (recentRedemptions ?? []) as unknown as RedemptionRow[];
 
-  // Apply tier filter
   const range = tierRange(activeTier);
   const filtered = range
-    ? rewards.filter((r) => r.points_required >= range[0] && r.points_required <= range[1])
+    ? rewards.filter(
+        (r) => r.points_required >= range[0] && r.points_required <= range[1],
+      )
     : rewards;
 
   return (
@@ -77,6 +112,8 @@ export default async function RewardsPage({
         headline="Nagrody"
         headlineAccent={event.name}
         subtitle="Wymień zebrane punkty na nagrody u organizatora."
+        media={<SectionHeroMedia icon={Gift} />}
+        callout="Małe punkty. Wielkie możliwości."
       />
 
       <PointsLevelWidget
@@ -84,10 +121,44 @@ export default async function RewardsPage({
         rankingHref={`/e/${slug}/ranking`}
       />
 
-      {rewards.length > 0 && (
-        <FilterPills active={activeTier} />
+      {/* Ostatnie odbiory — tylko gdy istnieją */}
+      {myRedemptions.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-semibold">Moje odbiory</p>
+          <div className="flex flex-col gap-1.5">
+            {myRedemptions.map((row) => {
+              const reward = row.rewards;
+              if (!reward) return null;
+              return (
+                <div
+                  key={row.reward_id}
+                  className="flex items-center justify-between rounded-xl border bg-card px-3 py-2.5"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <CheckCircle2 className="size-4 shrink-0 text-green-500" />
+                    <span className="truncate text-sm font-medium">
+                      {reward.name}
+                    </span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2 pl-2">
+                    <span className="rounded-full bg-coral px-2 py-0.5 text-[11px] font-bold tabular-nums text-[#171A2B]">
+                      {reward.points_required} pkt
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {shortDate(row.redeemed_at)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
+      {/* Filtry — tylko gdy są nagrody */}
+      {rewards.length > 0 && <FilterPills active={activeTier} />}
+
+      {/* Siatka nagród */}
       {filtered.length === 0 && rewards.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
@@ -100,7 +171,7 @@ export default async function RewardsPage({
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Brak nagród w tym przedziale punktowym.
             </p>
           </CardContent>
@@ -121,6 +192,19 @@ export default async function RewardsPage({
           ))}
         </div>
       )}
+
+      {/* Jak zdobyć więcej punktów */}
+      <div className="rounded-xl border bg-muted/30 px-4 py-4">
+        <p className="mb-2.5 text-sm font-semibold">Jak zdobyć więcej punktów?</p>
+        <ul className="flex flex-col gap-1.5">
+          {HOW_TO_EARN.map((item) => (
+            <li key={item} className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="size-1.5 shrink-0 rounded-full bg-primary" />
+              {item}
+            </li>
+          ))}
+        </ul>
+      </div>
 
       <p className="text-center text-xs text-muted-foreground">
         Nagrody odbierane są u organizatora po zakończeniu eventu.
