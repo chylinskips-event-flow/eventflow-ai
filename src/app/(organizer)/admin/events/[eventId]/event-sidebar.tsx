@@ -14,6 +14,7 @@ import {
   Ticket,
   FileText,
   Megaphone,
+  Network,
   ChevronLeft,
   Menu,
   X,
@@ -47,6 +48,7 @@ export function EventSidebar({
     { href: `${base}/attendees`, icon: Users,       label: "Uczestnicy" },
     { href: `${base}/partners`,  icon: Handshake,   label: "Partnerzy"  },
     { href: `${base}/quests`,    icon: Target,      label: "Questy"     },
+    { href: `${base}/mixer`,    icon: Network,     label: "Business Mixer" },
     ...(gamificationEnabled
       ? [{ href: `${base}/rewards`, icon: Gift, label: "Nagrody" } as NavItem]
       : []),

@@ -339,6 +339,56 @@ export async function updateIcebreaker(
 
 // ── replaceIcebreaker ────────────────────────────────────────────────────────
 
+// ── seedTestAttendees (helper dla testów, usuń przed pilotem) ────────────────
+
+export async function seedTestAttendees(
+  eventId: string,
+): Promise<MixerFormState> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return { status: "error", message: "Event nie znaleziony." };
+
+  const names: [string, string, string][] = [
+    ["Anna",    "Kowalska",   "Acme Sp. z o.o."],
+    ["Piotr",   "Nowak",      "TechWave SA"],
+    ["Maria",   "Wiśniewska", "BlueSoft"],
+    ["Krzysztof","Wójcik",    "DataCore"],
+    ["Katarzyna","Kamińska",  "Nexus Digital"],
+    ["Michał",  "Lewandowski","CloudBase"],
+    ["Agnieszka","Zielińska", "Pixels & Co"],
+    ["Tomasz",  "Szymański",  "IronStack"],
+    ["Monika",  "Woźniak",    "Bright Labs"],
+    ["Marek",   "Dąbrowski",  "Vertex Media"],
+    ["Joanna",  "Kozłowska",  "DevOps House"],
+    ["Rafał",   "Jankowski",  "AI Works"],
+    ["Ewa",     "Mazur",      "EcoTech"],
+    ["Paweł",   "Kwiatkowski","SkyNet PL"],
+    ["Barbara", "Krawczyk",   "SmartFlow"],
+    ["Łukasz",  "Piotrowska", "Omni Data"],
+    ["Natalia", "Grabowska",  "Forza Studio"],
+    ["Grzegorz","Nowakowska", "WarpCode"],
+    ["Sylwia",  "Pawlak",     "Sigma Systems"],
+    ["Jakub",   "Michalski",  "Zero One Labs"],
+  ];
+
+  const supabase = createAdminClient();
+  const rows = names.map(([first_name, last_name, company]) => ({
+    event_id:      eventId,
+    first_name,
+    last_name,
+    company,
+    email:         `${first_name.toLowerCase()}.${last_name.toLowerCase()}@testmixer.dev`,
+    status:        "approved" as const,
+    qr_code_token: crypto.randomUUID(),
+    contact_code:  Math.random().toString(36).substring(2, 8).toUpperCase(),
+  }));
+
+  const { error } = await supabase.from("attendees").insert(rows);
+  if (error) return { status: "error", message: "Błąd seedowania: " + error.message };
+
+  revalidatePath(`/admin/events/${eventId}/attendees`);
+  return { status: "success", message: "Dodano 20 uczestników testowych." };
+}
+
 export async function replaceIcebreaker(
   icebreakerId: string,
   mixerId: string,
