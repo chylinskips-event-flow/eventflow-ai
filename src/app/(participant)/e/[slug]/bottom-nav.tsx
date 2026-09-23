@@ -12,6 +12,7 @@ import {
   X,
   Handshake,
   MicVocal,
+  Network,
   Trophy,
   Gift,
   User,
@@ -24,9 +25,11 @@ type NavItem = { href: string; icon: LucideIcon; label: string };
 export function BottomNav({
   slug,
   gamificationEnabled,
+  hasMixer = false,
 }: {
   slug: string;
   gamificationEnabled: boolean;
+  hasMixer?: boolean;
 }) {
   const pathname = usePathname();
   const base = `/e/${slug}`;
@@ -53,6 +56,9 @@ export function BottomNav({
           { href: `${base}/ranking`, icon: Trophy, label: "Ranking" },
           { href: `${base}/rewards`, icon: Gift,   label: "Nagrody" },
         ]
+      : []),
+    ...(hasMixer
+      ? [{ href: `${base}/mixer`, icon: Network, label: "Mixer" } as NavItem]
       : []),
     { href: `${base}/profile`,   icon: User,      label: "Profil"      },
   ];

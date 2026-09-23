@@ -23,6 +23,32 @@ export type MyMixerData = {
   rounds: MyMixerRound[];
 };
 
+/**
+ * Szybkie sprawdzenie (bez pełnych danych): czy uczestnik ma aktywny plan mixera.
+ * Używane w layout + home page do warunkowego wyświetlania kafelka/linku.
+ */
+export async function hasActiveMixerForAttendee(attendeeId: string): Promise<boolean> {
+  const supabase = createAdminClient();
+
+  const { data: participant } = await supabase
+    .from("mixer_participants")
+    .select("mixer_id")
+    .eq("attendee_id", attendeeId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (!participant) return false;
+
+  const { data: mixer } = await supabase
+    .from("mixers")
+    .select("id")
+    .eq("id", (participant as { mixer_id: string }).mixer_id)
+    .in("status", ["generated", "locked"])
+    .maybeSingle();
+
+  return !!mixer;
+}
+
 export async function getMixerForAttendee(
   slug: string,
 ): Promise<MyMixerData | null> {

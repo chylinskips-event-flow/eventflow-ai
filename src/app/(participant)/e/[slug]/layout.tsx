@@ -1,5 +1,6 @@
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { getEventBySlugForRegistration } from "@/lib/events";
+import { hasActiveMixerForAttendee } from "@/lib/mixer/participant";
 import { BottomNav } from "./bottom-nav";
 
 export default async function ParticipantEventLayout({
@@ -16,7 +17,10 @@ export default async function ParticipantEventLayout({
     return <>{children}</>;
   }
 
-  const event = await getEventBySlugForRegistration(slug);
+  const [event, hasMixer] = await Promise.all([
+    getEventBySlugForRegistration(slug),
+    hasActiveMixerForAttendee(attendee.id),
+  ]);
 
   return (
     <>
@@ -26,6 +30,7 @@ export default async function ParticipantEventLayout({
       <BottomNav
         slug={slug}
         gamificationEnabled={event?.gamification_enabled ?? false}
+        hasMixer={hasMixer}
       />
     </>
   );

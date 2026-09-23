@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import {
   Calendar, MapPin,
-  CalendarDays, Users, Handshake, Trophy, Gift, User, CalendarCheck, ChevronRight,
+  CalendarDays, Users, Handshake, Trophy, Gift, User, CalendarCheck, Network, ChevronRight,
 } from "lucide-react";
 import {
   getEventBySlugForRegistration,
@@ -12,6 +12,7 @@ import {
 } from "@/lib/events";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentAttendee } from "@/lib/attendee-session";
+import { hasActiveMixerForAttendee } from "@/lib/mixer/participant";
 import { getEventSessions, getEventSessionsForParticipant } from "@/lib/sessions";
 import { getEventSpeakers, getEventSpeakersForParticipant } from "@/lib/speakers";
 import { getAttendeeAgendaSessionIds } from "@/lib/agenda-items";
@@ -130,6 +131,7 @@ export default async function ParticipantEventPage({
     // Dane grywalizacji — tylko gdy włączona
     let gamificationBar: React.ReactNode = null;
     let hasRewards = false;
+    const hasMixer = await hasActiveMixerForAttendee(attendee.id);
     if (event.gamification_enabled) {
       const adminSupabase = createAdminClient();
       const { count } = await adminSupabase
@@ -234,6 +236,7 @@ export default async function ParticipantEventPage({
       if (hasRewards) secondaryItems.push({ href: `/e/${slug}/rewards`,   icon: Gift,        label: "Nagrody"      });
       secondaryItems.push(              { href: `/e/${slug}/my-agenda`,   icon: CalendarCheck, label: "Moja agenda" });
     }
+    if (hasMixer) secondaryItems.push({ href: `/e/${slug}/mixer`, icon: Network, label: "Mój mixer" });
     secondaryItems.push({ href: `/e/${slug}/profile`, icon: User, label: "Mój profil" });
 
     const navGrid = (
