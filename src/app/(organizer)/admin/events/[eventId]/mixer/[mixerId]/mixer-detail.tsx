@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronLeft, Wand2, RotateCcw, Play, ChevronRight, Square, Info } from "lucide-react";
+import { ChevronLeft, Wand2, RotateCcw, Play, ChevronRight, Square, Info, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -310,6 +310,16 @@ export function MixerDetail({
                   </AlertDialog>
                 )}
               </>
+            )}
+
+            {/* Rzutnik — widoczny gdy plan wygenerowany lub mixer aktywny */}
+            {mixer.present_token && mixer.status !== "draft" && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={`/p/${mixer.present_token}`} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="size-4" />
+                  Rzutnik
+                </a>
+              </Button>
             )}
 
             {/* Live control panel */}

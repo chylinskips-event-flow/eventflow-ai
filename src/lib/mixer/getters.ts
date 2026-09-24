@@ -236,3 +236,125 @@ export async function getMixerPlan(
 
   return rounds;
 }
+
+// ── Projector (public read-only by present_token) ──────────────────────────
+
+export type ProjectorTable = {
+  tableNumber: number;
+  participants: { display_name: string; company: string | null }[];
+  question: string | null;
+};
+
+export type MixerLiveState = {
+  mixerId: string;
+  mixerName: string;
+  mixerStatus: string;
+  roundsCount: number;
+  roundMinutes: number;
+  breakAfterRound: number | null;
+  presentToken: string;
+  activeRound: {
+    roundNumber: number;
+    startedAt: string | null;
+    tables: ProjectorTable[];
+  } | null;
+};
+
+export async function getMixerLiveState(
+  presentToken: string,
+): Promise<MixerLiveState | null> {
+  const supabase = createAdminClient();
+
+  const { data: mixerRaw } = await supabase
+    .from("mixers")
+    .select("id, name, status, rounds_count, round_minutes, break_after_round, present_token")
+    .eq("present_token", presentToken)
+    .maybeSingle();
+
+  if (!mixerRaw) return null;
+
+  const mixer = mixerRaw as {
+    id: string;
+    name: string;
+    status: string;
+    rounds_count: number;
+    round_minutes: number;
+    break_after_round: number | null;
+    present_token: string;
+  };
+
+  const { data: activeRoundRaw } = await supabase
+    .from("mixer_rounds")
+    .select("round_number, started_at")
+    .eq("mixer_id", mixer.id)
+    .eq("status", "active")
+    .maybeSingle();
+
+  let activeRound: MixerLiveState["activeRound"] = null;
+
+  if (activeRoundRaw) {
+    const ar = activeRoundRaw as { round_number: number; started_at: string | null };
+
+    const [{ data: assignmentsRaw }, { data: participantsRaw }, { data: icebreakersRaw }] =
+      await Promise.all([
+        supabase
+          .from("mixer_assignments")
+          .select("table_number, participant_id")
+          .eq("mixer_id", mixer.id)
+          .eq("round_number", ar.round_number)
+          .order("table_number"),
+        supabase
+          .from("mixer_participants")
+          .select("id, display_name, company")
+          .eq("mixer_id", mixer.id)
+          .eq("status", "active"),
+        supabase
+          .from("mixer_icebreakers")
+          .select("table_number, question")
+          .eq("mixer_id", mixer.id)
+          .eq("round_number", ar.round_number),
+      ]);
+
+    const participantMap = new Map(
+      ((participantsRaw ?? []) as { id: string; display_name: string; company: string | null }[]).map(
+        (p) => [p.id, p],
+      ),
+    );
+
+    const icebreakerMap = new Map(
+      ((icebreakersRaw ?? []) as { table_number: number; question: string }[]).map(
+        (ib) => [ib.table_number, ib.question],
+      ),
+    );
+
+    const tableMap = new Map<number, string[]>();
+    for (const a of (assignmentsRaw ?? []) as { table_number: number; participant_id: string }[]) {
+      if (!tableMap.has(a.table_number)) tableMap.set(a.table_number, []);
+      tableMap.get(a.table_number)!.push(a.participant_id);
+    }
+
+    const tables: ProjectorTable[] = Array.from(tableMap.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([tableNumber, pids]) => ({
+        tableNumber,
+        participants: pids
+          .map((id) => participantMap.get(id))
+          .filter((p): p is NonNullable<typeof p> => p != null)
+          .map((p) => ({ display_name: p.display_name, company: p.company })),
+        question: icebreakerMap.get(tableNumber) ?? null,
+      }));
+
+    activeRound = { roundNumber: ar.round_number, startedAt: ar.started_at, tables };
+  }
+
+  return {
+    mixerId: mixer.id,
+    mixerName: mixer.name,
+    mixerStatus: mixer.status,
+    roundsCount: mixer.rounds_count,
+    roundMinutes: mixer.round_minutes,
+    breakAfterRound: mixer.break_after_round,
+    presentToken: mixer.present_token,
+    activeRound,
+  };
+}
