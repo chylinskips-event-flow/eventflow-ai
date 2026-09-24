@@ -7,12 +7,16 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 
+export type MixerRoundLiveStatus = "pending" | "active" | "done";
+
 export type MyMixerRound = {
   roundNumber: number;
   tableNumber: number;
   question: string | null;
   isBreakAfter: boolean;
   tablemates: { display_name: string; company: string | null }[];
+  liveStatus: MixerRoundLiveStatus;
+  startedAt: string | null;
 };
 
 export type MyMixerData = {
@@ -21,6 +25,8 @@ export type MyMixerData = {
   breakMinutes: number;
   breakAfterRound: number | null;
   rounds: MyMixerRound[];
+  isLive: boolean;
+  isFinished: boolean;
 };
 
 /**
@@ -94,23 +100,37 @@ export async function getMixerForAttendee(
     break_after_round: number | null;
   };
 
-  // Pobierz przydziały tego uczestnika
-  const { data: assignments } = await supabase
-    .from("mixer_assignments")
-    .select("round_number, table_number")
-    .eq("mixer_id", mixer_id)
-    .eq("participant_id", participantId)
-    .order("round_number");
-
-  // Pobierz ice-breakery dla mixera
-  const { data: icebreakers } = await supabase
-    .from("mixer_icebreakers")
-    .select("round_number, table_number, question")
-    .eq("mixer_id", mixer_id);
+  // Pobierz przydziały tego uczestnika, ice-breakery i live state rund równolegle
+  const [
+    { data: assignments },
+    { data: icebreakers },
+    { data: liveRoundsData },
+  ] = await Promise.all([
+    supabase
+      .from("mixer_assignments")
+      .select("round_number, table_number")
+      .eq("mixer_id", mixer_id)
+      .eq("participant_id", participantId)
+      .order("round_number"),
+    supabase
+      .from("mixer_icebreakers")
+      .select("round_number, table_number, question")
+      .eq("mixer_id", mixer_id),
+    supabase
+      .from("mixer_rounds")
+      .select("round_number, status, started_at")
+      .eq("mixer_id", mixer_id),
+  ]);
 
   const icebreakerMap = new Map(
     ((icebreakers ?? []) as { round_number: number; table_number: number; question: string }[]).map(
       (ib) => [`${ib.round_number}:${ib.table_number}`, ib.question],
+    ),
+  );
+
+  const liveRoundMap = new Map(
+    ((liveRoundsData ?? []) as { round_number: number; status: string; started_at: string | null }[]).map(
+      (r) => [r.round_number, r],
     ),
   );
 
@@ -150,12 +170,15 @@ export async function getMixerForAttendee(
         .filter((p): p is NonNullable<typeof p> => p != null)
         .map((p) => ({ display_name: p.display_name, company: p.company }));
 
+      const live = liveRoundMap.get(a.round_number);
       return {
         roundNumber: a.round_number,
         tableNumber: a.table_number,
         question: icebreakerMap.get(key) ?? null,
         isBreakAfter: m.break_after_round === a.round_number,
         tablemates,
+        liveStatus: ((live?.status ?? "pending") as MixerRoundLiveStatus),
+        startedAt: live?.started_at ?? null,
       };
     },
   );
@@ -166,5 +189,7 @@ export async function getMixerForAttendee(
     breakMinutes: m.break_minutes,
     breakAfterRound: m.break_after_round,
     rounds,
+    isLive: m.status === "running",
+    isFinished: m.status === "finished",
   };
 }
