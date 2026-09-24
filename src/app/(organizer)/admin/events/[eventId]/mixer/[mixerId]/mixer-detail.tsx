@@ -231,7 +231,7 @@ export function MixerDetail({
   existingAttendeeIds,
 }: Props) {
   const activeCount = participants.filter((p) => p.status === "active").length;
-  const isLive = mixer.status === "running" || mixer.status === "finished";
+  const isLive = mixer.status === "locked" || mixer.status === "running" || mixer.status === "finished";
 
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [rerollOpen, setRerollOpen] = useState(false);
@@ -376,6 +376,12 @@ export function MixerDetail({
         )}
 
         {/* Baner blokady */}
+        {mixer.status === "locked" && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted/60 px-4 py-2.5 text-sm text-muted-foreground">
+            <Info className="size-4 shrink-0" />
+            Plan zablokowany — edycja wyłączona. Użyj „Odblokuj" aby przywrócić możliwość zmian.
+          </div>
+        )}
         {mixer.status === "running" && (
           <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted/60 px-4 py-2.5 text-sm text-muted-foreground">
             <Info className="size-4 shrink-0" />

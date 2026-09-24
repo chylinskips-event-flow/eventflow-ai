@@ -268,7 +268,8 @@ function SwapDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4 py-2">
+        {/* Przewijalna lista celów */}
+        <div className="max-h-[40vh] overflow-y-auto flex flex-col gap-4 py-2 pr-1">
           {round.tables
             .filter((t) => t.tableNumber !== sourceTableNumber)
             .map((table) => (
@@ -296,23 +297,24 @@ function SwapDialog({
                 </div>
               </div>
             ))}
-
-          {delta && (
-            <div className="rounded-lg border bg-muted/30 p-3 flex flex-col gap-1.5">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Podgląd zmiany jakości</p>
-              <DeltaRow
-                label="Powtórzone pary"
-                before={delta.before.repeatedPairs}
-                after={delta.after.repeatedPairs}
-              />
-              <DeltaRow
-                label="Incydenty klastrów"
-                before={delta.before.clusterIncidents}
-                after={delta.after.clusterIncidents}
-              />
-            </div>
-          )}
         </div>
+
+        {/* Delta jakości — poza obszarem przewijania, zawsze widoczna */}
+        {delta && (
+          <div className="rounded-lg border bg-muted/30 p-3 flex flex-col gap-1.5">
+            <p className="text-xs font-medium text-muted-foreground mb-1">Podgląd zmiany jakości</p>
+            <DeltaRow
+              label="Powtórzone pary"
+              before={delta.before.repeatedPairs}
+              after={delta.after.repeatedPairs}
+            />
+            <DeltaRow
+              label="Incydenty klastrów"
+              before={delta.before.clusterIncidents}
+              after={delta.after.clusterIncidents}
+            />
+          </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isPending}>
