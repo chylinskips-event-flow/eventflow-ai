@@ -119,7 +119,7 @@ function LiveControlPanel({
     );
   }
 
-  // Running — Następna runda / Zakończ + Reset
+  // Running — Następna runda / Zakończ (z dialogiem) + Reset
   if (mixer.status === "running") {
     return (
       <div className="flex items-center gap-2">
@@ -127,21 +127,37 @@ function LiveControlPanel({
           Runda {activeRound?.round_number ?? "?"}&nbsp;/&nbsp;{totalRounds}
         </span>
 
-        <Button onClick={handleNext} disabled={isPending} variant={isLastRound ? "destructive" : "default"}>
-          {isPending ? (
-            "..."
-          ) : isLastRound ? (
-            <>
-              <Square className="size-4" />
-              Zakończ mixer
-            </>
-          ) : (
-            <>
-              <ChevronRight className="size-4" />
-              Następna runda
-            </>
-          )}
-        </Button>
+        {isLastRound ? (
+          // Zakończ — destructive z potwierdzeniem
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={isPending}>
+                <Square className="size-4" />
+                Zakończ mixer
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Zakończyć mixer?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Runda {activeRound?.round_number} zostanie oznaczona jako zakończona i mixer przejdzie do stanu „Zakończony". Możesz go zresetować do stanu gotowości przyciskiem Resetuj.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isPending}>Anuluj</AlertDialogCancel>
+                <Button variant="destructive" onClick={handleNext} disabled={isPending}>
+                  {isPending ? "Kończenie..." : "Zakończ"}
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          // Następna runda — bez potwierdzenia
+          <Button onClick={handleNext} disabled={isPending}>
+            <ChevronRight className="size-4" />
+            {isPending ? "..." : "Następna runda"}
+          </Button>
+        )}
 
         <AlertDialog open={resetOpen} onOpenChange={(o) => { if (!isPending) setResetOpen(o); }}>
           <AlertDialogTrigger asChild>
@@ -305,11 +321,17 @@ export function MixerDetail({
           <p className="mt-2 text-sm text-destructive">{generateError}</p>
         )}
 
-        {/* Baner blokady podczas biegu */}
-        {isLive && (
+        {/* Baner blokady */}
+        {mixer.status === "running" && (
           <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted/60 px-4 py-2.5 text-sm text-muted-foreground">
             <Info className="size-4 shrink-0" />
-            Edycja planu, uczestników i parametrów jest zablokowana w trakcie biegu.
+            Mixer w trakcie biegu — edycja planu, uczestników i parametrów jest zablokowana.
+          </div>
+        )}
+        {mixer.status === "finished" && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted/60 px-4 py-2.5 text-sm text-muted-foreground">
+            <Info className="size-4 shrink-0" />
+            Mixer zakończony — edycja jest zablokowana. Użyj „Resetuj" aby wrócić do stanu gotowości.
           </div>
         )}
       </div>
@@ -333,6 +355,7 @@ export function MixerDetail({
             participants={participants}
             allAttendees={allAttendees}
             existingAttendeeIds={existingAttendeeIds}
+            isLive={isLive}
           />
         </TabsContent>
 
@@ -341,6 +364,7 @@ export function MixerDetail({
             eventId={eventId}
             mixer={mixer}
             activeCount={activeCount}
+            isLive={isLive}
           />
         </TabsContent>
 

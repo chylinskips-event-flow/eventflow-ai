@@ -26,6 +26,7 @@ type Props = {
   participants: MixerParticipant[];
   allAttendees: AttendeeOption[];
   existingAttendeeIds: string[];
+  isLive?: boolean;
 };
 
 const STATUS_CONFIG = {
@@ -40,6 +41,7 @@ export function ParticipantsPanel({
   participants,
   allAttendees,
   existingAttendeeIds,
+  isLive = false,
 }: Props) {
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -103,7 +105,7 @@ export function ParticipantsPanel({
         </p>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" variant="outline">
+            <Button size="sm" variant="outline" disabled={isLive}>
               <Plus className="size-4" />
               Dodaj z listy
             </Button>
@@ -213,9 +215,9 @@ export function ParticipantsPanel({
                           <Button
                             size="sm"
                             variant="ghost"
-                            disabled={loading}
+                            disabled={loading || isLive}
                             onClick={() => handleStatus(p.id, "active")}
-                            title="Oznacz jako aktywny"
+                            title={isLive ? "Zablokowane w trakcie biegu" : "Oznacz jako aktywny"}
                           >
                             <UserCheck className="size-3.5" />
                           </Button>
@@ -224,9 +226,9 @@ export function ParticipantsPanel({
                           <Button
                             size="sm"
                             variant="ghost"
-                            disabled={loading}
+                            disabled={loading || isLive}
                             onClick={() => handleStatus(p.id, "absent")}
-                            title="Oznacz jako nieobecny"
+                            title={isLive ? "Zablokowane w trakcie biegu" : "Oznacz jako nieobecny"}
                           >
                             <Clock className="size-3.5" />
                           </Button>
@@ -235,10 +237,10 @@ export function ParticipantsPanel({
                           <Button
                             size="sm"
                             variant="ghost"
-                            disabled={loading}
+                            disabled={loading || isLive}
                             onClick={() => handleStatus(p.id, "dropped")}
                             className="text-destructive hover:text-destructive"
-                            title="Usuń z mixera"
+                            title={isLive ? "Zablokowane w trakcie biegu" : "Usuń z mixera"}
                           >
                             <UserX className="size-3.5" />
                           </Button>

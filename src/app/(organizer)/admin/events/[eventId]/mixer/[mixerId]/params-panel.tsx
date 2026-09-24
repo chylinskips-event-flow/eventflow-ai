@@ -12,6 +12,7 @@ type Props = {
   eventId: string;
   mixer: MixerRow;
   activeCount: number;
+  isLive?: boolean;
 };
 
 function computeFeasibility(
@@ -43,7 +44,7 @@ function computeFeasibility(
 
 const IDLE: MixerFormState = { status: "idle" };
 
-export function ParamsPanel({ eventId, mixer, activeCount }: Props) {
+export function ParamsPanel({ eventId, mixer, activeCount, isLive = false }: Props) {
   const id = useId();
   const [tableCount, setTableCount] = useState(String(mixer.table_count));
   const [seatMin, setSeatMin] = useState(String(mixer.seat_min));
@@ -62,7 +63,7 @@ export function ParamsPanel({ eventId, mixer, activeCount }: Props) {
   );
 
   return (
-    <form action={action} className="flex flex-col gap-5">
+    <form action={action} className="flex flex-col gap-5" aria-disabled={isLive}>
       {/* Feasibility hint */}
       <div
         className={`flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${
@@ -92,6 +93,7 @@ export function ParamsPanel({ eventId, mixer, activeCount }: Props) {
             min={1}
             value={tableCount}
             onChange={(e) => setTableCount(e.target.value)}
+            disabled={isLive}
           />
         </div>
         <div className="flex flex-col gap-1.5">
@@ -103,6 +105,7 @@ export function ParamsPanel({ eventId, mixer, activeCount }: Props) {
             min={2}
             value={seatMin}
             onChange={(e) => setSeatMin(e.target.value)}
+            disabled={isLive}
           />
         </div>
         <div className="flex flex-col gap-1.5">
@@ -114,6 +117,7 @@ export function ParamsPanel({ eventId, mixer, activeCount }: Props) {
             min={2}
             value={seatMax}
             onChange={(e) => setSeatMax(e.target.value)}
+            disabled={isLive}
           />
         </div>
         <div className="flex flex-col gap-1.5">
@@ -124,6 +128,7 @@ export function ParamsPanel({ eventId, mixer, activeCount }: Props) {
             type="number"
             min={1}
             defaultValue={mixer.rounds_count}
+            disabled={isLive}
           />
         </div>
         <div className="flex flex-col gap-1.5">
@@ -134,6 +139,7 @@ export function ParamsPanel({ eventId, mixer, activeCount }: Props) {
             type="number"
             min={1}
             defaultValue={mixer.round_minutes}
+            disabled={isLive}
           />
         </div>
         <div className="flex flex-col gap-1.5">
@@ -144,6 +150,7 @@ export function ParamsPanel({ eventId, mixer, activeCount }: Props) {
             type="number"
             min={0}
             defaultValue={mixer.break_minutes}
+            disabled={isLive}
           />
         </div>
         <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-1">
@@ -155,6 +162,7 @@ export function ParamsPanel({ eventId, mixer, activeCount }: Props) {
             min={1}
             placeholder="brak"
             defaultValue={mixer.break_after_round ?? ""}
+            disabled={isLive}
           />
         </div>
       </div>
@@ -166,7 +174,7 @@ export function ParamsPanel({ eventId, mixer, activeCount }: Props) {
         <p className="text-sm text-green-600 dark:text-green-400">Parametry zapisane.</p>
       )}
 
-      <Button type="submit" disabled={isPending} className="self-start">
+      <Button type="submit" disabled={isPending || isLive} className="self-start">
         {isPending ? "Zapisywanie..." : "Zapisz parametry"}
       </Button>
     </form>
