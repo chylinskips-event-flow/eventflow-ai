@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronLeft, Wand2, RotateCcw } from "lucide-react";
+import { ChevronLeft, Wand2, RotateCcw, Play, ChevronRight, Square, Info } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,11 +16,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { generatePlan, rerollPlan } from "../actions";
+import { generatePlan, rerollPlan, startMixer, nextRound, resetLive } from "../actions";
 import { ParticipantsPanel } from "./participants-panel";
 import { ParamsPanel } from "./params-panel";
 import { PlanPanel } from "./plan-panel";
-import type { MixerRow, MixerParticipant, PlanRound } from "@/lib/mixer/getters";
+import type { MixerRow, MixerParticipant, MixerRound, PlanRound } from "@/lib/mixer/getters";
 
 type AttendeeOption = { id: string; name: string; company: string | null };
 
@@ -29,6 +29,7 @@ type Props = {
   mixer: MixerRow;
   participants: MixerParticipant[];
   plan: PlanRound[];
+  rounds: MixerRound[];
   allAttendees: AttendeeOption[];
   existingAttendeeIds: string[];
 };
@@ -37,22 +38,185 @@ const STATUS_LABEL: Record<string, string> = {
   draft:     "Szkic",
   generated: "Wygenerowany",
   locked:    "Zablokowany",
+  running:   "Aktywny",
+  finished:  "Zakończony",
 };
 const STATUS_VARIANT: Record<string, "outline" | "warning" | "success" | "indigo"> = {
   draft:     "outline",
   generated: "indigo",
   locked:    "success",
+  running:   "warning",
+  finished:  "outline",
 };
+
+// ── Live control panel (sterowanie u organizatora) ────────────────────────────
+
+function LiveControlPanel({
+  mixer,
+  rounds,
+  eventId,
+}: {
+  mixer: MixerRow;
+  rounds: MixerRound[];
+  eventId: string;
+}) {
+  const [startOpen, setStartOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const activeRound = rounds.find((r) => r.status === "active");
+  const totalRounds = rounds.length;
+  const isLastRound = activeRound?.round_number === totalRounds;
+
+  function handleStart() {
+    startTransition(async () => {
+      await startMixer(mixer.id, eventId);
+      setStartOpen(false);
+    });
+  }
+
+  function handleNext() {
+    startTransition(async () => {
+      await nextRound(mixer.id, eventId);
+    });
+  }
+
+  function handleReset() {
+    startTransition(async () => {
+      await resetLive(mixer.id, eventId);
+      setResetOpen(false);
+    });
+  }
+
+  // Start button — plan wygenerowany, mixer jeszcze nie uruchomiony
+  if (
+    (mixer.status === "generated" || mixer.status === "locked") &&
+    rounds.length > 0
+  ) {
+    return (
+      <AlertDialog open={startOpen} onOpenChange={(o) => { if (!isPending) setStartOpen(o); }}>
+        <AlertDialogTrigger asChild>
+          <Button variant="default">
+            <Play className="size-4" />
+            Start mixera
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Uruchomić mixer?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Runda 1 zostanie uruchomiona natychmiast. Edycja planu, uczestników i parametrów zostanie zablokowana na czas biegu.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Anuluj</AlertDialogCancel>
+            <Button onClick={handleStart} disabled={isPending}>
+              {isPending ? "Uruchamianie..." : "Uruchom"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  }
+
+  // Running — Następna runda / Zakończ + Reset
+  if (mixer.status === "running") {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium text-muted-foreground">
+          Runda {activeRound?.round_number ?? "?"}&nbsp;/&nbsp;{totalRounds}
+        </span>
+
+        <Button onClick={handleNext} disabled={isPending} variant={isLastRound ? "destructive" : "default"}>
+          {isPending ? (
+            "..."
+          ) : isLastRound ? (
+            <>
+              <Square className="size-4" />
+              Zakończ mixer
+            </>
+          ) : (
+            <>
+              <ChevronRight className="size-4" />
+              Następna runda
+            </>
+          )}
+        </Button>
+
+        <AlertDialog open={resetOpen} onOpenChange={(o) => { if (!isPending) setResetOpen(o); }}>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" size="sm" title="Zresetuj do stanu gotowości">
+              <RotateCcw className="size-4" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Zresetować mixer?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Wszystkie rundy wrócą do stanu pending, mixer będzie ponownie gotowy do uruchomienia. Plan pozostaje bez zmian.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isPending}>Anuluj</AlertDialogCancel>
+              <Button variant="destructive" onClick={handleReset} disabled={isPending}>
+                {isPending ? "Resetowanie..." : "Resetuj"}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    );
+  }
+
+  // Finished — tylko Reset
+  if (mixer.status === "finished") {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">Mixer zakończony</span>
+
+        <AlertDialog open={resetOpen} onOpenChange={(o) => { if (!isPending) setResetOpen(o); }}>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" size="sm">
+              <RotateCcw className="size-4" />
+              Resetuj
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Zresetować mixer?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Mixer wróci do stanu gotowości. Plan pozostaje bez zmian.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isPending}>Anuluj</AlertDialogCancel>
+              <Button variant="destructive" onClick={handleReset} disabled={isPending}>
+                {isPending ? "Resetowanie..." : "Resetuj"}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// ── MixerDetail ───────────────────────────────────────────────────────────────
 
 export function MixerDetail({
   eventId,
   mixer,
   participants,
   plan,
+  rounds,
   allAttendees,
   existingAttendeeIds,
 }: Props) {
   const activeCount = participants.filter((p) => p.status === "active").length;
+  const isLive = mixer.status === "running" || mixer.status === "finished";
+
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [rerollOpen, setRerollOpen] = useState(false);
   const [isGenerating, startGenerate] = useTransition();
@@ -91,47 +255,62 @@ export function MixerDetail({
               {STATUS_LABEL[mixer.status] ?? mixer.status}
             </Badge>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Generate button */}
-            <Button
-              onClick={handleGenerate}
-              disabled={isGenerating || activeCount < 2}
-              title={activeCount < 2 ? "Potrzeba co najmniej 2 aktywnych uczestników" : undefined}
-            >
-              <Wand2 className="size-4" />
-              {isGenerating ? "Generowanie..." : "Generuj plan"}
-            </Button>
 
-            {/* Reroll — only when plan exists */}
-            {mixer.status !== "draft" && (
-              <AlertDialog open={rerollOpen} onOpenChange={(o) => { if (!isRerolling) setRerollOpen(o); }}>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" title="Wygeneruj nowy plan z innym ziarnem">
-                    <RotateCcw className="size-4" />
-                    Przelicz
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Przelicz plan?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Zostanie wygenerowany nowy plan z innym ziarna losowości. Istniejący plan i edycje ice-breakerów zostaną zastąpione.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={isRerolling}>Anuluj</AlertDialogCancel>
-                    <Button variant="destructive" onClick={handleReroll} disabled={isRerolling}>
-                      {isRerolling ? "Przeliczanie..." : "Przelicz ponownie"}
-                    </Button>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+          <div className="flex items-center gap-2">
+            {/* Generuj + Przelicz — ukryte gdy mixer aktywny */}
+            {!isLive && (
+              <>
+                <Button
+                  onClick={handleGenerate}
+                  disabled={isGenerating || activeCount < 2}
+                  title={activeCount < 2 ? "Potrzeba co najmniej 2 aktywnych uczestników" : undefined}
+                >
+                  <Wand2 className="size-4" />
+                  {isGenerating ? "Generowanie..." : "Generuj plan"}
+                </Button>
+
+                {mixer.status !== "draft" && (
+                  <AlertDialog open={rerollOpen} onOpenChange={(o) => { if (!isRerolling) setRerollOpen(o); }}>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" title="Wygeneruj nowy plan z innym ziarnem">
+                        <RotateCcw className="size-4" />
+                        Przelicz
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Przelicz plan?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Zostanie wygenerowany nowy plan z innym ziarnem losowości. Istniejący plan i edycje ice-breakerów zostaną zastąpione.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isRerolling}>Anuluj</AlertDialogCancel>
+                        <Button variant="destructive" onClick={handleReroll} disabled={isRerolling}>
+                          {isRerolling ? "Przeliczanie..." : "Przelicz ponownie"}
+                        </Button>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </>
             )}
+
+            {/* Live control panel */}
+            <LiveControlPanel mixer={mixer} rounds={rounds} eventId={eventId} />
           </div>
         </div>
 
         {generateError && (
           <p className="mt-2 text-sm text-destructive">{generateError}</p>
+        )}
+
+        {/* Baner blokady podczas biegu */}
+        {isLive && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted/60 px-4 py-2.5 text-sm text-muted-foreground">
+            <Info className="size-4 shrink-0" />
+            Edycja planu, uczestników i parametrów jest zablokowana w trakcie biegu.
+          </div>
         )}
       </div>
 

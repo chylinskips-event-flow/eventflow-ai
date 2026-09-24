@@ -13,7 +13,7 @@ export type MixerRow = {
   id: string;
   event_id: string;
   name: string;
-  status: "draft" | "generated" | "locked";
+  status: "draft" | "generated" | "locked" | "running" | "finished";
   rounds_count: number;
   break_after_round: number | null;
   round_minutes: number;
@@ -23,8 +23,20 @@ export type MixerRow = {
   seat_max: number;
   seed: number;
   quality: QualityJson | null;
+  present_token: string | null;
   created_at: string;
   updated_at: string;
+};
+
+// ── mixer_rounds ───────────────────────────────────────────────────────────
+
+export type MixerRound = {
+  id: string;
+  mixer_id: string;
+  round_number: number;
+  status: "pending" | "active" | "done";
+  started_at: string | null;
+  created_at: string;
 };
 
 export type QualityJson = {
@@ -78,6 +90,25 @@ export type PlanRound = {
   roundNumber: number;
   tables: PlanTable[];
 };
+
+// ── Rundy mixera (live-run state) ─────────────────────────────────────────
+
+export async function getMixerRounds(
+  mixerId: string,
+  eventId: string,
+): Promise<MixerRound[]> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return [];
+
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("mixer_rounds")
+    .select("*")
+    .eq("mixer_id", mixerId)
+    .order("round_number");
+
+  return (data ?? []) as MixerRound[];
+}
 
 // ── Lista mixerów ──────────────────────────────────────────────────────────
 

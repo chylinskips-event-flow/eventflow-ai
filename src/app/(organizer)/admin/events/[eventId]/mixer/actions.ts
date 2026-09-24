@@ -16,6 +16,29 @@ function revalidate(eventId: string) {
   revalidatePath(`/admin/events/${eventId}/mixer`);
 }
 
+function revalidateMixer(eventId: string, mixerId: string) {
+  revalidatePath(`/admin/events/${eventId}/mixer`);
+  revalidatePath(`/admin/events/${eventId}/mixer/${mixerId}`);
+}
+
+async function checkNotLive(
+  mixerId: string,
+  eventId: string,
+  supabase: ReturnType<typeof createAdminClient>,
+): Promise<MixerFormState | null> {
+  const { data } = await supabase
+    .from("mixers")
+    .select("status")
+    .eq("id", mixerId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+  const s = (data as { status: string } | null)?.status;
+  if (s === "running" || s === "finished") {
+    return { status: "error", message: "Mixer jest aktywny — zatrzymaj go przed zmianami." };
+  }
+  return null;
+}
+
 // ── createMixer ─────────────────────────────────────────────────────────────
 
 export async function createMixer(
@@ -52,6 +75,10 @@ export async function updateParams(
   const event = await getOwnEvent(eventId);
   if (!event) return { status: "error", message: "Event nie znaleziony." };
 
+  const supabase = createAdminClient();
+  const blocked = await checkNotLive(mixerId, eventId, supabase);
+  if (blocked) return blocked;
+
   const table_count      = parseInt(formData.get("table_count")      as string, 10);
   const seat_min         = parseInt(formData.get("seat_min")         as string, 10);
   const seat_max         = parseInt(formData.get("seat_max")         as string, 10);
@@ -78,7 +105,6 @@ export async function updateParams(
     return { status: "error", message: "Przerwa musi być po rundzie 1...(rundy-1)." };
   }
 
-  const supabase = createAdminClient();
   const { error } = await supabase
     .from("mixers")
     .update({
@@ -113,6 +139,8 @@ export async function addParticipants(
   if (attendeeIds.length === 0) return { status: "success" };
 
   const supabase = createAdminClient();
+  const blocked = await checkNotLive(mixerId, eventId, supabase);
+  if (blocked) return blocked;
 
   // Snapshot display_name + company z tabeli attendees
   const { data: attendees, error: fetchErr } = await supabase
@@ -157,6 +185,9 @@ export async function setParticipantStatus(
   if (!event) return { status: "error", message: "Event nie znaleziony." };
 
   const supabase = createAdminClient();
+  const blocked = await checkNotLive(mixerId, eventId, supabase);
+  if (blocked) return blocked;
+
   const { error } = await supabase
     .from("mixer_participants")
     .update({ status })
@@ -188,6 +219,11 @@ async function runGenerate(
 
   if (!mixerRaw) return { status: "error", message: "Mixer nie znaleziony." };
   const mixer = mixerRaw as MixerRow;
+
+  // Blokada edycji gdy mixer jest w trakcie biegu
+  if (mixer.status === "running" || mixer.status === "finished") {
+    return { status: "error", message: "Mixer jest aktywny — zatrzymaj go przed zmianami." };
+  }
 
   const seed = overrideSeed ?? mixer.seed;
 
@@ -280,6 +316,15 @@ async function runGenerate(
     })
     .eq("id", mixerId)
     .eq("event_id", eventId);
+
+  // 8. Reset + populate mixer_rounds (wszystkie pending)
+  await supabase.from("mixer_rounds").delete().eq("mixer_id", mixerId);
+  const roundRows = Array.from({ length: mixer.rounds_count }, (_, i) => ({
+    mixer_id:     mixerId,
+    round_number: i + 1,
+    status:       "pending" as const,
+  }));
+  await supabase.from("mixer_rounds").insert(roundRows);
 
   revalidate(eventId);
   return { status: "success", message: "Plan wygenerowany." };
@@ -424,4 +469,140 @@ export async function replaceIcebreaker(
 
   revalidate(eventId);
   return { status: "success", message: "Pytanie wymienione." };
+}
+
+// ── startMixer ───────────────────────────────────────────────────────────────
+
+export async function startMixer(
+  mixerId: string,
+  eventId: string,
+): Promise<MixerFormState> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return { status: "error", message: "Event nie znaleziony." };
+
+  const supabase = createAdminClient();
+
+  const { data: mixerRaw } = await supabase
+    .from("mixers")
+    .select("id, status")
+    .eq("id", mixerId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+
+  if (!mixerRaw) return { status: "error", message: "Mixer nie znaleziony." };
+  const mixer = mixerRaw as { id: string; status: string };
+
+  if (mixer.status !== "generated" && mixer.status !== "locked") {
+    return { status: "error", message: "Mixer musi być wygenerowany lub zablokowany." };
+  }
+
+  const { data: round1Raw } = await supabase
+    .from("mixer_rounds")
+    .select("id, status")
+    .eq("mixer_id", mixerId)
+    .eq("round_number", 1)
+    .maybeSingle();
+
+  if (!round1Raw || (round1Raw as { status: string }).status !== "pending") {
+    return { status: "error", message: "Runda 1 nie istnieje lub nie jest w stanie pending." };
+  }
+
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("mixer_rounds")
+    .update({ status: "active", started_at: now })
+    .eq("id", (round1Raw as { id: string }).id);
+
+  if (error) return { status: "error", message: "Nie udało się uruchomić rundy." };
+
+  await supabase
+    .from("mixers")
+    .update({ status: "running", updated_at: now })
+    .eq("id", mixerId)
+    .eq("event_id", eventId);
+
+  revalidateMixer(eventId, mixerId);
+  return { status: "success", message: "Mixer uruchomiony. Runda 1 aktywna." };
+}
+
+// ── nextRound ────────────────────────────────────────────────────────────────
+
+export async function nextRound(
+  mixerId: string,
+  eventId: string,
+): Promise<MixerFormState> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return { status: "error", message: "Event nie znaleziony." };
+
+  const supabase = createAdminClient();
+
+  const { data: activeRaw } = await supabase
+    .from("mixer_rounds")
+    .select("id, round_number")
+    .eq("mixer_id", mixerId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (!activeRaw) {
+    return { status: "error", message: "Brak aktywnej rundy." };
+  }
+
+  const active = activeRaw as { id: string; round_number: number };
+  const now = new Date().toISOString();
+
+  await supabase
+    .from("mixer_rounds")
+    .update({ status: "done" })
+    .eq("id", active.id);
+
+  const { data: nextRaw } = await supabase
+    .from("mixer_rounds")
+    .select("id")
+    .eq("mixer_id", mixerId)
+    .eq("round_number", active.round_number + 1)
+    .maybeSingle();
+
+  if (nextRaw) {
+    await supabase
+      .from("mixer_rounds")
+      .update({ status: "active", started_at: now })
+      .eq("id", (nextRaw as { id: string }).id);
+  } else {
+    await supabase
+      .from("mixers")
+      .update({ status: "finished", updated_at: now })
+      .eq("id", mixerId)
+      .eq("event_id", eventId);
+  }
+
+  revalidateMixer(eventId, mixerId);
+  return { status: "success" };
+}
+
+// ── resetLive ────────────────────────────────────────────────────────────────
+
+export async function resetLive(
+  mixerId: string,
+  eventId: string,
+): Promise<MixerFormState> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return { status: "error", message: "Event nie znaleziony." };
+
+  const supabase = createAdminClient();
+
+  await supabase
+    .from("mixer_rounds")
+    .update({ status: "pending", started_at: null })
+    .eq("mixer_id", mixerId);
+
+  const now = new Date().toISOString();
+  await supabase
+    .from("mixers")
+    .update({ status: "generated", updated_at: now })
+    .eq("id", mixerId)
+    .eq("event_id", eventId);
+
+  revalidateMixer(eventId, mixerId);
+  return { status: "success", message: "Mixer zresetowany do stanu gotowości." };
 }

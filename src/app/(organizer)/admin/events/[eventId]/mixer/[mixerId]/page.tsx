@@ -4,6 +4,7 @@ import {
   getMixer,
   getMixerParticipants,
   getMixerPlan,
+  getMixerRounds,
 } from "@/lib/mixer/getters";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MixerDetail } from "./mixer-detail";
@@ -15,11 +16,12 @@ export default async function MixerDetailPage({
 }) {
   const { eventId, mixerId } = await params;
 
-  const [event, mixer, participants, plan] = await Promise.all([
+  const [event, mixer, participants, plan, rounds] = await Promise.all([
     getOwnEvent(eventId),
     getMixer(mixerId, eventId),
     getMixerParticipants(mixerId, eventId),
     getMixerPlan(mixerId, eventId),
+    getMixerRounds(mixerId, eventId),
   ]);
 
   if (!event || !mixer) notFound();
@@ -55,6 +57,7 @@ export default async function MixerDetailPage({
       mixer={mixer}
       participants={participants}
       plan={plan}
+      rounds={rounds}
       allAttendees={attendees}
       existingAttendeeIds={[...existingIds]}
     />

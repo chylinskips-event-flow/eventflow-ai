@@ -43,7 +43,7 @@ export async function hasActiveMixerForAttendee(attendeeId: string): Promise<boo
     .from("mixers")
     .select("id")
     .eq("id", (participant as { mixer_id: string }).mixer_id)
-    .in("status", ["generated", "locked"])
+    .in("status", ["generated", "locked", "running", "finished"])
     .maybeSingle();
 
   return !!mixer;
@@ -78,7 +78,7 @@ export async function getMixerForAttendee(
     .select("id, name, event_id, status, rounds_count, round_minutes, break_minutes, break_after_round")
     .eq("id", mixer_id)
     .eq("event_id", attendee.event_id)
-    .in("status", ["generated", "locked"])
+    .in("status", ["generated", "locked", "running", "finished"])
     .maybeSingle();
 
   if (!mixer) return null;
