@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo, useEffect } from "react";
-import { Pencil, RefreshCw, Check, X, Search, Users, ArrowLeftRight } from "lucide-react";
+import { Pencil, RefreshCw, Check, X, Search, Users, ArrowLeftRight, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -508,6 +508,15 @@ export function PlanPanel({ eventId, mixerId, plan, quality, breakAfterRound, mi
   return (
     <div className="flex flex-col gap-6">
       {quality && <QualityReport quality={quality} />}
+
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" asChild>
+          <a href={`/admin/events/${eventId}/mixer/${mixerId}/export`}>
+            <FileSpreadsheet className="size-4" />
+            Eksportuj do arkusza
+          </a>
+        </Button>
+      </div>
 
       <Tabs defaultValue="rundy">
         <TabsList>
