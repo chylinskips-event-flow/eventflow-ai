@@ -1,13 +1,24 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Pencil, RefreshCw, Check, X, Search, Users } from "lucide-react";
+import { useState, useTransition, useMemo, useEffect } from "react";
+import { Pencil, RefreshCw, Check, X, Search, Users, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { updateIcebreaker, replaceIcebreaker } from "../actions";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { updateIcebreaker, replaceIcebreaker, swapAssignments } from "../actions";
+import { computeQuality } from "@/lib/mixer/assign";
+import type { RoundAssignment } from "@/lib/mixer/assign";
 import type { PlanRound, QualityJson } from "@/lib/mixer/getters";
+import { cn } from "@/lib/utils";
 
 type Props = {
   eventId: string;
@@ -15,6 +26,7 @@ type Props = {
   plan: PlanRound[];
   quality: QualityJson | null;
   breakAfterRound: number | null;
+  mixerStatus: string;
 };
 
 function QualityReport({ quality }: { quality: QualityJson }) {
@@ -128,17 +140,215 @@ function IcebreakerEdit({
   );
 }
 
+function DeltaRow({ label, before, after }: { label: string; before: number; after: number }) {
+  const diff = after - before;
+  return (
+    <div className="flex items-center justify-between text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span
+        className={cn(
+          "tabular-nums font-medium",
+          diff > 0 && "text-destructive",
+          diff < 0 && "text-green-600 dark:text-green-400",
+        )}
+      >
+        {before} → {after}
+        {diff !== 0 && (
+          <span className="ml-1 text-xs opacity-70">
+            ({diff > 0 ? "+" : ""}{diff})
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function SwapDialog({
+  open,
+  onClose,
+  sourcePid,
+  sourceName,
+  sourceTableNumber,
+  round,
+  plan,
+  eventId,
+  mixerId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  sourcePid: string;
+  sourceName: string;
+  sourceTableNumber: number;
+  round: PlanRound;
+  plan: PlanRound[];
+  eventId: string;
+  mixerId: string;
+}) {
+  const [targetPid, setTargetPid] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  // Reset targetPid when dialog opens
+  useEffect(() => {
+    if (open) setTargetPid(null);
+  }, [open]);
+
+  const delta = useMemo(() => {
+    if (!targetPid) return null;
+
+    // Find target table number
+    let targetTableNumber: number | null = null;
+    for (const table of round.tables) {
+      if (table.participants.some((p) => p.id === targetPid)) {
+        targetTableNumber = table.tableNumber;
+        break;
+      }
+    }
+    if (targetTableNumber === null) return null;
+
+    // Convert plan → RoundAssignment[]
+    const toRAs = (overrides?: { roundNumber: number; tableNumber: number; swapFrom: string; swapTo: string }): RoundAssignment[] =>
+      plan.flatMap((r) =>
+        r.tables.map((t) => ({
+          roundNumber: r.roundNumber,
+          tableNumber: t.tableNumber,
+          participantIds: t.participants.map((p) => {
+            if (
+              overrides &&
+              r.roundNumber === overrides.roundNumber &&
+              t.tableNumber === overrides.tableNumber
+            ) {
+              return p.id === overrides.swapFrom ? overrides.swapTo : p.id;
+            }
+            return p.id;
+          }),
+        }))
+      );
+
+    // Apply swap in both tables
+    const afterRAs: RoundAssignment[] = plan.flatMap((r) =>
+      r.tables.map((t) => {
+        if (r.roundNumber !== round.roundNumber) {
+          return {
+            roundNumber: r.roundNumber,
+            tableNumber: t.tableNumber,
+            participantIds: t.participants.map((p) => p.id),
+          };
+        }
+        let pids = t.participants.map((p) => p.id);
+        if (t.tableNumber === sourceTableNumber) {
+          pids = pids.map((id) => (id === sourcePid ? targetPid! : id));
+        } else if (t.tableNumber === targetTableNumber) {
+          pids = pids.map((id) => (id === targetPid ? sourcePid : id));
+        }
+        return { roundNumber: r.roundNumber, tableNumber: t.tableNumber, participantIds: pids };
+      })
+    );
+
+    const beforeRAs = toRAs();
+    const before = computeQuality(beforeRAs);
+    const after = computeQuality(afterRAs);
+    return { before, after };
+  }, [targetPid, sourcePid, sourceTableNumber, round, plan]);
+
+  function handleConfirm() {
+    if (!targetPid) return;
+    startTransition(async () => {
+      await swapAssignments(eventId, mixerId, round.roundNumber, sourcePid, targetPid);
+      onClose();
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o && !isPending) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Zamień {sourceName}</DialogTitle>
+          <DialogDescription>
+            Runda {round.roundNumber} · Stół {sourceTableNumber}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4 py-2">
+          {round.tables
+            .filter((t) => t.tableNumber !== sourceTableNumber)
+            .map((table) => (
+              <div key={table.tableNumber}>
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Stół {table.tableNumber}
+                </p>
+                <div className="flex flex-col gap-1">
+                  {table.participants.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setTargetPid(p.id)}
+                      className={cn(
+                        "rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
+                        targetPid === p.id && "border-primary bg-accent font-medium",
+                      )}
+                    >
+                      {p.display_name}
+                      {p.company && (
+                        <span className="ml-1.5 text-xs opacity-60">· {p.company}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+          {delta && (
+            <div className="rounded-lg border bg-muted/30 p-3 flex flex-col gap-1.5">
+              <p className="text-xs font-medium text-muted-foreground mb-1">Podgląd zmiany jakości</p>
+              <DeltaRow
+                label="Powtórzone pary"
+                before={delta.before.repeatedPairs}
+                after={delta.after.repeatedPairs}
+              />
+              <DeltaRow
+                label="Incydenty klastrów"
+                before={delta.before.clusterIncidents}
+                after={delta.after.clusterIncidents}
+              />
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>
+            Anuluj
+          </Button>
+          <Button onClick={handleConfirm} disabled={!targetPid || isPending}>
+            {isPending ? "Zatwierdzam..." : "Zatwierdź zamianę"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function RoundsView({
   plan,
   breakAfterRound,
   eventId,
   mixerId,
+  mixerStatus,
 }: {
   plan: PlanRound[];
   breakAfterRound: number | null;
   eventId: string;
   mixerId: string;
+  mixerStatus: string;
 }) {
+  const [swapTarget, setSwapTarget] = useState<{
+    pid: string;
+    name: string;
+    tableNumber: number;
+    round: PlanRound;
+  } | null>(null);
+
+  const canSwap = mixerStatus === "generated";
+
   return (
     <div className="flex flex-col gap-6">
       {plan.map((round) => (
@@ -158,10 +368,27 @@ function RoundsView({
                 </div>
                 <ul className="text-sm space-y-0.5">
                   {table.participants.map((p) => (
-                    <li key={p.id} className="flex items-center gap-1.5 text-muted-foreground">
+                    <li key={p.id} className="group flex items-center gap-1.5 text-muted-foreground">
                       <span className="size-1 rounded-full bg-muted-foreground/40 shrink-0" />
                       {p.display_name}
                       {p.company && <span className="text-xs opacity-60">· {p.company}</span>}
+                      {canSwap && (
+                        <button
+                          type="button"
+                          className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5 hover:bg-accent"
+                          title="Zamień uczestnika"
+                          onClick={() =>
+                            setSwapTarget({
+                              pid: p.id,
+                              name: p.display_name,
+                              tableNumber: table.tableNumber,
+                              round,
+                            })
+                          }
+                        >
+                          <ArrowLeftRight className="size-3.5" />
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -181,6 +408,20 @@ function RoundsView({
           </div>
         </div>
       ))}
+
+      {swapTarget && (
+        <SwapDialog
+          open={!!swapTarget}
+          onClose={() => setSwapTarget(null)}
+          sourcePid={swapTarget.pid}
+          sourceName={swapTarget.name}
+          sourceTableNumber={swapTarget.tableNumber}
+          round={swapTarget.round}
+          plan={plan}
+          eventId={eventId}
+          mixerId={mixerId}
+        />
+      )}
     </div>
   );
 }
@@ -253,7 +494,7 @@ function ParticipantPathView({ plan }: { plan: PlanRound[] }) {
   );
 }
 
-export function PlanPanel({ eventId, mixerId, plan, quality, breakAfterRound }: Props) {
+export function PlanPanel({ eventId, mixerId, plan, quality, breakAfterRound, mixerStatus }: Props) {
   if (plan.length === 0) {
     return (
       <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
@@ -280,6 +521,7 @@ export function PlanPanel({ eventId, mixerId, plan, quality, breakAfterRound }: 
             breakAfterRound={breakAfterRound}
             eventId={eventId}
             mixerId={mixerId}
+            mixerStatus={mixerStatus}
           />
         </TabsContent>
         <TabsContent value="uczestnicy" className="mt-4">

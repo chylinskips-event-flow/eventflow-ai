@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { assign } from "../assign";
+import { assign, computeQuality } from "../assign";
+import type { RoundAssignment } from "../assign";
 
 const SEED = 42;
 
@@ -133,6 +134,68 @@ describe("infeasible", () => {
     expect(r.quality.feasible).toBe(false);
     expect(r.quality.infeasibleReason).toBeTruthy();
     expect(r.rounds).toHaveLength(0);
+  });
+});
+
+// ── computeQuality parytet ────────────────────────────────────────────────────
+describe("computeQuality parity", () => {
+  it("computeQuality(assign().rounds) === assign().quality", () => {
+    const input = { participantIds: makePids(12), rounds: 4, tableCount: 3, seatMin: 4, seatMax: 4, seed: 99 };
+    const result = assign(input);
+    const ras: RoundAssignment[] = result.rounds.flatMap((round, ri) =>
+      round.map((table) => ({
+        roundNumber: ri + 1,
+        tableNumber: table.tableNumber,
+        participantIds: table.participantIds,
+      }))
+    );
+    expect(computeQuality(ras)).toEqual(result.quality);
+  });
+});
+
+// ── computeQuality swap delta ──────────────────────────────────────────────────
+// Fixture: 8 osób, 4 stoliki po 2 osoby, 2 rundy.
+// Runda 1 tworzy 4 pary (T1={p1,p2}, T2={p3,p4}, T3={p5,p6}, T4={p7,p8}).
+// Runda 2 BEFORE: T1={p1,p2} → p1-p2 spotykają się po raz drugi (1 repeatedPair),
+//   pozostałe stoliki mają ludzi z różnych par R1 → brak powtórek.
+// Zamiana p2(T1)↔p3(T2): T1={p1,p3}, T2={p2,p5} — oba łączą ludzi z różnych par R1
+//   → 0 repeatedPairs.
+describe("computeQuality swap delta", () => {
+  // Runda 1 — 4 pary
+  const T1_R1: RoundAssignment = { roundNumber: 1, tableNumber: 1, participantIds: ["p1","p2"] };
+  const T2_R1: RoundAssignment = { roundNumber: 1, tableNumber: 2, participantIds: ["p3","p4"] };
+  const T3_R1: RoundAssignment = { roundNumber: 1, tableNumber: 3, participantIds: ["p5","p6"] };
+  const T4_R1: RoundAssignment = { roundNumber: 1, tableNumber: 4, participantIds: ["p7","p8"] };
+
+  // Runda 2 BEFORE — p1-p2 razem znowu → repeatedPair; reszta nowe
+  const T1_R2_BEFORE: RoundAssignment = { roundNumber: 2, tableNumber: 1, participantIds: ["p1","p2"] };
+  const T2_R2_BEFORE: RoundAssignment = { roundNumber: 2, tableNumber: 2, participantIds: ["p3","p5"] };
+  const T3_R2_BEFORE: RoundAssignment = { roundNumber: 2, tableNumber: 3, participantIds: ["p4","p7"] };
+  const T4_R2_BEFORE: RoundAssignment = { roundNumber: 2, tableNumber: 4, participantIds: ["p6","p8"] };
+
+  // Runda 2 AFTER — zamiana p2(T1)↔p3(T2): T1={p1,p3}, T2={p2,p5}
+  const T1_R2_AFTER: RoundAssignment = { roundNumber: 2, tableNumber: 1, participantIds: ["p1","p3"] };
+  const T2_R2_AFTER: RoundAssignment = { roundNumber: 2, tableNumber: 2, participantIds: ["p2","p5"] };
+  // T3 i T4 bez zmian
+
+  const ALL_R1 = [T1_R1, T2_R1, T3_R1, T4_R1];
+  const BEFORE = [...ALL_R1, T1_R2_BEFORE, T2_R2_BEFORE, T3_R2_BEFORE, T4_R2_BEFORE];
+  const AFTER  = [...ALL_R1, T1_R2_AFTER,  T2_R2_AFTER,  T3_R2_BEFORE, T4_R2_BEFORE];
+
+  it("before swap: repeatedPairs = 1 (p1-p2)", () => {
+    const q = computeQuality(BEFORE);
+    expect(q.repeatedPairs).toBe(1);
+  });
+
+  it("after swap (p2↔p3 in round 2): repeatedPairs = 0", () => {
+    const q = computeQuality(AFTER);
+    expect(q.repeatedPairs).toBe(0);
+  });
+
+  it("delta: after.repeatedPairs - before.repeatedPairs = -1", () => {
+    const before = computeQuality(BEFORE);
+    const after  = computeQuality(AFTER);
+    expect(after.repeatedPairs - before.repeatedPairs).toBe(-1);
   });
 });
 

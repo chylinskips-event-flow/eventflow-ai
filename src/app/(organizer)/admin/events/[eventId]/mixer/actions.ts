@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOwnEvent } from "@/lib/events";
-import { assign } from "@/lib/mixer/assign";
+import { assign, computeQuality } from "@/lib/mixer/assign";
+import type { RoundAssignment } from "@/lib/mixer/assign";
 import { assignIcebreakers, nextUnusedQuestion } from "@/lib/mixer/icebreakers";
 import type { MixerRow } from "@/lib/mixer/getters";
 
@@ -21,7 +22,7 @@ function revalidateMixer(eventId: string, mixerId: string) {
   revalidatePath(`/admin/events/${eventId}/mixer/${mixerId}`);
 }
 
-async function checkNotLive(
+async function checkEditable(
   mixerId: string,
   eventId: string,
   supabase: ReturnType<typeof createAdminClient>,
@@ -33,8 +34,8 @@ async function checkNotLive(
     .eq("event_id", eventId)
     .maybeSingle();
   const s = (data as { status: string } | null)?.status;
-  if (s === "running" || s === "finished") {
-    return { status: "error", message: "Mixer jest aktywny — zatrzymaj go przed zmianami." };
+  if (s === "locked" || s === "running" || s === "finished") {
+    return { status: "error", message: "Mixer jest zablokowany lub aktywny — odblokuj przed zmianami." };
   }
   return null;
 }
@@ -76,7 +77,7 @@ export async function updateParams(
   if (!event) return { status: "error", message: "Event nie znaleziony." };
 
   const supabase = createAdminClient();
-  const blocked = await checkNotLive(mixerId, eventId, supabase);
+  const blocked = await checkEditable(mixerId, eventId, supabase);
   if (blocked) return blocked;
 
   const table_count      = parseInt(formData.get("table_count")      as string, 10);
@@ -139,7 +140,7 @@ export async function addParticipants(
   if (attendeeIds.length === 0) return { status: "success" };
 
   const supabase = createAdminClient();
-  const blocked = await checkNotLive(mixerId, eventId, supabase);
+  const blocked = await checkEditable(mixerId, eventId, supabase);
   if (blocked) return blocked;
 
   // Snapshot display_name + company z tabeli attendees
@@ -185,7 +186,7 @@ export async function setParticipantStatus(
   if (!event) return { status: "error", message: "Event nie znaleziony." };
 
   const supabase = createAdminClient();
-  const blocked = await checkNotLive(mixerId, eventId, supabase);
+  const blocked = await checkEditable(mixerId, eventId, supabase);
   if (blocked) return blocked;
 
   const { error } = await supabase
@@ -469,6 +470,171 @@ export async function replaceIcebreaker(
 
   revalidate(eventId);
   return { status: "success", message: "Pytanie wymienione." };
+}
+
+// ── swapAssignments ──────────────────────────────────────────────────────────
+
+export async function swapAssignments(
+  eventId: string,
+  mixerId: string,
+  roundNumber: number,
+  pidA: string,
+  pidB: string,
+): Promise<MixerFormState> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return { status: "error", message: "Event nie znaleziony." };
+
+  const supabase = createAdminClient();
+
+  // Sprawdź status i pobierz seat_min/seat_max
+  const { data: mixerRaw } = await supabase
+    .from("mixers")
+    .select("status, seat_min, seat_max")
+    .eq("id", mixerId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+
+  if (!mixerRaw) return { status: "error", message: "Mixer nie znaleziony." };
+  const mixer = mixerRaw as { status: string; seat_min: number; seat_max: number };
+
+  if (mixer.status !== "generated") {
+    return { status: "error", message: "Zamiana dozwolona tylko w stanie Wygenerowany." };
+  }
+
+  // Pobierz przydziały dla danej rundy
+  const { data: rows } = await supabase
+    .from("mixer_assignments")
+    .select("id, participant_id, table_number")
+    .eq("mixer_id", mixerId)
+    .eq("round_number", roundNumber);
+
+  const assignments = (rows ?? []) as { id: string; participant_id: string; table_number: number }[];
+
+  const rowA = assignments.find((r) => r.participant_id === pidA);
+  const rowB = assignments.find((r) => r.participant_id === pidB);
+
+  if (!rowA || !rowB) {
+    return { status: "error", message: "Nie znaleziono uczestników w tej rundzie." };
+  }
+
+  if (rowA.table_number === rowB.table_number) {
+    return { status: "error", message: "Uczestnicy są przy tym samym stole." };
+  }
+
+  // Guard pojemności: po zamianie każdy stół ma ten sam rozmiar (A↔B jest trivially OK),
+  // ale sprawdzamy seat_min/seat_max dla pewności
+  const sizeA = assignments.filter((r) => r.table_number === rowA.table_number).length;
+  const sizeB = assignments.filter((r) => r.table_number === rowB.table_number).length;
+
+  if (sizeA < mixer.seat_min || sizeA > mixer.seat_max || sizeB < mixer.seat_min || sizeB > mixer.seat_max) {
+    return { status: "error", message: "Zamiana naruszyłaby ograniczenia pojemności stołów." };
+  }
+
+  // Wykonaj swap
+  await Promise.all([
+    supabase
+      .from("mixer_assignments")
+      .update({ table_number: rowB.table_number })
+      .eq("id", rowA.id),
+    supabase
+      .from("mixer_assignments")
+      .update({ table_number: rowA.table_number })
+      .eq("id", rowB.id),
+  ]);
+
+  // Przelicz quality ze wszystkich rund
+  const { data: allRows } = await supabase
+    .from("mixer_assignments")
+    .select("round_number, table_number, participant_id")
+    .eq("mixer_id", mixerId);
+
+  const roundAssignments: RoundAssignment[] = [];
+  const grouped = new Map<string, RoundAssignment>();
+  for (const row of (allRows ?? []) as { round_number: number; table_number: number; participant_id: string }[]) {
+    const key = `${row.round_number}:${row.table_number}`;
+    if (!grouped.has(key)) {
+      grouped.set(key, { roundNumber: row.round_number, tableNumber: row.table_number, participantIds: [] });
+    }
+    grouped.get(key)!.participantIds.push(row.participant_id);
+  }
+  roundAssignments.push(...grouped.values());
+
+  const quality = computeQuality(roundAssignments);
+
+  await supabase
+    .from("mixers")
+    .update({ quality, updated_at: new Date().toISOString() })
+    .eq("id", mixerId)
+    .eq("event_id", eventId);
+
+  revalidateMixer(eventId, mixerId);
+  return { status: "success" };
+}
+
+// ── lockMixer ────────────────────────────────────────────────────────────────
+
+export async function lockMixer(
+  eventId: string,
+  mixerId: string,
+): Promise<MixerFormState> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return { status: "error", message: "Event nie znaleziony." };
+
+  const supabase = createAdminClient();
+
+  const { data } = await supabase
+    .from("mixers")
+    .select("status")
+    .eq("id", mixerId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+
+  const s = (data as { status: string } | null)?.status;
+  if (s !== "generated") {
+    return { status: "error", message: "Można zablokować tylko wygenerowany mixer." };
+  }
+
+  await supabase
+    .from("mixers")
+    .update({ status: "locked", updated_at: new Date().toISOString() })
+    .eq("id", mixerId)
+    .eq("event_id", eventId);
+
+  revalidateMixer(eventId, mixerId);
+  return { status: "success" };
+}
+
+// ── unlockMixer ──────────────────────────────────────────────────────────────
+
+export async function unlockMixer(
+  eventId: string,
+  mixerId: string,
+): Promise<MixerFormState> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return { status: "error", message: "Event nie znaleziony." };
+
+  const supabase = createAdminClient();
+
+  const { data } = await supabase
+    .from("mixers")
+    .select("status")
+    .eq("id", mixerId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+
+  const s = (data as { status: string } | null)?.status;
+  if (s !== "locked") {
+    return { status: "error", message: "Można odblokować tylko zablokowany mixer." };
+  }
+
+  await supabase
+    .from("mixers")
+    .update({ status: "generated", updated_at: new Date().toISOString() })
+    .eq("id", mixerId)
+    .eq("event_id", eventId);
+
+  revalidateMixer(eventId, mixerId);
+  return { status: "success" };
 }
 
 // ── startMixer ───────────────────────────────────────────────────────────────

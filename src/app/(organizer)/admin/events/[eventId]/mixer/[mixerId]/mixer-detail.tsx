@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronLeft, Wand2, RotateCcw, Play, ChevronRight, Square, Info, ExternalLink } from "lucide-react";
+import { ChevronLeft, Wand2, RotateCcw, Play, ChevronRight, Square, Info, ExternalLink, Lock, Unlock } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { generatePlan, rerollPlan, startMixer, nextRound, resetLive } from "../actions";
+import { generatePlan, rerollPlan, startMixer, nextRound, resetLive, lockMixer, unlockMixer } from "../actions";
 import { ParticipantsPanel } from "./participants-panel";
 import { ParamsPanel } from "./params-panel";
 import { PlanPanel } from "./plan-panel";
@@ -237,6 +237,8 @@ export function MixerDetail({
   const [rerollOpen, setRerollOpen] = useState(false);
   const [isGenerating, startGenerate] = useTransition();
   const [isRerolling, startReroll] = useTransition();
+  const [isLocking, startLockTransition] = useTransition();
+  const [isUnlocking, startUnlockTransition] = useTransition();
 
   function handleGenerate() {
     setGenerateError(null);
@@ -312,6 +314,48 @@ export function MixerDetail({
               </>
             )}
 
+            {/* Lock — visible gdy generated */}
+            {mixer.status === "generated" && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Lock className="size-4" />
+                    Zablokuj
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Zablokować plan?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Zablokowany plan nie może być edytowany — żadnych zamian uczestników, parametrów ani swapów. Możesz go odblokować w dowolnym momencie.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Anuluj</AlertDialogCancel>
+                    <Button
+                      onClick={() => startLockTransition(async () => { await lockMixer(eventId, mixer.id); })}
+                      disabled={isLocking}
+                    >
+                      {isLocking ? "Blokuję..." : "Zablokuj"}
+                    </Button>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+
+            {/* Unlock — visible gdy locked */}
+            {mixer.status === "locked" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => startUnlockTransition(async () => { await unlockMixer(eventId, mixer.id); })}
+                disabled={isUnlocking}
+              >
+                <Unlock className="size-4" />
+                {isUnlocking ? "Odblokowuję..." : "Odblokuj"}
+              </Button>
+            )}
+
             {/* Rzutnik — widoczny gdy plan wygenerowany lub mixer aktywny */}
             {mixer.present_token && mixer.status !== "draft" && (
               <Button variant="outline" size="sm" asChild>
@@ -385,6 +429,7 @@ export function MixerDetail({
             plan={plan}
             quality={mixer.quality}
             breakAfterRound={mixer.break_after_round}
+            mixerStatus={mixer.status}
           />
         </TabsContent>
       </Tabs>

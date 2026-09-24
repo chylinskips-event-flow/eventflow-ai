@@ -184,6 +184,12 @@ function updateMet(tables: number[][], met: number[][]): void {
 
 // ── Publiczne typy i API ────────────────────────────────────────────────────
 
+export type RoundAssignment = {
+  roundNumber: number;
+  tableNumber: number;
+  participantIds: string[];
+};
+
 export type AssignInput = {
   participantIds: string[];
   rounds: number;
@@ -216,6 +222,86 @@ export type AssignResult = {
   quality: QualityReport;
 };
 
+export function computeQuality(rounds: RoundAssignment[]): QualityReport {
+  // Zbierz unikalne participantIds
+  const pidSet = new Set<string>();
+  for (const r of rounds) {
+    for (const pid of r.participantIds) pidSet.add(pid);
+  }
+  const pids = [...pidSet];
+  const N = pids.length;
+
+  // Indeks pid → numer
+  const pidToIdx = new Map<string, number>();
+  pids.forEach((pid, i) => pidToIdx.set(pid, i));
+
+  // Macierz historii
+  const met: number[][] = Array.from({ length: N }, () => Array<number>(N).fill(0));
+
+  // Grupuj rundy i sortuj
+  const roundGroups = new Map<number, RoundAssignment[]>();
+  for (const r of rounds) {
+    if (!roundGroups.has(r.roundNumber)) roundGroups.set(r.roundNumber, []);
+    roundGroups.get(r.roundNumber)!.push(r);
+  }
+  const sortedRoundNumbers = [...roundGroups.keys()].sort((a, b) => a - b);
+
+  let totalClusterIncidents = 0;
+
+  for (const rn of sortedRoundNumbers) {
+    const tables = roundGroups.get(rn)!;
+
+    // Incydenty klastrowe: liczymy PRZED aktualizacją met
+    for (const table of tables) {
+      const idxs = table.participantIds.map((pid) => pidToIdx.get(pid)!);
+      for (const idx of idxs) {
+        let known = 0;
+        for (const other of idxs) {
+          if (other !== idx && met[idx][other] >= 1) known++;
+        }
+        if (known >= 2) totalClusterIncidents++;
+      }
+    }
+
+    // Zaktualizuj met
+    for (const table of tables) {
+      const idxs = table.participantIds.map((pid) => pidToIdx.get(pid)!);
+      for (let a = 0; a < idxs.length; a++) {
+        for (let b = a + 1; b < idxs.length; b++) {
+          met[idxs[a]][idxs[b]]++;
+          met[idxs[b]][idxs[a]]++;
+        }
+      }
+    }
+  }
+
+  // Powtórzone pary
+  let repeatedPairs = 0;
+  for (let i = 0; i < N; i++) {
+    for (let j = i + 1; j < N; j++) {
+      if (met[i][j] >= 2) repeatedPairs++;
+    }
+  }
+
+  // Unikalne spotkania per person
+  const uniquePerPerson: number[] = Array(N).fill(0);
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j < N; j++) {
+      if (i !== j && met[i][j] >= 1) uniquePerPerson[i]++;
+    }
+  }
+  uniquePerPerson.sort((a, b) => a - b);
+
+  return {
+    feasible: true,
+    uniqueMeetingsMin: uniquePerPerson[0]                     ?? 0,
+    uniqueMeetingsMed: uniquePerPerson[Math.floor(N / 2)]     ?? 0,
+    uniqueMeetingsMax: uniquePerPerson[N - 1]                 ?? 0,
+    repeatedPairs,
+    clusterIncidents: totalClusterIncidents,
+  };
+}
+
 export function assign(input: AssignInput): AssignResult {
   const { participantIds, rounds, tableCount, seatMin, seatMax, seed } = input;
   const N = participantIds.length;
@@ -242,7 +328,6 @@ export function assign(input: AssignInput): AssignResult {
   const met: number[][] = Array.from({ length: N }, () => Array<number>(N).fill(0));
 
   const rawRounds: number[][][] = [];
-  let totalClusterIncidents = 0;
 
   for (let r = 0; r < rounds; r++) {
     let tables: number[][];
@@ -260,45 +345,19 @@ export function assign(input: AssignInput): AssignResult {
       tables = assignRound(N, sizes, met, rng);
     }
 
-    // Incydenty klastrowe: liczymy PRZED aktualizacją met
-    for (const table of tables) {
-      for (const pid of table) {
-        let known = 0;
-        for (const other of table) {
-          if (other !== pid && met[pid][other] >= 1) known++;
-        }
-        if (known >= 2) totalClusterIncidents++;
-      }
-    }
-
     rawRounds.push(tables);
     updateMet(tables, met);
   }
 
-  // Metryki jakości
-  const uniquePerPerson: number[] = Array(N).fill(0);
-  for (let i = 0; i < N; i++) {
-    for (let j = 0; j < N; j++) {
-      if (i !== j && met[i][j] >= 1) uniquePerPerson[i]++;
-    }
-  }
-  uniquePerPerson.sort((a, b) => a - b);
-
-  let repeatedPairs = 0;
-  for (let i = 0; i < N; i++) {
-    for (let j = i + 1; j < N; j++) {
-      if (met[i][j] >= 2) repeatedPairs++;
-    }
-  }
-
-  const quality: QualityReport = {
-    feasible: true,
-    uniqueMeetingsMin: uniquePerPerson[0]                     ?? 0,
-    uniqueMeetingsMed: uniquePerPerson[Math.floor(N / 2)]     ?? 0,
-    uniqueMeetingsMax: uniquePerPerson[N - 1]                 ?? 0,
-    repeatedPairs,
-    clusterIncidents: totalClusterIncidents,
-  };
+  // Konwertuj rawRounds → RoundAssignment[] i przelicz jakość (DRY)
+  const roundAssignments: RoundAssignment[] = rawRounds.flatMap((round, ri) =>
+    round.map((table, ti) => ({
+      roundNumber: ri + 1,
+      tableNumber: ti + 1,
+      participantIds: table.map((i) => participantIds[i]),
+    })),
+  );
+  const quality = computeQuality(roundAssignments);
 
   // Mapuj indeksy → participantIds
   const result: TableAssignment[][] = rawRounds.map((round) =>
