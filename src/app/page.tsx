@@ -150,7 +150,7 @@ export default function Home() {
                   </Link>
                 </Button>
                 <Button asChild size="lg" variant="outline">
-                  <Link href="#jak-to-dziala">Zobacz, jak to działa</Link>
+                  <a href="#jak-to-dziala">Zobacz, jak to działa</a>
                 </Button>
               </div>
             </div>
