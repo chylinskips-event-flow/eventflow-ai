@@ -18,8 +18,8 @@ import { Button } from "@/components/ui/button";
 import { LegalFooter } from "@/components/legal-footer";
 import { Logo } from "@/components/logo";
 
-// Maska feather wtapiająca krawędzie zdjęcia w tło strony (bg cloud #F7F8FC).
-const featherStyle = {
+// Feather dla sekcji CTA (hero-nagrody) — radial, wtapia krawędzie w tło.
+const ctaFeatherStyle = {
   maskImage:
     "radial-gradient(78% 82% at 54% 44%, #000 38%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0) 82%)",
   WebkitMaskImage:
@@ -132,10 +132,18 @@ export default function Home() {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="mx-auto max-w-6xl px-4 py-20 sm:py-28">
-          <div className="flex flex-col items-center gap-10 lg:grid lg:grid-cols-2 lg:items-center lg:gap-16">
-            {/* Lewa kolumna — tekst */}
-            <div className="flex flex-col items-center gap-6 text-center lg:items-start lg:text-left">
+        <section className="relative isolate flex items-center overflow-hidden lg:min-h-[600px]">
+          {/* Desktop: zdjęcie full-bleed po prawej (hidden na mobile) */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/hero/hero-home.webp"
+            alt="Uczestnik wydarzenia z telefonem podczas networkingu"
+            fetchPriority="high"
+            className="pointer-events-none absolute right-0 top-0 -z-10 hidden h-full w-[58vw] object-cover object-[60%_center] lg:block [-webkit-mask-image:linear-gradient(to_right,transparent_0%,transparent_4%,#000_34%,#000_100%)] [mask-image:linear-gradient(to_right,transparent_0%,transparent_4%,#000_34%,#000_100%)]"
+          />
+
+          <div className="mx-auto w-full max-w-6xl px-4 py-20 lg:py-28">
+            <div className="flex max-w-xl flex-col items-center gap-6 text-center lg:items-start lg:text-left">
               <span className="inline-flex items-center gap-2 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
                 <Sparkles className="size-3.5" />
                 Networking napędzany AI
@@ -143,7 +151,7 @@ export default function Home() {
               <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
                 Wydarzenia, które łączą właściwych ludzi
               </h1>
-              <p className="max-w-2xl text-lg text-muted-foreground text-balance">
+              <p className="text-lg text-muted-foreground text-balance">
                 Rejestracja w 30 sekund bez aplikacji, agenda na żywo i networking
                 z AI, który podpowiada uczestnikom, z kim naprawdę warto
                 porozmawiać — i dlaczego.
@@ -158,20 +166,13 @@ export default function Home() {
                   <a href="#jak-to-dziala">Zobacz, jak to działa</a>
                 </Button>
               </div>
-            </div>
 
-            {/* Prawa kolumna — zdjęcie */}
-            <div className="w-full max-w-lg lg:max-w-none">
-              <Image
-                src="/hero/hero-questy.webp"
-                alt="Uczestniczka wydarzenia korzystająca z Eventro na telefonie podczas networkingu"
-                width={1000}
-                height={1000}
-                preload={true}
-                fetchPriority="high"
-                sizes="(min-width:1024px) 42vw, 90vw"
-                className="w-full max-h-[280px] object-cover object-top lg:max-h-none lg:h-auto"
-                style={featherStyle}
+              {/* Mobile: zdjęcie baner pod CTA (hidden na desktop) */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/hero/hero-home.webp"
+                alt="Uczestnik wydarzenia z telefonem podczas networkingu"
+                className="mt-8 block h-[260px] w-full object-cover object-[60%_center] lg:hidden [-webkit-mask-image:linear-gradient(to_bottom,#000_34%,transparent_97%)] [mask-image:linear-gradient(to_bottom,#000_34%,transparent_97%)]"
               />
             </div>
           </div>
@@ -279,7 +280,7 @@ export default function Home() {
                 height={1000}
                 sizes="(min-width:1024px) 42vw, 90vw"
                 className="w-full max-h-[280px] object-cover object-top lg:max-h-none lg:h-auto"
-                style={featherStyle}
+                style={ctaFeatherStyle}
               />
             </div>
           </div>
