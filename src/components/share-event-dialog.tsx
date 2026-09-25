@@ -22,17 +22,13 @@ interface ShareEventDialogProps {
 export function ShareEventDialog({ url, eventName, slug, disabled }: ShareEventDialogProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open && canvasRef.current) {
-      QRCode.toCanvas(canvasRef.current, url, {
-        width: 240,
-        margin: 2,
-        errorCorrectionLevel: "Q",
-      });
-    }
+    if (!open) return;
+    QRCode.toDataURL(url, { width: 240, margin: 2, errorCorrectionLevel: "Q" })
+      .then(setQrDataUrl);
   }, [open, url]);
 
   async function copyLink() {
@@ -107,9 +103,12 @@ export function ShareEventDialog({ url, eventName, slug, disabled }: ShareEventD
               </Button>
             </div>
             <div className="flex flex-col items-center gap-3">
-              <canvas
-                ref={canvasRef}
-                aria-label={`Kod QR do rejestracji na wydarzenie ${eventName}`}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={qrDataUrl}
+                alt={`Kod QR do rejestracji na wydarzenie ${eventName}`}
+                width={240}
+                height={240}
                 className="rounded-lg border bg-white"
               />
               <Button variant="outline" size="sm" onClick={downloadPng}>
