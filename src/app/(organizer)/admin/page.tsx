@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/logo";
+import { CopyEventLink } from "@/components/copy-event-link";
 
 const STATUS_LABELS: Record<Event["status"], string> = {
   draft: "Szkic",
@@ -95,12 +96,18 @@ export default async function OrganizerAdminPage() {
                         {formatDateRange(event.starts_at, event.ends_at, event.timezone)}
                       </span>
                     </div>
-                    <Badge
-                      variant={STATUS_VARIANTS[event.status]}
-                      className={STATUS_LIVE[event.status] ? "animate-pulse" : undefined}
-                    >
-                      {STATUS_LABELS[event.status]}
-                    </Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge
+                        variant={STATUS_VARIANTS[event.status]}
+                        className={STATUS_LIVE[event.status] ? "animate-pulse" : undefined}
+                      >
+                        {STATUS_LABELS[event.status]}
+                      </Badge>
+                      <CopyEventLink
+                        slug={event.slug}
+                        disabled={event.status === "draft"}
+                      />
+                    </div>
                   </CardContent>
                 </Card>
               </Link>

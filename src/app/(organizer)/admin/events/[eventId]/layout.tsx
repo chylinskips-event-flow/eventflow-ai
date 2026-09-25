@@ -1,10 +1,13 @@
 import { ExternalLink } from "lucide-react";
+import { headers } from "next/headers";
 import { getOwnEvent } from "@/lib/events";
+import { getOrigin } from "@/lib/request-origin";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "../../../actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EventSidebar } from "./event-sidebar";
+import { ShareEventDialog } from "@/components/share-event-dialog";
 
 const STATUS_LABELS: Record<string, string> = {
   draft:     "Szkic",
@@ -31,9 +34,10 @@ export default async function EventLayout({
 }) {
   const { eventId } = await params;
 
-  const [event, supabase] = await Promise.all([
+  const [event, supabase, origin] = await Promise.all([
     getOwnEvent(eventId),
     createClient(),
+    headers().then(getOrigin),
   ]);
 
   const {
@@ -73,16 +77,24 @@ export default async function EventLayout({
             )}
           </div>
           {event?.slug && (
-            <Button asChild variant="outline" size="sm" className="shrink-0">
-              <a
-                href={`/e/${event.slug}?preview=1`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <ExternalLink className="size-4" />
-                Podgląd
-              </a>
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              <ShareEventDialog
+                url={`${origin}/e/${event.slug}`}
+                eventName={event.name ?? ""}
+                slug={event.slug}
+                disabled={event.status === "draft"}
+              />
+              <Button asChild variant="outline" size="sm" className="shrink-0">
+                <a
+                  href={`/e/${event.slug}?preview=1`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="size-4" />
+                  Podgląd
+                </a>
+              </Button>
+            </div>
           )}
         </header>
 
