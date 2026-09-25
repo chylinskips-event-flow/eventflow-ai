@@ -21,9 +21,9 @@ import { Logo } from "@/components/logo";
 // Maska feather wtapiająca krawędzie zdjęcia w tło strony (bg cloud #F7F8FC).
 const featherStyle = {
   maskImage:
-    "radial-gradient(120% 120% at 50% 40%, #000 60%, transparent 100%)",
+    "radial-gradient(78% 82% at 54% 44%, #000 38%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0) 82%)",
   WebkitMaskImage:
-    "radial-gradient(120% 120% at 50% 40%, #000 60%, transparent 100%)",
+    "radial-gradient(78% 82% at 54% 44%, #000 38%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0) 82%)",
 };
 
 // Wariant B jako meta description (SEO) — reszta metadanych (title template,
