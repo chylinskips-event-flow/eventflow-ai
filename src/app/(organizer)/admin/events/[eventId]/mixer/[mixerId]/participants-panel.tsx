@@ -13,8 +13,20 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   addParticipants,
   setParticipantStatus,
+  dropParticipant,
+  undropParticipant,
 } from "../actions";
 import type { MixerParticipant } from "@/lib/mixer/getters";
 
@@ -27,12 +39,13 @@ type Props = {
   allAttendees: AttendeeOption[];
   existingAttendeeIds: string[];
   isLive?: boolean;
+  mixerStatus?: string;
 };
 
 const STATUS_CONFIG = {
-  active:  { label: "Aktywny",    variant: "success"  as const, icon: UserCheck },
-  absent:  { label: "Nieobecny",  variant: "warning"  as const, icon: Clock },
-  dropped: { label: "Usunięty",   variant: "outline"  as const, icon: UserX },
+  active:  { label: "Aktywny",      variant: "success"  as const, icon: UserCheck },
+  absent:  { label: "Nieobecny",    variant: "warning"  as const, icon: Clock },
+  dropped: { label: "Zrezygnował",  variant: "outline"  as const, icon: UserX },
 };
 
 export function ParticipantsPanel({
@@ -42,12 +55,17 @@ export function ParticipantsPanel({
   allAttendees,
   existingAttendeeIds,
   isLive = false,
+  mixerStatus,
 }: Props) {
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isOpen, setIsOpen] = useState(false);
   const [isPending, start] = useTransition();
   const [statusPending, setStatusPending] = useState<string | null>(null);
+  const [dropConfirmId, setDropConfirmId] = useState<string | null>(null);
+
+  // Dozwolone w 'running' i 'generated' — używa dedykowanych akcji drop/undrop
+  const canDrop = mixerStatus === "running" || mixerStatus === "generated";
 
   const activeCount = participants.filter((p) => p.status === "active").length;
 
@@ -91,6 +109,23 @@ export function ParticipantsPanel({
     setStatusPending(participantId);
     start(async () => {
       await setParticipantStatus(participantId, mixerId, eventId, status);
+      setStatusPending(null);
+    });
+  }
+
+  function handleDrop(participantId: string) {
+    setStatusPending(participantId);
+    setDropConfirmId(null);
+    start(async () => {
+      await dropParticipant(eventId, mixerId, participantId);
+      setStatusPending(null);
+    });
+  }
+
+  function handleUndrop(participantId: string) {
+    setStatusPending(participantId);
+    start(async () => {
+      await undropParticipant(eventId, mixerId, participantId);
       setStatusPending(null);
     });
   }
@@ -200,8 +235,9 @@ export function ParticipantsPanel({
               {filtered.map((p) => {
                 const cfg = STATUS_CONFIG[p.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.active;
                 const loading = statusPending === p.id;
+                const isDropped = p.status === "dropped";
                 return (
-                  <tr key={p.id} className="hover:bg-muted/20">
+                  <tr key={p.id} className={isDropped ? "opacity-50" : "hover:bg-muted/20"}>
                     <td className="px-4 py-2.5 font-medium">{p.display_name}</td>
                     <td className="px-4 py-2.5 text-muted-foreground hidden sm:table-cell">
                       {p.company ?? "—"}
@@ -211,7 +247,9 @@ export function ParticipantsPanel({
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex justify-end gap-1">
-                        {p.status !== "active" && (
+                        {/* Istniejące przyciski statusu (ukryte gdy canDrop i uczestnik dropped,
+                            lub gdy stary drop zastąpiony nowym AlertDialog) */}
+                        {p.status !== "active" && !(canDrop && isDropped) && (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -233,7 +271,8 @@ export function ParticipantsPanel({
                             <Clock className="size-3.5" />
                           </Button>
                         )}
-                        {p.status !== "dropped" && (
+                        {/* Stary przycisk drop — ukryty gdy canDrop (zastąpiony AlertDialog) */}
+                        {p.status !== "dropped" && !canDrop && (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -243,6 +282,59 @@ export function ParticipantsPanel({
                             title={isLive ? "Zablokowane w trakcie biegu" : "Usuń z mixera"}
                           >
                             <UserX className="size-3.5" />
+                          </Button>
+                        )}
+
+                        {/* Nowy przycisk „Zrezygnował" z potwierdzeniem — gdy canDrop i nie dropped */}
+                        {canDrop && !isDropped && (
+                          <AlertDialog
+                            open={dropConfirmId === p.id}
+                            onOpenChange={(o) => { if (!o) setDropConfirmId(null); }}
+                          >
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={loading}
+                                onClick={() => setDropConfirmId(p.id)}
+                                className="text-destructive hover:text-destructive"
+                                title="Oznacz jako zrezygnowany"
+                              >
+                                <UserX className="size-3.5" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Oznaczyć jako zrezygnowany?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  {p.display_name} zostanie oznaczony jako zrezygnowany. Nie pojawi się w przeliczonych rundach.
+                                  Możesz przywrócić go przyciskiem „Przywróć".
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel disabled={loading}>Anuluj</AlertDialogCancel>
+                                <Button
+                                  variant="destructive"
+                                  onClick={() => handleDrop(p.id)}
+                                  disabled={loading}
+                                >
+                                  {loading ? "..." : "Zrezygnował"}
+                                </Button>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+
+                        {/* Nowy przycisk „Przywróć" — gdy canDrop i dropped */}
+                        {canDrop && isDropped && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={loading}
+                            onClick={() => handleUndrop(p.id)}
+                            title="Przywróć uczestnika"
+                          >
+                            <UserCheck className="size-3.5" />
                           </Button>
                         )}
                       </div>

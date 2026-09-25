@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronLeft, Wand2, RotateCcw, Play, ChevronRight, Square, Info, ExternalLink, Lock, Unlock } from "lucide-react";
+import { ChevronLeft, Wand2, RotateCcw, Play, ChevronRight, Square, Info, ExternalLink, Lock, Unlock, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { generatePlan, rerollPlan, startMixer, nextRound, resetLive, lockMixer, unlockMixer } from "../actions";
+import { generatePlan, rerollPlan, startMixer, nextRound, resetLive, lockMixer, unlockMixer, recomputeRemaining } from "../actions";
 import { ParticipantsPanel } from "./participants-panel";
 import { ParamsPanel } from "./params-panel";
 import { PlanPanel } from "./plan-panel";
@@ -231,6 +231,8 @@ export function MixerDetail({
   existingAttendeeIds,
 }: Props) {
   const activeCount = participants.filter((p) => p.status === "active").length;
+  const droppedCount = participants.filter((p) => p.status === "dropped").length;
+  const pendingCount = rounds.filter((r) => r.status === "pending").length;
   const isLive = mixer.status === "locked" || mixer.status === "running" || mixer.status === "finished";
 
   const [generateError, setGenerateError] = useState<string | null>(null);
@@ -239,6 +241,11 @@ export function MixerDetail({
   const [isRerolling, startReroll] = useTransition();
   const [isLocking, startLockTransition] = useTransition();
   const [isUnlocking, startUnlockTransition] = useTransition();
+
+  const [recomputeOpen, setRecomputeOpen] = useState(false);
+  const [recomputeError, setRecomputeError] = useState<string | null>(null);
+  const [recomputeActualTableCount, setRecomputeActualTableCount] = useState<number | null>(null);
+  const [isRecomputing, startRecompute] = useTransition();
 
   function handleGenerate() {
     setGenerateError(null);
@@ -254,6 +261,25 @@ export function MixerDetail({
       setRerollOpen(false);
     });
   }
+
+  function handleRecompute() {
+    setRecomputeError(null);
+    setRecomputeActualTableCount(null);
+    startRecompute(async () => {
+      const result = await recomputeRemaining(eventId, mixer.id);
+      setRecomputeOpen(false);
+      if (result.status === "error") {
+        setRecomputeError(result.message ?? "Błąd przeliczenia.");
+      } else if (result.actualTableCount !== undefined && result.actualTableCount !== mixer.table_count) {
+        setRecomputeActualTableCount(result.actualTableCount);
+      }
+    });
+  }
+
+  const showRecomputeButton =
+    (mixer.status === "running" || mixer.status === "generated") &&
+    droppedCount >= 1 &&
+    pendingCount >= 1;
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
@@ -366,6 +392,34 @@ export function MixerDetail({
               </Button>
             )}
 
+            {/* Przelicz pozostałe rundy — widoczny gdy są rezygnacje i rundy pending */}
+            {showRecomputeButton && (
+              <AlertDialog open={recomputeOpen} onOpenChange={(o) => { if (!isRecomputing) setRecomputeOpen(o); }}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <RotateCcw className="size-4" />
+                    Przelicz pozostałe
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Przeliczyć pozostałe rundy?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Rundy zakończone ({rounds.filter((r) => r.status === "done" || r.status === "active").length}) pozostają bez zmian.
+                      Zostaną przeliczone rundy jeszcze nierozegrane ({pendingCount}) dla {activeCount} aktywnych uczestników.
+                      Rezygnacje: {droppedCount}.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isRecomputing}>Anuluj</AlertDialogCancel>
+                    <Button onClick={handleRecompute} disabled={isRecomputing}>
+                      {isRecomputing ? "Przeliczanie..." : "Przelicz"}
+                    </Button>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+
             {/* Live control panel */}
             <LiveControlPanel mixer={mixer} rounds={rounds} eventId={eventId} />
           </div>
@@ -373,6 +427,14 @@ export function MixerDetail({
 
         {generateError && (
           <p className="mt-2 text-sm text-destructive">{generateError}</p>
+        )}
+        {recomputeError && (
+          <p className="mt-2 text-sm text-destructive">{recomputeError}</p>
+        )}
+        {recomputeActualTableCount !== null && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Przeliczono na {recomputeActualTableCount} stolikach (zmniejszono z powodu mniejszej liczby uczestników).
+          </p>
         )}
 
         {/* Baner blokady */}
@@ -392,6 +454,15 @@ export function MixerDetail({
           <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted/60 px-4 py-2.5 text-sm text-muted-foreground">
             <Info className="size-4 shrink-0" />
             Mixer zakończony — edycja jest zablokowana. Użyj „Resetuj" aby wrócić do stanu gotowości.
+          </div>
+        )}
+
+        {/* Baner rezygnacji — pojawia się gdy są dropped i rundy pending */}
+        {showRecomputeButton && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm text-foreground">
+            <AlertTriangle className="size-4 shrink-0 text-warning" />
+            {droppedCount} {droppedCount === 1 ? "uczestnik zrezygnował" : "uczestników zrezygnowało"} —
+            rundy zakończone pozostają bez zmian; przelicz rundy jeszcze nierozegrane ({pendingCount}).
           </div>
         )}
       </div>
@@ -416,6 +487,7 @@ export function MixerDetail({
             allAttendees={allAttendees}
             existingAttendeeIds={existingAttendeeIds}
             isLive={isLive}
+            mixerStatus={mixer.status}
           />
         </TabsContent>
 

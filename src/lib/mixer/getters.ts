@@ -56,6 +56,7 @@ export type MixerParticipant = {
   display_name: string;
   company: string | null;
   status: "active" | "absent" | "dropped";
+  dropped_at: string | null;
   created_at: string;
 };
 

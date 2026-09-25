@@ -369,3 +369,89 @@ export function assign(input: AssignInput): AssignResult {
 
   return { rounds: result, quality };
 }
+
+// ── assignRemaining — przelicza tylko rundy pending po rezygnacjach ─────────
+
+export type AssignRemainingInput = {
+  activeIds: string[];
+  completedRounds: RoundAssignment[];   // done + active rounds — dla seeding met
+  remainingRoundNumbers: number[];
+  tableCount: number;
+  seatMin: number;
+  seatMax: number;
+  seed: number;
+};
+
+export type AssignRemainingResult = {
+  rounds: RoundAssignment[];
+  actualTableCount: number;   // może być mniej niż tableCount po redukcji uczestników
+  quality: QualityReport;     // dla pełnego planu (completedRounds + nowe rundy)
+  infeasible?: string;
+};
+
+export function assignRemaining(input: AssignRemainingInput): AssignRemainingResult {
+  const { activeIds, completedRounds, remainingRoundNumbers, tableCount, seatMin, seatMax, seed } = input;
+  const N = activeIds.length;
+
+  const sizes = computeTableSizes(N, tableCount, seatMin, seatMax);
+  if (!sizes) {
+    const reason = `Za mało aktywnych uczestników (${N}), by przeliczyć pozostałe rundy przy pojemności ${seatMin}–${seatMax} os./stół.`;
+    return {
+      rounds: [],
+      actualTableCount: 0,
+      quality: {
+        feasible: false,
+        infeasibleReason: reason,
+        uniqueMeetingsMin: 0,
+        uniqueMeetingsMed: 0,
+        uniqueMeetingsMax: 0,
+        repeatedPairs: 0,
+        clusterIncidents: 0,
+      },
+      infeasible: reason,
+    };
+  }
+
+  // Mapuj activeIds → indeksy 0..N-1
+  const idxMap = new Map<string, number>();
+  activeIds.forEach((id, i) => idxMap.set(id, i));
+
+  // Zbuduj macierz met z completedRounds (tylko pary, gdzie obaj są aktywni)
+  const met: number[][] = Array.from({ length: N }, () => Array<number>(N).fill(0));
+  for (const ra of completedRounds) {
+    const idxs = ra.participantIds
+      .map((pid) => idxMap.get(pid))
+      .filter((idx): idx is number => idx !== undefined);
+    for (let a = 0; a < idxs.length; a++) {
+      for (let b = a + 1; b < idxs.length; b++) {
+        met[idxs[a]][idxs[b]]++;
+        met[idxs[b]][idxs[a]]++;
+      }
+    }
+  }
+
+  const rng = mulberry32(seed >>> 0);
+  const sortedRoundNumbers = [...remainingRoundNumbers].sort((a, b) => a - b);
+  const newRounds: RoundAssignment[] = [];
+
+  for (const rn of sortedRoundNumbers) {
+    const tables = assignRound(N, sizes, met, rng);
+    updateMet(tables, met);
+    tables.forEach((table, ti) => {
+      newRounds.push({
+        roundNumber: rn,
+        tableNumber: ti + 1,
+        participantIds: table.map((i) => activeIds[i]),
+      });
+    });
+  }
+
+  // Jakość dla pełnego planu (completedRounds + nowe rundy)
+  const quality = computeQuality([...completedRounds, ...newRounds]);
+
+  return {
+    rounds: newRounds,
+    actualTableCount: sizes.length,
+    quality,
+  };
+}

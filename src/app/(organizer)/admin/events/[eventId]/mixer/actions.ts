@@ -3,14 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOwnEvent } from "@/lib/events";
-import { assign, computeQuality } from "@/lib/mixer/assign";
-import type { RoundAssignment } from "@/lib/mixer/assign";
+import { assign, computeQuality, assignRemaining } from "@/lib/mixer/assign";
+import type { RoundAssignment, TableAssignment } from "@/lib/mixer/assign";
 import { assignIcebreakers, nextUnusedQuestion } from "@/lib/mixer/icebreakers";
 import type { MixerRow } from "@/lib/mixer/getters";
 
 export type MixerFormState = {
   status: "idle" | "success" | "error";
   message?: string;
+  /** Zwracane przez recomputeRemaining gdy zmniejszono liczbę stolików */
+  actualTableCount?: number;
 };
 
 function revalidate(eventId: string) {
@@ -771,4 +773,242 @@ export async function resetLive(
 
   revalidateMixer(eventId, mixerId);
   return { status: "success", message: "Mixer zresetowany do stanu gotowości." };
+}
+
+// ── dropParticipant ──────────────────────────────────────────────────────────
+// UWAGA: celowo pomija checkEditable — ta akcja jest dozwolona w stanie 'running'.
+
+export async function dropParticipant(
+  eventId: string,
+  mixerId: string,
+  participantId: string,
+): Promise<MixerFormState> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return { status: "error", message: "Brak dostępu." };
+
+  const supabase = createAdminClient();
+
+  const { data: mixer } = await supabase
+    .from("mixers")
+    .select("status")
+    .eq("id", mixerId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+
+  if (!mixer) return { status: "error", message: "Mixer nie istnieje." };
+  const mixerStatus = (mixer as { status: string }).status;
+  if (!["running", "generated"].includes(mixerStatus)) {
+    return { status: "error", message: "Oznaczenie rezygnacji możliwe tylko w trakcie lub przed startem mixera." };
+  }
+
+  const { error } = await supabase
+    .from("mixer_participants")
+    .update({ status: "dropped", dropped_at: new Date().toISOString() })
+    .eq("id", participantId)
+    .eq("mixer_id", mixerId);
+
+  if (error) return { status: "error", message: "Nie udało się oznaczyć uczestnika." };
+
+  revalidateMixer(eventId, mixerId);
+  return { status: "success" };
+}
+
+// ── undropParticipant ────────────────────────────────────────────────────────
+// UWAGA: celowo pomija checkEditable — ta akcja jest dozwolona w stanie 'running'.
+
+export async function undropParticipant(
+  eventId: string,
+  mixerId: string,
+  participantId: string,
+): Promise<MixerFormState> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return { status: "error", message: "Brak dostępu." };
+
+  const supabase = createAdminClient();
+
+  const { data: mixer } = await supabase
+    .from("mixers")
+    .select("status")
+    .eq("id", mixerId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+
+  if (!mixer) return { status: "error", message: "Mixer nie istnieje." };
+  const mixerStatus = (mixer as { status: string }).status;
+  if (!["running", "generated"].includes(mixerStatus)) {
+    return { status: "error", message: "Przywrócenie uczestnika możliwe tylko w trakcie lub przed startem mixera." };
+  }
+
+  const { error } = await supabase
+    .from("mixer_participants")
+    .update({ status: "active", dropped_at: null })
+    .eq("id", participantId)
+    .eq("mixer_id", mixerId);
+
+  if (error) return { status: "error", message: "Nie udało się przywrócić uczestnika." };
+
+  revalidateMixer(eventId, mixerId);
+  return { status: "success" };
+}
+
+// ── recomputeRemaining ───────────────────────────────────────────────────────
+// UWAGA: celowo pomija checkEditable — ta akcja jest dozwolona w stanie 'running'.
+// ATOMOWOŚĆ: najpierw oblicz, sprawdź infeasible, dopiero potem DELETE+INSERT.
+
+export async function recomputeRemaining(
+  eventId: string,
+  mixerId: string,
+): Promise<MixerFormState> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return { status: "error", message: "Brak dostępu." };
+
+  const supabase = createAdminClient();
+
+  const { data: mixerRaw } = await supabase
+    .from("mixers")
+    .select("*")
+    .eq("id", mixerId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+
+  if (!mixerRaw) return { status: "error", message: "Mixer nie istnieje." };
+  const mixer = mixerRaw as MixerRow;
+  if (!["running", "generated"].includes(mixer.status)) {
+    return { status: "error", message: "Przeliczenie możliwe tylko w trakcie lub przed startem mixera." };
+  }
+
+  // 1. Pobierz rundy
+  const { data: rounds } = await supabase
+    .from("mixer_rounds")
+    .select("*")
+    .eq("mixer_id", mixerId)
+    .order("round_number");
+
+  if (!rounds?.length) return { status: "error", message: "Brak rund do przeliczenia." };
+
+  const pendingRoundNumbers = (rounds as { round_number: number; status: string }[])
+    .filter((r) => r.status === "pending")
+    .map((r) => r.round_number);
+
+  if (pendingRoundNumbers.length === 0) {
+    return { status: "error", message: "Brak rund do przeliczenia — wszystkie rundy są zakończone." };
+  }
+
+  const doneAndActiveRoundNumbers = (rounds as { round_number: number; status: string }[])
+    .filter((r) => r.status === "done" || r.status === "active")
+    .map((r) => r.round_number);
+
+  // 2. Pobierz aktywnych uczestników
+  const { data: participants } = await supabase
+    .from("mixer_participants")
+    .select("id")
+    .eq("mixer_id", mixerId)
+    .eq("status", "active");
+
+  const activeIds = ((participants ?? []) as { id: string }[]).map((p) => p.id);
+
+  // 3. Pobierz przydziały dla rund done+active (dla seeding met)
+  const completedRounds: RoundAssignment[] = [];
+  if (doneAndActiveRoundNumbers.length > 0) {
+    const { data: assignments } = await supabase
+      .from("mixer_assignments")
+      .select("round_number, table_number, participant_id")
+      .eq("mixer_id", mixerId)
+      .in("round_number", doneAndActiveRoundNumbers);
+
+    const grouped = new Map<string, RoundAssignment>();
+    for (const a of (assignments ?? []) as { round_number: number; table_number: number; participant_id: string }[]) {
+      const key = `${a.round_number}-${a.table_number}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, { roundNumber: a.round_number, tableNumber: a.table_number, participantIds: [] });
+      }
+      grouped.get(key)!.participantIds.push(a.participant_id);
+    }
+    completedRounds.push(...grouped.values());
+  }
+
+  // 4. OBLICZ NAJPIERW — sprawdź wykonalność PRZED dotknięciem DB
+  const result = assignRemaining({
+    activeIds,
+    completedRounds,
+    remainingRoundNumbers: pendingRoundNumbers,
+    tableCount: mixer.table_count,
+    seatMin: mixer.seat_min,
+    seatMax: mixer.seat_max,
+    seed: mixer.seed,
+  });
+
+  if (result.infeasible) {
+    return { status: "error", message: result.infeasible };
+  }
+
+  // 5. Bezpiecznie usuwamy przydziały i ice-breakery tylko dla rund pending
+  await supabase
+    .from("mixer_assignments")
+    .delete()
+    .eq("mixer_id", mixerId)
+    .in("round_number", pendingRoundNumbers);
+
+  await supabase
+    .from("mixer_icebreakers")
+    .delete()
+    .eq("mixer_id", mixerId)
+    .in("round_number", pendingRoundNumbers);
+
+  // 6. Wstaw nowe przydziały
+  const allAssignmentRows = result.rounds.flatMap((ra) =>
+    ra.participantIds.map((pid) => ({
+      mixer_id: mixerId,
+      round_number: ra.roundNumber,
+      table_number: ra.tableNumber,
+      participant_id: pid,
+    })),
+  );
+
+  if (allAssignmentRows.length > 0) {
+    const { error: assignErr } = await supabase.from("mixer_assignments").insert(allAssignmentRows);
+    if (assignErr) return { status: "error", message: "Błąd zapisu przydziałów." };
+  }
+
+  // 7. Przypisz ice-breakery dla rund pending
+  // Budujemy TableAssignment[][] w kolejności sortedPending, remapując roundNumbers
+  const sortedPending = [...pendingRoundNumbers].sort((a, b) => a - b);
+  const pendingRoundTableMap = new Map<number, Map<number, string[]>>();
+  for (const ra of result.rounds) {
+    if (!pendingRoundTableMap.has(ra.roundNumber)) {
+      pendingRoundTableMap.set(ra.roundNumber, new Map());
+    }
+    pendingRoundTableMap.get(ra.roundNumber)!.set(ra.tableNumber, ra.participantIds);
+  }
+  const tableAssignmentsForIcebreakers: TableAssignment[][] = sortedPending.map((rn) => {
+    const tableMap = pendingRoundTableMap.get(rn) ?? new Map<number, string[]>();
+    return Array.from(tableMap.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([tableNumber, participantIds]) => ({ tableNumber, participantIds }));
+  });
+
+  const icebreakerAssignments = assignIcebreakers(tableAssignmentsForIcebreakers, mixer.seed);
+  const icebreakerRows = icebreakerAssignments.map((ib) => ({
+    mixer_id: mixerId,
+    round_number: sortedPending[ib.roundNumber - 1], // remap 1-based → rzeczywisty numer rundy
+    table_number: ib.tableNumber,
+    question: ib.question,
+    is_custom: false,
+  }));
+
+  if (icebreakerRows.length > 0) {
+    const { error: ibErr } = await supabase.from("mixer_icebreakers").insert(icebreakerRows);
+    if (ibErr) return { status: "error", message: "Błąd zapisu ice-breakerów." };
+  }
+
+  // 8. Zaktualizuj quality
+  const quality = computeQuality([...completedRounds, ...result.rounds]);
+  await supabase
+    .from("mixers")
+    .update({ quality, updated_at: new Date().toISOString() })
+    .eq("id", mixerId)
+    .eq("event_id", eventId);
+
+  revalidateMixer(eventId, mixerId);
+  return { status: "success", actualTableCount: result.actualTableCount };
 }
