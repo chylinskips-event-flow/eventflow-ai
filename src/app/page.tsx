@@ -120,6 +120,11 @@ export default function Home() {
       {/* Header */}
       <header className="flex items-center justify-between border-b px-4 py-3 sm:px-6">
         <Logo variant="adaptive" />
+        <nav className="hidden items-center gap-6 md:flex">
+          <a href="#dla-kogo" className="text-sm text-muted-foreground transition-colors hover:text-foreground">Dla kogo</a>
+          <a href="#funkcje" className="text-sm text-muted-foreground transition-colors hover:text-foreground">Funkcje</a>
+          <a href="#jak-to-dziala" className="text-sm text-muted-foreground transition-colors hover:text-foreground">Jak to działa</a>
+        </nav>
         <Button asChild variant="outline" size="sm">
           <Link href="/login">Panel organizatora</Link>
         </Button>
@@ -173,7 +178,7 @@ export default function Home() {
         </section>
 
         {/* Trzy grupy odbiorców */}
-        <section className="border-t bg-muted/40">
+        <section id="dla-kogo" className="border-t bg-muted/40">
           <div className="mx-auto grid max-w-5xl gap-6 px-4 py-16 sm:grid-cols-3">
             {groups.map((group) => (
               <div
@@ -191,7 +196,7 @@ export default function Home() {
         </section>
 
         {/* Features grid 6 */}
-        <section className="mx-auto max-w-5xl px-4 py-20">
+        <section id="funkcje" className="mx-auto max-w-5xl px-4 py-20">
           <div className="mx-auto mb-12 max-w-2xl text-center">
             <h2 className="text-3xl font-semibold tracking-tight">
               Wszystko, czego potrzebuje udane wydarzenie
