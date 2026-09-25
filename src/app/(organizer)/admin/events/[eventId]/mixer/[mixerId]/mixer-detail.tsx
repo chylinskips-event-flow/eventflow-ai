@@ -405,7 +405,7 @@ export function MixerDetail({
                   <AlertDialogHeader>
                     <AlertDialogTitle>Przeliczyć pozostałe rundy?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Rundy zakończone ({rounds.filter((r) => r.status === "done" || r.status === "active").length}) pozostają bez zmian.
+                      Zachowane rundy ({rounds.filter((r) => r.status === "done" || r.status === "active").length}) — w toku i zakończone — pozostają bez zmian.
                       Zostaną przeliczone rundy jeszcze nierozegrane ({pendingCount}) dla {activeCount} aktywnych uczestników.
                       Rezygnacje: {droppedCount}.
                     </AlertDialogDescription>
@@ -462,7 +462,7 @@ export function MixerDetail({
           <div className="mt-3 flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm text-foreground">
             <AlertTriangle className="size-4 shrink-0 text-warning" />
             {droppedCount} {droppedCount === 1 ? "uczestnik zrezygnował" : "uczestników zrezygnowało"} —
-            rundy zakończone pozostają bez zmian; przelicz rundy jeszcze nierozegrane ({pendingCount}).
+            rundy w toku i zakończone pozostają bez zmian; przelicz rundy jeszcze nierozegrane ({pendingCount}).
           </div>
         )}
       </div>
