@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRight,
   CalendarClock,
@@ -16,6 +17,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { LegalFooter } from "@/components/legal-footer";
 import { Logo } from "@/components/logo";
+
+// Maska feather wtapiająca krawędzie zdjęcia w tło strony (bg cloud #F7F8FC).
+const featherStyle = {
+  maskImage:
+    "radial-gradient(120% 120% at 50% 40%, #000 60%, transparent 100%)",
+  WebkitMaskImage:
+    "radial-gradient(120% 120% at 50% 40%, #000 60%, transparent 100%)",
+};
 
 // Wariant B jako meta description (SEO) — reszta metadanych (title template,
 // tagline) dziedziczy z root layoutu.
@@ -118,28 +127,48 @@ export default function Home() {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 py-20 text-center sm:py-28">
-          <span className="inline-flex items-center gap-2 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-            <Sparkles className="size-3.5" />
-            Networking napędzany AI
-          </span>
-          <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-            Wydarzenia, które łączą właściwych ludzi
-          </h1>
-          <p className="max-w-2xl text-lg text-muted-foreground text-balance">
-            Rejestracja w 30 sekund bez aplikacji, agenda na żywo i networking
-            z AI, który podpowiada uczestnikom, z kim naprawdę warto
-            porozmawiać — i dlaczego.
-          </p>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button asChild size="lg">
-              <Link href="/login">
-                Załóż wydarzenie <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-            <Button asChild size="lg" variant="outline">
-              <Link href="#jak-to-dziala">Zobacz, jak to działa</Link>
-            </Button>
+        <section className="mx-auto max-w-6xl px-4 py-20 sm:py-28">
+          <div className="flex flex-col items-center gap-10 lg:grid lg:grid-cols-2 lg:items-center lg:gap-16">
+            {/* Lewa kolumna — tekst */}
+            <div className="flex flex-col items-center gap-6 text-center lg:items-start lg:text-left">
+              <span className="inline-flex items-center gap-2 rounded-full border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                <Sparkles className="size-3.5" />
+                Networking napędzany AI
+              </span>
+              <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+                Wydarzenia, które łączą właściwych ludzi
+              </h1>
+              <p className="max-w-2xl text-lg text-muted-foreground text-balance">
+                Rejestracja w 30 sekund bez aplikacji, agenda na żywo i networking
+                z AI, który podpowiada uczestnikom, z kim naprawdę warto
+                porozmawiać — i dlaczego.
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button asChild size="lg">
+                  <Link href="/login">
+                    Załóż wydarzenie <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+                <Button asChild size="lg" variant="outline">
+                  <Link href="#jak-to-dziala">Zobacz, jak to działa</Link>
+                </Button>
+              </div>
+            </div>
+
+            {/* Prawa kolumna — zdjęcie */}
+            <div className="w-full max-w-lg lg:max-w-none">
+              <Image
+                src="/hero/hero-questy.webp"
+                alt="Uczestniczka wydarzenia korzystająca z Eventro na telefonie podczas networkingu"
+                width={1000}
+                height={1000}
+                preload={true}
+                fetchPriority="high"
+                sizes="(min-width:1024px) 42vw, 90vw"
+                className="w-full max-h-[280px] object-cover object-top lg:max-h-none lg:h-auto"
+                style={featherStyle}
+              />
+            </div>
           </div>
         </section>
 
@@ -217,20 +246,38 @@ export default function Home() {
         </section>
 
         {/* CTA końcowe */}
-        <section className="mx-auto max-w-3xl px-4 py-24 text-center">
-          <CalendarClock className="mx-auto mb-6 size-10 text-primary" />
-          <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            Gotowy na wydarzenie, które łączy ludzi?
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-            Uruchom rejestrację i networking z AI już dziś — bez wdrożeń, bez
-            aplikacji dla uczestników.
-          </p>
-          <Button asChild size="lg" className="mt-8">
-            <Link href="/login">
-              Załóż wydarzenie <ArrowRight className="size-4" />
-            </Link>
-          </Button>
+        <section className="mx-auto max-w-6xl px-4 py-24">
+          <div className="flex flex-col items-center gap-10 text-center lg:grid lg:grid-cols-2 lg:items-center lg:gap-16 lg:text-left">
+            {/* Tekst + przycisk */}
+            <div className="flex flex-col items-center gap-6 lg:items-start">
+              <CalendarClock className="size-10 text-primary" />
+              <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+                Gotowy na wydarzenie, które łączy ludzi?
+              </h2>
+              <p className="max-w-xl text-muted-foreground">
+                Uruchom rejestrację i networking z AI już dziś — bez wdrożeń, bez
+                aplikacji dla uczestników.
+              </p>
+              <Button asChild size="lg">
+                <Link href="/login">
+                  Załóż wydarzenie <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            </div>
+
+            {/* Zdjęcie */}
+            <div className="w-full max-w-lg lg:max-w-none">
+              <Image
+                src="/hero/hero-nagrody.webp"
+                alt="Uczestniczka wydarzenia świętująca z pucharem — owacje na sali"
+                width={1000}
+                height={1000}
+                sizes="(min-width:1024px) 42vw, 90vw"
+                className="w-full max-h-[280px] object-cover object-top lg:max-h-none lg:h-auto"
+                style={featherStyle}
+              />
+            </div>
+          </div>
         </section>
       </main>
 
