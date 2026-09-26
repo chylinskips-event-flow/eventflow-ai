@@ -2,9 +2,9 @@ import QRCode from "qrcode";
 import { Resend } from "resend";
 import type { Event } from "@/lib/events";
 import { getTemplate, applyVariables } from "@/lib/message-templates";
-import { BRAND_NAME_SHORT } from "@/lib/brand";
+import { getFromAddress } from "@/lib/email/config";
 
-const FROM_ADDRESS = process.env.RESEND_FROM ?? `${BRAND_NAME_SHORT} <onboarding@resend.dev>`;
+const REPLY_TO = "kontakt@eventro.pl";
 
 export async function sendAttendeeConfirmationEmail(params: {
   to: string;
@@ -36,7 +36,8 @@ export async function sendAttendeeConfirmationEmail(params: {
 
   const resend = new Resend(apiKey);
   const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
+    from: getFromAddress(),
+    replyTo: REPLY_TO,
     to,
     subject,
     html,
@@ -69,7 +70,8 @@ export async function sendAttendeePendingApprovalEmail(params: {
 
   const resend = new Resend(apiKey);
   const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
+    from: getFromAddress(),
+    replyTo: REPLY_TO,
     to,
     subject,
     html,
@@ -95,7 +97,8 @@ export async function sendAttendeeRejectedEmail(params: {
 
   const resend = new Resend(apiKey);
   const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
+    from: getFromAddress(),
+    replyTo: REPLY_TO,
     to,
     subject,
     html,

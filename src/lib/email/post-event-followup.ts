@@ -1,9 +1,8 @@
 import { Resend } from "resend";
 import type { FollowupContact } from "@/lib/contact-requests";
-import { BRAND_NAME_SHORT } from "@/lib/brand";
+import { getFromAddress } from "@/lib/email/config";
 
-// Ten sam adres nadawcy co pozostałe maile (sandbox Resend onboarding@resend.dev).
-const FROM_ADDRESS = `${BRAND_NAME_SHORT} <onboarding@resend.dev>`;
+const REPLY_TO = "kontakt@eventro.pl";
 
 function escapeHtml(value: string): string {
   return value
@@ -89,7 +88,8 @@ export async function sendPostEventFollowupEmail(params: {
 
   const resend = new Resend(apiKey);
   const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
+    from: getFromAddress(),
+    replyTo: REPLY_TO,
     to,
     subject: `Twoje kontakty z ${eventName}`,
     html: buildHtml(firstName, eventName, contacts),
