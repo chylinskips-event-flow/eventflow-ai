@@ -31,22 +31,22 @@ export default async function StaffReceptionPage({
   const undoCheckIn = staffUndoCheckIn.bind(null, token);
 
   return (
-    <main className="mx-auto max-w-2xl p-4 pb-8">
-      <div className="mb-4">
+    <main>
+      {/* Nagłówek eventu — widoczny tylko przed scrollem */}
+      <div className="px-4 pt-4 pb-2">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Recepcja
         </p>
         <h1 className="text-lg font-semibold leading-tight">{event.name}</h1>
       </div>
 
-      <div className="flex flex-col gap-4">
-        <ReceptionPanel
-          attendees={attendees}
-          checkInByQrAction={checkInByQr}
-          checkInByIdAction={checkInById}
-          undoCheckInAction={undoCheckIn}
-        />
-      </div>
+      <ReceptionPanel
+        attendees={attendees}
+        checkInByQrAction={checkInByQr}
+        checkInByIdAction={checkInById}
+        undoCheckInAction={undoCheckIn}
+        stickyTopClass="top-0"
+      />
     </main>
   );
 }

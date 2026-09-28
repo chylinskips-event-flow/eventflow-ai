@@ -31,26 +31,21 @@ export default async function ReceptionPage({
   const undoCheckIn = organizerUndoCheckIn.bind(null, eventId);
 
   return (
-    <div className="mx-auto max-w-2xl p-4 md:p-6">
-      <h1 className="mb-6 text-xl font-semibold">Recepcja</h1>
-
-      <div className="flex flex-col gap-4">
-        <ReceptionPanel
-          attendees={attendees}
-          checkInByQrAction={checkInByQr}
-          checkInByIdAction={checkInById}
-          undoCheckInAction={undoCheckIn}
-        />
-
-        <hr className="my-2" />
-
+    <ReceptionPanel
+      attendees={attendees}
+      checkInByQrAction={checkInByQr}
+      checkInByIdAction={checkInById}
+      undoCheckInAction={undoCheckIn}
+      stickyTopClass="top-14"
+      receptionLinkSlot={
         <ReceptionTokenSection
+          compact
           eventId={eventId}
           receptionToken={event.reception_token}
           eventSlug={event.slug}
           origin={origin}
         />
-      </div>
-    </div>
+      }
+    />
   );
 }
