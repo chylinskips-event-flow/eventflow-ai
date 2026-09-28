@@ -24,6 +24,8 @@ export type Attendee = {
   qr_code_token: string;
   contact_code: string;
   checked_in_at: string | null;
+  checked_in_by: string | null;
+  check_in_token: string;
   matches_generated_at: string | null;
   created_at: string;
   updated_at: string;

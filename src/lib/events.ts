@@ -30,6 +30,7 @@ export type Event = {
   followup_sent_at: string | null;
   gamification_enabled: boolean;
   lottery_points_per_ticket: number | null;
+  reception_token: string | null;
   created_at: string;
   updated_at: string;
 };

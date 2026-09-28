@@ -92,7 +92,7 @@ export async function registerAttendee(
       marketing_consent: marketingConsent === "on",
       status: event.requires_approval ? "pending" : "approved",
     })
-    .select("qr_code_token")
+    .select("qr_code_token, check_in_token")
     .single();
 
   if (error || !attendee) {
@@ -117,6 +117,7 @@ export async function registerAttendee(
         firstName: trimmedFirstName,
         event,
         qrCodeToken: attendee.qr_code_token,
+        checkInToken: attendee.check_in_token,
         origin,
       });
     }

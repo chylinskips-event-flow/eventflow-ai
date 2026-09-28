@@ -32,7 +32,7 @@ export async function approveAttendee(
     .update({ status: "approved" })
     .eq("id", attendeeId)
     .eq("event_id", eventId)
-    .select("email, first_name, qr_code_token")
+    .select("email, first_name, qr_code_token, check_in_token")
     .single();
 
   if (error || !attendee) {
@@ -51,6 +51,7 @@ export async function approveAttendee(
         firstName: attendee.first_name ?? "",
         event,
         qrCodeToken: attendee.qr_code_token,
+        checkInToken: attendee.check_in_token,
         origin,
         templateType: "registration_approved",
       });

@@ -11,6 +11,7 @@ export async function sendAttendeeConfirmationEmail(params: {
   firstName: string;
   event: Event;
   qrCodeToken: string;
+  checkInToken?: string;
   origin: string;
   templateType?: "registration_confirmed" | "registration_approved";
 }) {
@@ -19,6 +20,7 @@ export async function sendAttendeeConfirmationEmail(params: {
     firstName,
     event,
     qrCodeToken,
+    checkInToken,
     origin,
     templateType = "registration_confirmed",
   } = params;
@@ -27,7 +29,12 @@ export async function sendAttendeeConfirmationEmail(params: {
   if (!apiKey) throw new Error("RESEND_API_KEY is not configured");
 
   const accessUrl = `${origin}/e/${event.slug}/a/${qrCodeToken}`;
-  const qrPngBuffer = await QRCode.toBuffer(accessUrl, { type: "png", width: 400 });
+  const [qrPngBuffer, checkInQrPngBuffer] = await Promise.all([
+    QRCode.toBuffer(accessUrl, { type: "png", width: 400 }),
+    checkInToken
+      ? QRCode.toBuffer(checkInToken, { type: "png", width: 400 })
+      : null,
+  ]);
 
   const template = await getTemplate(event.id, templateType);
   const vars = { imię: firstName, nazwa_eventu: event.name, "link_dostępu": accessUrl };
@@ -42,11 +49,10 @@ export async function sendAttendeeConfirmationEmail(params: {
     subject,
     html,
     attachments: [
-      {
-        filename: "qr-code.png",
-        content: qrPngBuffer,
-        contentId: "qr-code",
-      },
+      { filename: "qr-dostep.png", content: qrPngBuffer, contentId: "qr-dostep" },
+      ...(checkInQrPngBuffer
+        ? [{ filename: "qr-wejscie.png", content: checkInQrPngBuffer, contentId: "qr-wejscie" }]
+        : []),
     ],
   });
 

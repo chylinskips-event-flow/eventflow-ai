@@ -35,6 +35,7 @@ import { SpeakerList } from "./speaker-list";
 import { ContentSections } from "./content-sections";
 import { LiveNow } from "./live-now";
 import { ContactQr } from "./contact-qr";
+import { CheckinQr } from "@/components/checkin-qr";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -190,6 +191,24 @@ export default async function ParticipantEventPage({
 
     const roleInfo = [attendee.job_title, attendee.company].filter(Boolean).join(" · ");
 
+    const checkinCard = (
+      <Card>
+        <CardContent className="flex items-center gap-4 px-4 py-4">
+          <CheckinQr
+            checkInToken={attendee.check_in_token}
+            size={96}
+            className="shrink-0 rounded-lg border bg-white p-1"
+          />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-semibold">Kod wejścia</span>
+            <span className="text-xs text-muted-foreground">
+              Pokaż przy wejściu na wydarzenie
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+
     const businessCard = (
       <Card>
         <CardContent className="flex items-start justify-between gap-3 px-4 py-4">
@@ -308,6 +327,7 @@ export default async function ParticipantEventPage({
             </p>
           </div>
           {businessCard}
+          {checkinCard}
           {gamificationBar}
           <LiveNow
             slug={slug}
@@ -331,6 +351,7 @@ export default async function ParticipantEventPage({
           </p>
         </div>
         {businessCard}
+        {checkinCard}
         {gamificationBar}
         <Card>
           <CardContent className="py-6">
