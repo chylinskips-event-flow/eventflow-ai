@@ -129,7 +129,7 @@ export async function registerAttendee(
     httpOnly: false,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: `/e/${slug}`,
+    path: "/",
     maxAge: ATTENDEE_TOKEN_MAX_AGE_SECONDS,
   });
 

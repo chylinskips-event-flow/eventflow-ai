@@ -2,6 +2,7 @@ import { ExternalLink } from "lucide-react";
 import { headers } from "next/headers";
 import { getOwnEvent } from "@/lib/events";
 import { getOrigin } from "@/lib/request-origin";
+import { buildEventUrl } from "@/lib/event-url";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "../../../actions";
 import { Button } from "@/components/ui/button";
@@ -79,7 +80,7 @@ export default async function EventLayout({
           {event?.slug && (
             <div className="flex shrink-0 items-center gap-2">
               <ShareEventDialog
-                url={`${origin}/e/${event.slug}`}
+                url={buildEventUrl(event.slug, origin)}
                 eventName={event.name ?? ""}
                 slug={event.slug}
                 disabled={event.status === "draft"}

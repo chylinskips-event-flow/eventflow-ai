@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { buildEventUrl } from "@/lib/event-url";
 
 interface CopyEventLinkProps {
   slug: string;
@@ -16,7 +17,7 @@ export function CopyEventLink({ slug, disabled }: CopyEventLinkProps) {
     e.preventDefault();
     e.stopPropagation();
     if (disabled) return;
-    const url = `${window.location.origin}/e/${slug}`;
+    const url = buildEventUrl(slug, window.location.origin);
     try {
       await navigator.clipboard.writeText(url);
     } catch {
