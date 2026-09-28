@@ -29,15 +29,25 @@ export async function middleware(request: NextRequest) {
       if (!RESERVED.has(sub)) {
         const rewriteUrl = request.nextUrl.clone();
         // "/" → "/e/{sub}", "/register" → "/e/{sub}/register", itd.
+        // search (query string) jest zachowany przez clone() — pathname nie go nie dotyka.
         rewriteUrl.pathname = `/e/${sub}${pathname === "/" ? "" : pathname}`;
 
         // Przekazujemy nagłówek loop-guard do przepisanego żądania.
         const forwardHeaders = new Headers(request.headers);
         forwardHeaders.set("x-mw-rewritten", "1");
 
-        return NextResponse.rewrite(rewriteUrl, {
+        const rewriteResponse = NextResponse.rewrite(rewriteUrl, {
           request: { headers: forwardHeaders },
         });
+
+        // Propaguj cookies z updateSession (np. odświeżony Supabase session token)
+        // na odpowiedź rewrite — inaczej byłyby zgubione, bo to osobna Response.
+        const sessionResponse = await updateSession(request);
+        sessionResponse.headers.getSetCookie().forEach((setCookie) => {
+          rewriteResponse.headers.append("Set-Cookie", setCookie);
+        });
+
+        return rewriteResponse;
       }
     }
   }
