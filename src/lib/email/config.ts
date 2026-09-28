@@ -5,7 +5,7 @@ const DEV_FALLBACK = `${BRAND_NAME_SHORT} <onboarding@resend.dev>`;
 export function getFromAddress(): string {
   const configured = process.env.RESEND_FROM;
   if (configured) return configured;
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.VERCEL_ENV === "production") {
     throw new Error(
       "[email] RESEND_FROM is not configured — set it in environment variables"
     );

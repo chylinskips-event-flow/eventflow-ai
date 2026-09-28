@@ -31,7 +31,12 @@ export async function signInWithMagicLink(
   });
 
   if (error) {
-    return { status: "error", message: error.message };
+    return {
+      status: "error",
+      message:
+        (typeof error.message === "string" && error.message) ||
+        "Nie udało się wysłać linku logowania. Spróbuj ponownie.",
+    };
   }
 
   return { status: "sent" };
