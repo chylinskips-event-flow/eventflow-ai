@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import React from "react";
 import {
   Document,
@@ -11,18 +13,18 @@ import {
 import type { Attendee } from "@/lib/attendees";
 import type { Event } from "@/lib/events";
 
-// Roboto WOFF1 from Google Fonts — includes Latin Extended (Polish characters).
+function fontSrc(filename: string): string {
+  // Read locally so Vercel never fetches from an external CDN at render time.
+  const buf = fs.readFileSync(path.join(process.cwd(), "public/fonts", filename));
+  return `data:font/woff;base64,${buf.toString("base64")}`;
+}
+
+// Full (non-subset) Roboto WOFF1 — covers Polish characters, loaded from disk.
 Font.register({
   family: "Roboto",
   fonts: [
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff",
-      fontWeight: 400,
-    },
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc4.woff",
-      fontWeight: 700,
-    },
+    { src: fontSrc("Roboto-Regular.woff"), fontWeight: 400 },
+    { src: fontSrc("Roboto-Bold.woff"), fontWeight: 700 },
   ],
 });
 

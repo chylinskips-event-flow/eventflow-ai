@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import { NextRequest } from "next/server";
 import React from "react";
 import { renderToBuffer } from "@react-pdf/renderer";
