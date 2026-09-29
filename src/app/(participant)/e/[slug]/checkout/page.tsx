@@ -59,7 +59,7 @@ export default async function CheckoutPage({
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 py-8 sm:px-8">
       <div className="flex w-full max-w-2xl flex-col gap-2">
         <Badge variant="secondary" className="w-fit">
           {ticket.price === 0 ? "REJESTRACJA — BILET BEZPLATNY" : "KUP BILET"}

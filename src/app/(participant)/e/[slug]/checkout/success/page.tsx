@@ -16,7 +16,7 @@ export default async function CheckoutSuccessPage({
   const emailDecoded = email ? decodeURIComponent(email) : null;
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-8 sm:px-8">
       <div className="flex flex-col items-center gap-3 text-center">
         <CheckCircle2 className="size-16 text-green-500" />
         <h1 className="text-2xl font-bold">

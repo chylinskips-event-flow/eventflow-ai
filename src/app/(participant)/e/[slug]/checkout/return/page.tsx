@@ -16,7 +16,7 @@ export default async function CheckoutReturnPage({
 
   if (!sessionId) {
     return (
-      <main className="flex min-h-screen items-center justify-center p-4">
+      <main className="flex min-h-screen items-center justify-center px-4 sm:px-8">
         <Card className="w-full max-w-sm">
           <CardHeader>
             <CardTitle>Nieprawidlowe zamowienie</CardTitle>
@@ -44,7 +44,7 @@ export default async function CheckoutReturnPage({
     const firstName = order!.buyer_name.split(" ")[0];
     const email = order!.buyer_email;
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
+      <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-8 sm:px-8">
         <div className="flex flex-col items-center gap-3 text-center">
           <CheckCircle2 className="size-16 text-green-500" />
           <h1 className="text-2xl font-bold">Platnosc potwierdzona!</h1>
@@ -62,7 +62,7 @@ export default async function CheckoutReturnPage({
 
   if (status === "failed" || status === "cancelled") {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
+      <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-8 sm:px-8">
         <div className="flex flex-col items-center gap-3 text-center">
           <XCircle className="size-16 text-destructive" />
           <h1 className="text-2xl font-bold">Platnosc nieudana</h1>
@@ -80,7 +80,7 @@ export default async function CheckoutReturnPage({
 
   // pending or unknown — webhook not yet received
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-8 sm:px-8">
       <div className="flex flex-col items-center gap-3 text-center">
         <Clock className="size-16 text-amber-500" />
         <h1 className="text-2xl font-bold">Przetwarzamy platnosc</h1>

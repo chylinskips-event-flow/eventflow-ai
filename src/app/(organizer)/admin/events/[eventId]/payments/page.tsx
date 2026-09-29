@@ -16,7 +16,7 @@ export default async function PaymentsPage({
   const existing = await getPaymentConfigMasked(eventId);
 
   return (
-    <div className="space-y-6">
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
       <div>
         <h2 className="text-xl font-semibold">Platnosci (Przelewy24)</h2>
         <p className="text-sm text-muted-foreground">
@@ -38,6 +38,6 @@ export default async function PaymentsPage({
       </div>
 
       <PaymentsForm eventId={eventId} existing={existing} />
-    </div>
+    </main>
   );
 }

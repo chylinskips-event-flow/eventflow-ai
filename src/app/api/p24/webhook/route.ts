@@ -114,9 +114,33 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     orderId,
     amount,
   });
-  if (!verifyResult.ok) {
-    console.error("P24 verify failed:", verifyResult.error);
-    return NextResponse.json({ error: "Verification failed" }, { status: 500 });
+
+  // P24 can call urlStatus for failed/cancelled payments too.
+  // If verify fails → mark order cancelled and release the reserved pool.
+  if (!verifyResult.ok || verifyResult.data.status !== "success") {
+    const { data: cancelled } = await supabase
+      .from("orders")
+      .update({ status: "cancelled", p24_order_id: String(orderId) })
+      .eq("id", order.id)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
+
+    if (cancelled) {
+      // Release quantity for each order item
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("ticket_type_id, quantity")
+        .eq("order_id", order.id);
+      for (const item of items ?? []) {
+        await supabase.rpc("unreserve_ticket_quantity", {
+          p_ticket_type_id: item.ticket_type_id,
+          p_quantity: item.quantity,
+        });
+      }
+    }
+
+    return NextResponse.json({ responseCode: 0 });
   }
 
   // 8. Idempotent fulfillment: atomically mark order paid only if still pending
