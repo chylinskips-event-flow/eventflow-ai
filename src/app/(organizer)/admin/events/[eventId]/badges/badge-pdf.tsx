@@ -28,6 +28,21 @@ Font.register({
   ],
 });
 
+// Returns WCAG relative luminance for a #rrggbb hex string.
+function luminance(hex: string): number {
+  const c = hex.replace("#", "");
+  const lin = (x: number) => (x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4));
+  const r = lin(parseInt(c.slice(0, 2), 16) / 255);
+  const g = lin(parseInt(c.slice(2, 4), 16) / 255);
+  const b = lin(parseInt(c.slice(4, 6), 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// True when the accent is light enough that white text would be unreadable.
+function isLight(hex: string): boolean {
+  try { return luminance(hex) > 0.35; } catch { return false; }
+}
+
 // Deterministic avatar background color from attendee id.
 const AVATAR_COLORS = [
   "#4f46e5", "#0891b2", "#059669", "#d97706",
@@ -221,6 +236,7 @@ export function BadgesPdf({
   qrDataUrls,
 }: BadgesPdfProps) {
   const accent = event.primary_color ?? "#1a1a2e";
+  const headerTextColor = isLight(accent) ? "#111111" : "#ffffff";
   const title = customTitle ?? event.name;
   const hasBg = Boolean(event.badge_bg_url);
 
@@ -253,7 +269,16 @@ export function BadgesPdf({
                   <Image src={event.logo_url} style={S.logo} />
                 ) : null}
                 <View style={S.headerText}>
-                  <Text style={S.eventName}>{title}</Text>
+                  <Text
+                    style={[
+                      S.eventName,
+                      // Overlay header has dark scrim — keep white.
+                      // Default header: adapt text color to accent luminance.
+                      hasBg ? undefined : { color: headerTextColor },
+                    ]}
+                  >
+                    {title}
+                  </Text>
                 </View>
               </View>
 
