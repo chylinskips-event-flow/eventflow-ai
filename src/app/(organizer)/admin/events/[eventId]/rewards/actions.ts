@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOwnEvent } from "@/lib/events";
 import { validateImageFile, MB } from "@/lib/upload-validation";
+import type { CheckInResult } from "@/lib/reception";
 
 export type RewardFormState = {
   status: "idle" | "success" | "error";
@@ -251,4 +252,106 @@ export async function redeemReward(
 
   revalidate(eventId);
   return { status: "success", message: "Nagroda wydana." };
+}
+
+// ---------------------------------------------------------------------------
+// Issue reward by QR / check_in_token — returns CheckInResult for QrScanner
+// ---------------------------------------------------------------------------
+
+export async function issueRewardByToken(
+  eventId: string,
+  rewardId: string,
+  checkInToken: string,
+): Promise<CheckInResult> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return { ok: false, error: "not_found" };
+
+  const supabase = createAdminClient();
+
+  // Lookup attendee by check_in_token scoped to this event
+  const { data: attendee } = await supabase
+    .from("attendees")
+    .select("id, first_name, last_name, points, status")
+    .eq("event_id", eventId)
+    .eq("check_in_token", checkInToken)
+    .maybeSingle<{
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+      points: number;
+      status: string;
+    }>();
+
+  if (!attendee) return { ok: false, error: "not_found" };
+  if (attendee.status !== "approved") return { ok: false, error: "not_found" };
+
+  // Fetch reward (validate belongs to this event)
+  const { data: reward } = await supabase
+    .from("rewards")
+    .select("id, name, stock, points_required")
+    .eq("id", rewardId)
+    .eq("event_id", eventId)
+    .maybeSingle<{ id: string; name: string; stock: number | null; points_required: number }>();
+
+  if (!reward) return { ok: false, error: "not_found" };
+
+  const attendeeName =
+    [attendee.first_name, attendee.last_name].filter(Boolean).join(" ") || "Uczestnik";
+  const displayName = `${reward.name} → ${attendeeName}`;
+
+  // Points check
+  if (attendee.points < reward.points_required) return { ok: false, error: "not_approved" };
+
+  // Stock check
+  if (reward.stock !== null && reward.stock <= 0) return { ok: false, error: "not_approved" };
+
+  // Decrement stock atomically (race-safe)
+  let stockDecremented = false;
+  if (reward.stock !== null) {
+    const { data: decremented } = await supabase
+      .from("rewards")
+      .update({ stock: reward.stock - 1 })
+      .eq("id", rewardId)
+      .eq("event_id", eventId)
+      .gt("stock", 0)
+      .select("id");
+    if (!decremented || (decremented as unknown[]).length === 0)
+      return { ok: false, error: "not_approved" };
+    stockDecremented = true;
+  }
+
+  // Insert redemption — PK (reward_id, attendee_id) guards against duplicate
+  const { error: insertError } = await supabase
+    .from("reward_redemptions")
+    .insert({ reward_id: rewardId, attendee_id: attendee.id });
+
+  if (insertError) {
+    // Rollback stock on failure
+    if (stockDecremented) {
+      await supabase
+        .from("rewards")
+        .update({ stock: reward.stock! + 1 })
+        .eq("id", rewardId)
+        .eq("event_id", eventId);
+    }
+    if (insertError.code === "23505") {
+      // Already redeemed — fetch timestamp for amber feedback
+      const { data: existing } = await supabase
+        .from("reward_redemptions")
+        .select("redeemed_at")
+        .eq("reward_id", rewardId)
+        .eq("attendee_id", attendee.id)
+        .maybeSingle<{ redeemed_at: string }>();
+      return {
+        ok: true,
+        name: displayName,
+        alreadyCheckedIn: true,
+        checkedInAt: existing?.redeemed_at ?? new Date().toISOString(),
+      };
+    }
+    return { ok: false, error: "not_approved" };
+  }
+
+  revalidate(eventId);
+  return { ok: true, name: displayName, alreadyCheckedIn: false };
 }

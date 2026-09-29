@@ -17,9 +17,13 @@ type ScanFeedback =
 interface QrScannerProps {
   onScan: (checkInToken: string) => Promise<CheckInResult>;
   onClose: () => void;
+  title?: string;
+  successLabel?: string;
+  alreadyLabel?: string;
+  notApprovedLabel?: string;
 }
 
-export function QrScanner({ onScan, onClose }: QrScannerProps) {
+export function QrScanner({ onScan, onClose, title, successLabel, alreadyLabel, notApprovedLabel }: QrScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -137,7 +141,7 @@ export function QrScanner({ onScan, onClose }: QrScannerProps) {
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-3">
-        <span className="text-sm font-medium text-white">Skaner QR</span>
+        <span className="text-sm font-medium text-white">{title ?? "Skaner QR"}</span>
         <Button
           variant="ghost"
           size="icon"
@@ -168,13 +172,28 @@ export function QrScanner({ onScan, onClose }: QrScannerProps) {
 
       {/* Feedback bar */}
       <div className="min-h-[72px] px-4 py-3">
-        <FeedbackBar feedback={feedback} />
+        <FeedbackBar
+          feedback={feedback}
+          successLabel={successLabel}
+          alreadyLabel={alreadyLabel}
+          notApprovedLabel={notApprovedLabel}
+        />
       </div>
     </div>
   );
 }
 
-function FeedbackBar({ feedback }: { feedback: ScanFeedback }) {
+function FeedbackBar({
+  feedback,
+  successLabel,
+  alreadyLabel,
+  notApprovedLabel,
+}: {
+  feedback: ScanFeedback;
+  successLabel?: string;
+  alreadyLabel?: string;
+  notApprovedLabel?: string;
+}) {
   switch (feedback.type) {
     case "idle":
       return (
@@ -194,7 +213,7 @@ function FeedbackBar({ feedback }: { feedback: ScanFeedback }) {
       return (
         <div className="flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-white">
           <CheckCircle2 className="size-5 shrink-0" />
-          <span className="text-sm font-medium">Zameldowano: {feedback.name}</span>
+          <span className="text-sm font-medium">{successLabel ?? "Zameldowano"}: {feedback.name}</span>
         </div>
       );
     case "already":
@@ -202,7 +221,7 @@ function FeedbackBar({ feedback }: { feedback: ScanFeedback }) {
         <div className="flex items-center gap-2 rounded-lg bg-amber-500 px-3 py-2 text-white">
           <Info className="size-5 shrink-0" />
           <span className="text-sm font-medium">
-            Już zameldowany: {feedback.name}
+            {alreadyLabel ?? "Już zameldowany"}: {feedback.name}
             {feedback.checkedInAt && (
               <> ({new Date(feedback.checkedInAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })})</>
             )}
@@ -220,7 +239,7 @@ function FeedbackBar({ feedback }: { feedback: ScanFeedback }) {
       return (
         <div className="flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-white">
           <AlertCircle className="size-5 shrink-0" />
-          <span className="text-sm font-medium">Uczestnik nie jest zatwierdzony</span>
+          <span className="text-sm font-medium">{notApprovedLabel ?? "Uczestnik nie jest zatwierdzony"}</span>
         </div>
       );
     case "camera_error":
