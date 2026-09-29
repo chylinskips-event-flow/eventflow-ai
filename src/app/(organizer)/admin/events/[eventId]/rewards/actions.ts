@@ -263,17 +263,23 @@ export async function issueRewardByToken(
   rewardId: string,
   checkInToken: string,
 ): Promise<CheckInResult> {
+  const token = checkInToken.trim();
+
   const event = await getOwnEvent(eventId);
-  if (!event) return { ok: false, error: "not_found" };
+  // TODO(debug): remove after diagnosing scan bug
+  if (!event) {
+    console.error("[issueRewardByToken] getOwnEvent returned null", { eventId });
+    return { ok: false, error: "not_found" };
+  }
 
   const supabase = createAdminClient();
 
   // Lookup attendee by check_in_token scoped to this event
-  const { data: attendee } = await supabase
+  const { data: attendee, error: attendeeError } = await supabase
     .from("attendees")
     .select("id, first_name, last_name, points, status")
     .eq("event_id", eventId)
-    .eq("check_in_token", checkInToken)
+    .eq("check_in_token", token)
     .maybeSingle<{
       id: string;
       first_name: string | null;
@@ -281,6 +287,18 @@ export async function issueRewardByToken(
       points: number;
       status: string;
     }>();
+
+  // TODO(debug): remove after diagnosing scan bug
+  console.error("[issueRewardByToken] scan lookup", {
+    eventId,
+    rewardId,
+    tokenRaw: JSON.stringify(checkInToken),
+    tokenTrimmed: JSON.stringify(token),
+    tokenLength: token.length,
+    attendeeFound: !!attendee,
+    attendeeStatus: attendee?.status ?? null,
+    dbError: attendeeError?.message ?? null,
+  });
 
   if (!attendee) return { ok: false, error: "not_found" };
   if (attendee.status !== "approved") return { ok: false, error: "not_found" };
