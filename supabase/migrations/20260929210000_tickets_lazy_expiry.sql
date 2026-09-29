@@ -81,7 +81,7 @@ RETURNS TABLE (
   quantity_sold           int,
   sales_start             timestamptz,
   sales_end               timestamptz,
-  position                int,
+  "position"              int,
   enabled                 boolean,
   created_at              timestamptz,
   updated_at              timestamptz,
