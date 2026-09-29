@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ArrowLeft, ListTodo } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { computeLevel, LEVEL_LABELS } from "@/lib/gamification";
 import type { GamificationLevel } from "@/lib/gamification";
@@ -33,12 +36,14 @@ export default async function RankingPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const origin = getOrigin(await headers());
+  const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
   const attendee = await getCurrentAttendee(slug);
-  if (!attendee) redirect(`/e/${slug}`);
+  if (!attendee) redirect(eventRoot);
 
   const event = await getEventBySlugForRegistration(slug);
-  if (!event) redirect(`/e/${slug}`);
-  if (!event.gamification_enabled) redirect(`/e/${slug}`);
+  if (!event) redirect(eventRoot);
+  if (!event.gamification_enabled) redirect(eventRoot);
 
   const supabase = createAdminClient();
 
@@ -80,7 +85,7 @@ export default async function RankingPage({
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 pb-8">
       <div className="flex items-center gap-3">
         <Button asChild variant="outline" size="sm">
-          <Link href={`/e/${slug}`}>
+          <Link href={eventRoot}>
             <ArrowLeft className="size-4" /> Powrót
           </Link>
         </Button>
@@ -92,7 +97,7 @@ export default async function RankingPage({
           <p className="text-sm text-muted-foreground">{event.name}</p>
         </div>
         <Button asChild variant="outline" size="sm">
-          <Link href={`/e/${slug}/quests`}>
+          <Link href={buildEventInternalPath(slug, "/quests", origin)}>
             <ListTodo className="size-4" /> Twoje zadania
           </Link>
         </Button>

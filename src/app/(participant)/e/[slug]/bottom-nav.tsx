@@ -26,13 +26,15 @@ export function BottomNav({
   slug,
   gamificationEnabled,
   hasMixer = false,
+  basePath,
 }: {
   slug: string;
   gamificationEnabled: boolean;
   hasMixer?: boolean;
+  basePath: string;
 }) {
   const pathname = usePathname();
-  const base = `/e/${slug}`;
+  const homeHref = basePath || "/";
   const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
@@ -40,31 +42,31 @@ export function BottomNav({
   }, [pathname]);
 
   const mainItems: NavItem[] = [
-    { href: base,                   icon: Home,         label: "Start"       },
-    { href: `${base}/agenda`,       icon: CalendarDays, label: "Agenda"      },
-    { href: `${base}/attendees`,    icon: Users,        label: "Uczestnicy"  },
+    { href: homeHref,                      icon: Home,         label: "Start"       },
+    { href: `${basePath}/agenda`,          icon: CalendarDays, label: "Agenda"      },
+    { href: `${basePath}/attendees`,       icon: Users,        label: "Uczestnicy"  },
   ];
   if (gamificationEnabled) {
-    mainItems.push({ href: `${base}/quests`, icon: Target, label: "Questy" });
+    mainItems.push({ href: `${basePath}/quests`, icon: Target, label: "Questy" });
   }
 
   const sheetItems: NavItem[] = [
-    { href: `${base}/contacts`,  icon: Handshake, label: "Kontakty"    },
-    { href: `${base}/speakers`,  icon: MicVocal,  label: "Prelegenci"  },
+    { href: `${basePath}/contacts`,  icon: Handshake, label: "Kontakty"    },
+    { href: `${basePath}/speakers`,  icon: MicVocal,  label: "Prelegenci"  },
     ...(gamificationEnabled
       ? [
-          { href: `${base}/ranking`, icon: Trophy, label: "Ranking" },
-          { href: `${base}/rewards`, icon: Gift,   label: "Nagrody" },
+          { href: `${basePath}/ranking`, icon: Trophy, label: "Ranking" },
+          { href: `${basePath}/rewards`, icon: Gift,   label: "Nagrody" },
         ]
       : []),
     ...(hasMixer
-      ? [{ href: `${base}/mixer`, icon: Network, label: "Mixer" } as NavItem]
+      ? [{ href: `${basePath}/mixer`, icon: Network, label: "Mixer" } as NavItem]
       : []),
-    { href: `${base}/profile`,   icon: User,      label: "Profil"      },
+    { href: `${basePath}/profile`,   icon: User,      label: "Profil"      },
   ];
 
   function isMainActive(href: string) {
-    return href === base ? pathname === base : pathname.startsWith(href);
+    return href === homeHref ? pathname === href : pathname.startsWith(href);
   }
 
   const isMoreActive = !moreOpen && sheetItems.some((i) => pathname.startsWith(i.href));

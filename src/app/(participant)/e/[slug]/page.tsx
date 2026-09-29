@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { getOrigin } from "@/lib/request-origin";
-import { buildEventUrl } from "@/lib/event-url";
+import { buildEventUrl, buildEventInternalPath } from "@/lib/event-url";
 import type { LucideIcon } from "lucide-react";
 import {
   Calendar, MapPin,
@@ -94,6 +94,7 @@ export default async function ParticipantEventPage({
 }) {
   const { slug } = await params;
   const { preview, deleted } = await searchParams;
+  const origin = getOrigin(await headers());
 
   // Jednorazowy baner po samoobsługowym usunięciu danych — sterowany wyłącznie
   // parametrem URL (?deleted=1), więc znika przy odświeżeniu bez parametru.
@@ -164,7 +165,7 @@ export default async function ParticipantEventPage({
         : 100;
 
       gamificationBar = (
-        <Link href={`/e/${slug}/quests`} className="block">
+        <Link href={buildEventInternalPath(slug, "/quests", origin)} className="block">
           <Card className="transition-colors hover:bg-muted/50">
             <CardContent className="flex flex-col gap-3 py-4">
               <div className="flex items-center justify-between gap-2">
@@ -250,23 +251,23 @@ export default async function ParticipantEventPage({
     type SecItem = { href: string; icon: LucideIcon; label: string };
 
     const primaryItems: NavItem[] = [
-      { href: `/e/${slug}/agenda`,    icon: CalendarDays, label: "Agenda",     bgCls: "bg-primary/10", iconCls: "text-primary" },
-      { href: `/e/${slug}/attendees`, icon: Users,        label: "Uczestnicy", bgCls: "bg-aqua/10",    iconCls: "text-aqua"    },
-      { href: `/e/${slug}/contacts`,  icon: Handshake,    label: "Kontakty",   bgCls: "bg-primary/10", iconCls: "text-primary" },
+      { href: buildEventInternalPath(slug, "/agenda",    origin), icon: CalendarDays, label: "Agenda",     bgCls: "bg-primary/10", iconCls: "text-primary" },
+      { href: buildEventInternalPath(slug, "/attendees", origin), icon: Users,        label: "Uczestnicy", bgCls: "bg-aqua/10",    iconCls: "text-aqua"    },
+      { href: buildEventInternalPath(slug, "/contacts",  origin), icon: Handshake,    label: "Kontakty",   bgCls: "bg-primary/10", iconCls: "text-primary" },
     ];
     if (event.gamification_enabled) {
-      primaryItems.push({ href: `/e/${slug}/quests`,    icon: Trophy,        label: "Zadania",     bgCls: "bg-coral/10",   iconCls: "text-coral"   });
+      primaryItems.push({ href: buildEventInternalPath(slug, "/quests",    origin), icon: Trophy,        label: "Zadania",     bgCls: "bg-coral/10",   iconCls: "text-coral"   });
     } else {
-      primaryItems.push({ href: `/e/${slug}/my-agenda`, icon: CalendarCheck, label: "Moja agenda", bgCls: "bg-primary/10", iconCls: "text-primary" });
+      primaryItems.push({ href: buildEventInternalPath(slug, "/my-agenda", origin), icon: CalendarCheck, label: "Moja agenda", bgCls: "bg-primary/10", iconCls: "text-primary" });
     }
 
     const secondaryItems: SecItem[] = [];
     if (event.gamification_enabled) {
-      if (hasRewards) secondaryItems.push({ href: `/e/${slug}/rewards`,   icon: Gift,        label: "Nagrody"      });
-      secondaryItems.push(              { href: `/e/${slug}/my-agenda`,   icon: CalendarCheck, label: "Moja agenda" });
+      if (hasRewards) secondaryItems.push({ href: buildEventInternalPath(slug, "/rewards",   origin), icon: Gift,          label: "Nagrody"      });
+      secondaryItems.push(              { href: buildEventInternalPath(slug, "/my-agenda",   origin), icon: CalendarCheck, label: "Moja agenda"  });
     }
-    if (hasMixer) secondaryItems.push({ href: `/e/${slug}/mixer`, icon: Network, label: "Mój mixer" });
-    secondaryItems.push({ href: `/e/${slug}/profile`, icon: User, label: "Mój profil" });
+    if (hasMixer) secondaryItems.push({ href: buildEventInternalPath(slug, "/mixer",   origin), icon: Network, label: "Mój mixer" });
+    secondaryItems.push({ href: buildEventInternalPath(slug, "/profile", origin), icon: User, label: "Mój profil" });
 
     const navGrid = (
       <div className="flex flex-col gap-3">
@@ -286,7 +287,7 @@ export default async function ParticipantEventPage({
         </div>
         {event.gamification_enabled && (
           <Link
-            href={`/e/${slug}/ranking`}
+            href={buildEventInternalPath(slug, "/ranking", origin)}
             className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3.5 shadow-sm transition-colors hover:bg-primary/10"
           >
             <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
@@ -337,6 +338,7 @@ export default async function ParticipantEventPage({
             sessions={sessions}
             agendaSessionIds={agendaSessionIds}
             timezone={event.timezone}
+            agendaHref={buildEventInternalPath(slug, "/agenda", origin)}
           />
           {navGrid}
         </main>
@@ -480,7 +482,7 @@ export default async function ParticipantEventPage({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="flex gap-3">
               <Button asChild size="lg" className="flex-1 sm:flex-none">
-                <Link href={`/e/${slug}/register`}>Zarejestruj się →</Link>
+                <Link href={buildEventInternalPath(slug, "/register", origin)}>Zarejestruj się →</Link>
               </Button>
               {sessions.length > 0 && (
                 <Button asChild size="lg" variant="outline" className="flex-1 sm:flex-none">
@@ -604,7 +606,7 @@ export default async function ParticipantEventPage({
                       </Button>
                     ) : (
                       <Button asChild className="w-full">
-                        <Link href={`/e/${slug}/checkout?ticket=${tt.id}`}>
+                        <Link href={buildEventInternalPath(slug, `/checkout?ticket=${tt.id}`, origin)}>
                           {tt.price === 0 ? "Zarejestruj się bezpłatnie" : "Kup bilet"}
                         </Link>
                       </Button>
@@ -623,7 +625,7 @@ export default async function ParticipantEventPage({
               Miejsca są ograniczone – zarezerwuj swoje już teraz.
             </p>
             <Button asChild size="lg" className="w-full sm:w-auto">
-              <Link href={`/e/${slug}/register`}>Zarejestruj się</Link>
+              <Link href={buildEventInternalPath(slug, "/register", origin)}>Zarejestruj się</Link>
             </Button>
           </div>
         </div>

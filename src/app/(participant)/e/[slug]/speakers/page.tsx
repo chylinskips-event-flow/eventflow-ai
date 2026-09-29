@@ -1,7 +1,10 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { MicVocal } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { getEventSpeakersForParticipant } from "@/lib/speakers";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,12 +17,14 @@ export default async function SpeakersPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const origin = getOrigin(await headers());
+  const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
 
   const attendee = await getCurrentAttendee(slug);
-  if (!attendee) redirect(`/e/${slug}`);
+  if (!attendee) redirect(eventRoot);
 
   const event = await getEventBySlugForRegistration(slug);
-  if (!event) redirect(`/e/${slug}`);
+  if (!event) redirect(eventRoot);
 
   const speakers = await getEventSpeakersForParticipant(event.id);
 
@@ -31,7 +36,7 @@ export default async function SpeakersPage({
         subtitle="Eksperci, którzy dzielą się wiedzą i doświadczeniem."
         imageSrc="/hero/hero-prelegenci.webp"
         imageAlt="Prelegentka przemawiająca z mikrofonem"
-        backHref={`/e/${slug}`}
+        backHref={eventRoot}
       />
 
       {speakers.length === 0 ? (

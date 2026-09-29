@@ -1,8 +1,11 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCachedMatches } from "@/lib/matchmaking";
 import { getContactStatesForEvent } from "@/lib/contact-requests";
@@ -46,16 +49,18 @@ export default async function AttendeesPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const origin = getOrigin(await headers());
+  const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
   const attendee = await getCurrentAttendee(slug);
 
   if (!attendee) {
-    redirect(`/e/${slug}`);
+    redirect(eventRoot);
   }
 
   const event = await getEventBySlugForRegistration(slug);
 
   if (!event) {
-    redirect(`/e/${slug}`);
+    redirect(eventRoot);
   }
 
   // Service_role: lista uczestników jest poza zasięgiem anon key (RLS by ją
@@ -114,7 +119,7 @@ export default async function AttendeesPage({
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4">
       <Button asChild variant="outline" size="sm" className="w-fit">
-        <Link href={`/e/${slug}`}>
+        <Link href={eventRoot}>
           <ArrowLeft className="size-4" /> Powrót
         </Link>
       </Button>
@@ -131,6 +136,7 @@ export default async function AttendeesPage({
         currentAttendeeId={attendee.id}
         contactStates={contactStates}
         gamificationEnabled={event.gamification_enabled}
+        basePath={buildEventInternalPath(slug, "", origin)}
       />
     </main>
   );

@@ -1,8 +1,11 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { getEventSessionsForParticipant } from "@/lib/sessions";
 import { getAttendeeAgendaSessionIds } from "@/lib/agenda-items";
 import { Button } from "@/components/ui/button";
@@ -15,16 +18,18 @@ export default async function MyAgendaPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const origin = getOrigin(await headers());
+  const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
   const attendee = await getCurrentAttendee(slug);
 
   if (!attendee) {
-    redirect(`/e/${slug}`);
+    redirect(eventRoot);
   }
 
   const event = await getEventBySlugForRegistration(slug);
 
   if (!event) {
-    redirect(`/e/${slug}`);
+    redirect(eventRoot);
   }
 
   // Prelegenci przychodzą razem z sesjami (nested select).
@@ -38,7 +43,7 @@ export default async function MyAgendaPage({
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
       <Button asChild variant="outline" size="sm" className="w-fit">
-        <Link href={`/e/${slug}`}>
+        <Link href={eventRoot}>
           <ArrowLeft className="size-4" /> Powrót
         </Link>
       </Button>
@@ -52,7 +57,7 @@ export default async function MyAgendaPage({
               pełnej agendy i dodaj te, które Cię interesują.
             </p>
             <Button asChild>
-              <Link href={`/e/${slug}/agenda`}>Przejdź do pełnej agendy</Link>
+              <Link href={buildEventInternalPath(slug, "/agenda", origin)}>Przejdź do pełnej agendy</Link>
             </Button>
           </CardContent>
         </Card>

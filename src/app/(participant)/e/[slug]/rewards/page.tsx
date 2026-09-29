@@ -1,7 +1,10 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { CheckCircle2, Gift } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHero } from "@/components/participant/section-hero";
@@ -47,13 +50,15 @@ export default async function RewardsPage({
 }) {
   const { slug } = await params;
   const { tier: tierParam } = await searchParams;
+  const origin = getOrigin(await headers());
+  const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
 
   const attendee = await getCurrentAttendee(slug);
-  if (!attendee) redirect(`/e/${slug}`);
+  if (!attendee) redirect(eventRoot);
 
   const event = await getEventBySlugForRegistration(slug);
-  if (!event) redirect(`/e/${slug}`);
-  if (!event.gamification_enabled) redirect(`/e/${slug}`);
+  if (!event) redirect(eventRoot);
+  if (!event.gamification_enabled) redirect(eventRoot);
 
   const myPoints = attendee.points ?? 0;
 
@@ -117,12 +122,12 @@ export default async function RewardsPage({
         callout="Małe punkty. Wielkie możliwości."
         imageSrc="/hero/hero-nagrody.webp"
         imageAlt="Uczestniczka z trofeum i medalem"
-        backHref={`/e/${slug}`}
+        backHref={eventRoot}
       />
 
       <PointsLevelWidget
         points={myPoints}
-        rankingHref={`/e/${slug}/ranking`}
+        rankingHref={buildEventInternalPath(slug, "/ranking", origin)}
       />
 
       {/* Ostatnie odbiory — tylko gdy istnieją */}

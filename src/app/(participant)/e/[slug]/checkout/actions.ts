@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrigin } from "@/lib/request-origin";
+import { buildEventUrl, buildEventInternalPath } from "@/lib/event-url";
 import { sendAttendeeConfirmationEmail } from "@/lib/email/attendee-confirmation";
 import {
   ATTENDEE_TOKEN_COOKIE,
@@ -165,9 +166,9 @@ export async function completeFreeCheckout(
   });
 
   // 7. Send confirmation email (best-effort)
+  const headersList = await headers();
+  const origin = getOrigin(headersList);
   try {
-    const headersList = await headers();
-    const origin = getOrigin(headersList);
     await sendAttendeeConfirmationEmail({
       to: trimmedEmail,
       firstName: trimmedFirst,
@@ -190,9 +191,11 @@ export async function completeFreeCheckout(
     maxAge: ATTENDEE_TOKEN_MAX_AGE_SECONDS,
   });
 
-  redirect(
-    `/e/${slug}/checkout/success?name=${encodeURIComponent(trimmedFirst)}&email=${encodeURIComponent(trimmedEmail)}`,
-  );
+  redirect(buildEventInternalPath(
+    slug,
+    `/checkout/success?name=${encodeURIComponent(trimmedFirst)}&email=${encodeURIComponent(trimmedEmail)}`,
+    origin,
+  ));
 }
 
 // ---- Paid checkout (P24) ---------------------------------------------------
@@ -369,13 +372,16 @@ export async function startPaidCheckout(
   const headersList = await headers();
   const origin = getOrigin(headersList);
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? origin;
+  const returnBase = process.env.NEXT_PUBLIC_APP_URL
+    ? `${process.env.NEXT_PUBLIC_APP_URL}/e/${slug}`
+    : buildEventUrl(slug, origin);
 
   const p24Result = await registerTransaction(cfg, {
     sessionId,
     amount: totalAmount,
     description: `${event.name} — ${tt.name}`,
     email: trimmedEmail,
-    urlReturn: `${appUrl}/e/${slug}/checkout/return?sessionId=${encodeURIComponent(sessionId)}`,
+    urlReturn: `${returnBase}/checkout/return?sessionId=${encodeURIComponent(sessionId)}`,
     urlStatus: `${appUrl}/api/p24/webhook`,
   });
 

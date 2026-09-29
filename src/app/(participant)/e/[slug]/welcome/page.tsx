@@ -1,5 +1,8 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import { CheckCircle2, Clock } from "lucide-react";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getTemplate, applyVariables } from "@/lib/message-templates";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +18,7 @@ export default async function WelcomePage({
 }) {
   const { slug } = await params;
   const { name, status } = await searchParams;
+  const origin = getOrigin(await headers());
   const event = await getEventBySlugForRegistration(slug);
 
   const eventName = event ? event.name : "tym wydarzeniu";
@@ -57,7 +61,7 @@ export default async function WelcomePage({
             dangerouslySetInnerHTML={{ __html: body }}
           />
           <Button asChild variant="default" className="w-full">
-            <Link href={`/e/${slug}`}>Wróć do strony wydarzenia</Link>
+            <Link href={buildEventInternalPath(slug, "", origin) || "/"}>Wróć do strony wydarzenia</Link>
           </Button>
         </CardContent>
       </Card>

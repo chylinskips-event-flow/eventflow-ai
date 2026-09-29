@@ -1,5 +1,8 @@
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { getEventBySlugForRegistration, getRegistrationUnavailableReason } from "@/lib/events";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { getPublicTicketTypes } from "@/lib/tickets";
 import { Calendar } from "lucide-react";
 import { formatDate } from "@/lib/format";
@@ -16,8 +19,9 @@ export default async function CheckoutPage({
 }) {
   const { slug } = await params;
   const { ticket: ticketTypeId } = await searchParams;
+  const origin = getOrigin(await headers());
 
-  if (!ticketTypeId) redirect(`/e/${slug}`);
+  if (!ticketTypeId) redirect(buildEventInternalPath(slug, "", origin) || "/");
 
   const event = await getEventBySlugForRegistration(slug);
   if (!event) notFound();

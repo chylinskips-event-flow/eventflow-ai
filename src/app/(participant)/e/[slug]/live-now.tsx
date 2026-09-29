@@ -24,11 +24,13 @@ export function LiveNow({
   sessions,
   agendaSessionIds,
   timezone,
+  agendaHref,
 }: {
   slug: string;
   sessions: Session[];
   agendaSessionIds: Set<string>;
   timezone: string | null;
+  agendaHref?: string;
 }) {
   // TODO(post-MVP): auto-odświeżanie tej sekcji co ~30s (router.refresh po
   // stronie klienta albo revalidate), żeby "teraz trwa" aktualizowało się bez
@@ -135,7 +137,7 @@ export function LiveNow({
       )}
 
       <Link
-        href={`/e/${slug}/agenda`}
+        href={agendaHref ?? `/e/${slug}/agenda`}
         className="text-sm font-medium text-primary hover:underline"
       >
         Pełna agenda →

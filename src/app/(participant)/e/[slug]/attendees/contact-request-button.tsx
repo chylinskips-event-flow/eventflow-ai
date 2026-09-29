@@ -18,10 +18,12 @@ export function ContactRequestButton({
   slug,
   recipientId,
   state,
+  basePath = `/e/${slug}`,
 }: {
   slug: string;
   recipientId: string;
   state: ContactCardState;
+  basePath?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -30,7 +32,7 @@ export function ContactRequestButton({
   if (state.kind === "accepted") {
     return (
       <Button asChild size="sm" variant="secondary" className="w-full">
-        <Link href={`/e/${slug}/contacts`}>Kontakt nawiązany</Link>
+        <Link href={`${basePath}/contacts`}>Kontakt nawiązany</Link>
       </Button>
     );
   }
@@ -38,7 +40,7 @@ export function ContactRequestButton({
   if (state.kind === "incoming_pending") {
     return (
       <Button asChild size="sm" className="w-full">
-        <Link href={`/e/${slug}/contacts`}>Odpowiedz</Link>
+        <Link href={`${basePath}/contacts`}>Odpowiedz</Link>
       </Button>
     );
   }

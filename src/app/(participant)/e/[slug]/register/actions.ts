@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import {
   sendAttendeeConfirmationEmail,
   sendAttendeePendingApprovalEmail,
@@ -102,6 +103,9 @@ export async function registerAttendee(
     };
   }
 
+  const headersList = await headers();
+  const origin = getOrigin(headersList);
+
   try {
     if (event.requires_approval) {
       await sendAttendeePendingApprovalEmail({
@@ -110,8 +114,6 @@ export async function registerAttendee(
         event,
       });
     } else {
-      const headersList = await headers();
-      const origin = getOrigin(headersList);
       await sendAttendeeConfirmationEmail({
         to: trimmedEmail,
         firstName: trimmedFirstName,
@@ -141,6 +143,10 @@ export async function registerAttendee(
   // bez konieczności ponownego klikania linku z emaila.
   const status = event.requires_approval ? "pending" : "approved";
   redirect(
-    `/e/${slug}/welcome?name=${encodeURIComponent(firstName.trim())}&status=${status}`,
+    buildEventInternalPath(
+      slug,
+      `/welcome?name=${encodeURIComponent(firstName.trim())}&status=${status}`,
+      origin,
+    ),
   );
 }

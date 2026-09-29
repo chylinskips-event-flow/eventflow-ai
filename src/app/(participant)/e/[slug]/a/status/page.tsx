@@ -1,4 +1,7 @@
+import { headers } from "next/headers";
 import Link from "next/link";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -27,6 +30,7 @@ export default async function AttendeeAccessStatusPage({
 }) {
   const { slug } = await params;
   const { reason } = await searchParams;
+  const origin = getOrigin(await headers());
 
   const content = CONTENT[reason ?? ""] ?? CONTENT.invalid;
 
@@ -40,7 +44,7 @@ export default async function AttendeeAccessStatusPage({
           <p className="text-muted-foreground">{content.message}</p>
           {reason === "invalid" && (
             <Button asChild>
-              <Link href={`/e/${slug}/register`}>Zarejestruj się</Link>
+              <Link href={buildEventInternalPath(slug, "/register", origin)}>Zarejestruj się</Link>
             </Button>
           )}
         </CardContent>

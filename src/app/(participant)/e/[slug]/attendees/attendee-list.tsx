@@ -41,6 +41,7 @@ export function AttendeeList({
   currentAttendeeId,
   contactStates,
   gamificationEnabled = false,
+  basePath = `/e/${slug}`,
 }: {
   slug: string;
   attendees: AttendeeListItem[];
@@ -48,6 +49,7 @@ export function AttendeeList({
   /** Mapa attendeeId → stan przycisku kontaktu, policzona server-side. */
   contactStates: Record<string, ContactCardState>;
   gamificationEnabled?: boolean;
+  basePath?: string;
 }) {
   const [industry, setIndustry] = useState(ALL_INDUSTRIES);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
@@ -119,7 +121,7 @@ export function AttendeeList({
             na tej liście.
           </p>
           <Button asChild>
-            <Link href={`/e/${slug}/profile`}>Uzupełnij swój profil</Link>
+            <Link href={`${basePath}/profile`}>Uzupełnij swój profil</Link>
           </Button>
         </CardContent>
       </Card>
@@ -267,7 +269,7 @@ export function AttendeeList({
                       size="sm"
                       className="mt-2"
                     >
-                      <Link href={`/e/${slug}/profile`}>Edytuj profil</Link>
+                      <Link href={`${basePath}/profile`}>Edytuj profil</Link>
                     </Button>
                   ) : (
                     <div className="mt-2 w-full">
@@ -275,6 +277,7 @@ export function AttendeeList({
                         slug={slug}
                         recipientId={a.id}
                         state={contactStates[a.id] ?? { kind: "none" }}
+                        basePath={basePath}
                       />
                     </div>
                   )}

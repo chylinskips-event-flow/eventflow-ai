@@ -1,5 +1,8 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import { CheckCircle2, Mail } from "lucide-react";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -12,6 +15,7 @@ export default async function CheckoutSuccessPage({
 }) {
   const { slug } = await params;
   const { name, email } = await searchParams;
+  const origin = getOrigin(await headers());
   const firstName = name ? decodeURIComponent(name) : null;
   const emailDecoded = email ? decodeURIComponent(email) : null;
 
@@ -47,7 +51,7 @@ export default async function CheckoutSuccessPage({
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button asChild>
-          <Link href={`/e/${slug}`}>Przejdź do strony wydarzenia</Link>
+          <Link href={buildEventInternalPath(slug, "", origin) || "/"}>Przejdź do strony wydarzenia</Link>
         </Button>
       </div>
     </main>

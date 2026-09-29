@@ -1,9 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { getAttendeeByContactCode } from "@/lib/contact-requests";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkNetworkingQuestProgress } from "@/lib/gamification";
 
@@ -109,5 +112,6 @@ export async function connectViaCode(
     console.error("[quest] networking hook error (connectViaCode):", err);
   }
 
-  redirect(`/e/${slug}/contacts`);
+  const origin = getOrigin(await headers());
+  redirect(buildEventInternalPath(slug, "/contacts", origin));
 }

@@ -1,7 +1,10 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { CalendarDays } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { getEventSessionsForParticipant } from "@/lib/sessions";
 import { getAttendeeAgendaSessionIds } from "@/lib/agenda-items";
 import { getDateGroupKey } from "@/lib/format";
@@ -31,12 +34,14 @@ export default async function AgendaPage({
 }) {
   const { slug } = await params;
   const { day: dayParam } = await searchParams;
+  const origin = getOrigin(await headers());
+  const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
 
   const attendee = await getCurrentAttendee(slug);
-  if (!attendee) redirect(`/e/${slug}`);
+  if (!attendee) redirect(eventRoot);
 
   const event = await getEventBySlugForRegistration(slug);
-  if (!event) redirect(`/e/${slug}`);
+  if (!event) redirect(eventRoot);
 
   const [sessions, agendaSessionIds] = await Promise.all([
     getEventSessionsForParticipant(event.id),
@@ -84,7 +89,7 @@ export default async function AgendaPage({
         subtitle="Prelekcje, panele, warsztaty i networking. Sprawdź, co Cię czeka!"
         imageSrc="/hero/hero-agenda.webp"
         imageAlt="Uczestniczka przeglądająca agendę wydarzenia"
-        backHref={`/e/${slug}`}
+        backHref={eventRoot}
       />
 
       {isMultiDay && (

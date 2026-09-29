@@ -1,7 +1,10 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Trophy } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHero } from "@/components/participant/section-hero";
@@ -14,12 +17,14 @@ export default async function QuestsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const origin = getOrigin(await headers());
+  const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
   const attendee = await getCurrentAttendee(slug);
-  if (!attendee) redirect(`/e/${slug}`);
+  if (!attendee) redirect(eventRoot);
 
   const event = await getEventBySlugForRegistration(slug);
-  if (!event) redirect(`/e/${slug}`);
-  if (!event.gamification_enabled) redirect(`/e/${slug}`);
+  if (!event) redirect(eventRoot);
+  if (!event.gamification_enabled) redirect(eventRoot);
 
   const supabase = createAdminClient();
 
@@ -92,12 +97,12 @@ export default async function QuestsPage({
         subtitle="Realizuj questy, zbieraj punkty i wymieniaj je na nagrody."
         imageSrc="/hero/hero-questy.webp"
         imageAlt="Uczestniczka skanująca kod QR na stoisku"
-        backHref={`/e/${slug}`}
+        backHref={eventRoot}
       />
 
       <PointsLevelWidget
         points={attendee.points ?? 0}
-        rankingHref={`/e/${slug}/ranking`}
+        rankingHref={buildEventInternalPath(slug, "/ranking", origin)}
       />
 
       {quests.length > 0 && (allDone || remainingPoints > 0) && (

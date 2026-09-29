@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { getPartnerByTokenAndEventSlug } from "@/lib/partners";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Button } from "@/components/ui/button";
@@ -9,14 +12,14 @@ import { BoothClient, type BoothQuestForClient } from "./booth-client";
 
 const COOLDOWN_MS = 10 * 60 * 1000;
 
-function Notice({ slug, message }: { slug: string; message: string }) {
+function Notice({ href, message }: { href: string; message: string }) {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
       <Card>
         <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
           <p className="text-muted-foreground">{message}</p>
           <Button asChild>
-            <Link href={`/e/${slug}`}>Wróć do wydarzenia</Link>
+            <Link href={href}>Wróć do wydarzenia</Link>
           </Button>
         </CardContent>
       </Card>
@@ -30,17 +33,19 @@ export default async function BoothPage({
   params: Promise<{ slug: string; token: string }>;
 }) {
   const { slug, token } = await params;
+  const origin = getOrigin(await headers());
+  const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
 
   const event = await getEventBySlugForRegistration(slug);
   if (!event) {
-    return <Notice slug={slug} message="Nie znaleziono wydarzenia." />;
+    return <Notice href={eventRoot} message="Nie znaleziono wydarzenia." />;
   }
 
   const attendee = await getCurrentAttendee(slug);
   if (!attendee) {
     return (
       <Notice
-        slug={slug}
+        href={eventRoot}
         message="Aby zarejestrować odwiedziny, wejdź najpierw przez swój link wejściowy."
       />
     );
@@ -48,7 +53,7 @@ export default async function BoothPage({
 
   const partner = await getPartnerByTokenAndEventSlug(token, slug);
   if (!partner) {
-    return <Notice slug={slug} message="Nie znaleziono stoiska." />;
+    return <Notice href={eventRoot} message="Nie znaleziono stoiska." />;
   }
 
   // Gdy gamification wyłączona — brak questa, BoothClient obsługuje prosty check-in
@@ -133,7 +138,7 @@ export default async function BoothPage({
               )}
             </div>
             <Button asChild variant="outline">
-              <Link href={`/e/${slug}`}>Wróć do wydarzenia</Link>
+              <Link href={eventRoot}>Wróć do wydarzenia</Link>
             </Button>
           </CardContent>
         </Card>

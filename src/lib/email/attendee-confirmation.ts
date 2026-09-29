@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import type { Event } from "@/lib/events";
 import { getTemplate, applyVariables } from "@/lib/message-templates";
 import { getFromAddress } from "@/lib/email/config";
+import { buildEventUrl } from "@/lib/event-url";
 
 const REPLY_TO = "kontakt@eventro.pl";
 
@@ -28,7 +29,7 @@ export async function sendAttendeeConfirmationEmail(params: {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("RESEND_API_KEY is not configured");
 
-  const accessUrl = `${origin}/e/${event.slug}/a/${qrCodeToken}`;
+  const accessUrl = `${buildEventUrl(event.slug, origin)}/a/${qrCodeToken}`;
   const [qrPngBuffer, checkInQrPngBuffer] = await Promise.all([
     QRCode.toBuffer(accessUrl, { type: "png", width: 400 }),
     checkInToken

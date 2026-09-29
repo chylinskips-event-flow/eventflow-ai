@@ -1,6 +1,9 @@
+import { headers } from "next/headers";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { hasActiveMixerForAttendee } from "@/lib/mixer/participant";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventBasePath } from "@/lib/event-url";
 import { BottomNav } from "./bottom-nav";
 
 export default async function ParticipantEventLayout({
@@ -17,6 +20,9 @@ export default async function ParticipantEventLayout({
     return <>{children}</>;
   }
 
+  const origin = getOrigin(await headers());
+  const basePath = buildEventBasePath(slug, origin);
+
   const [event, hasMixer] = await Promise.all([
     getEventBySlugForRegistration(slug),
     hasActiveMixerForAttendee(attendee.id),
@@ -31,6 +37,7 @@ export default async function ParticipantEventLayout({
         slug={slug}
         gamificationEnabled={event?.gamification_enabled ?? false}
         hasMixer={hasMixer}
+        basePath={basePath}
       />
     </>
   );

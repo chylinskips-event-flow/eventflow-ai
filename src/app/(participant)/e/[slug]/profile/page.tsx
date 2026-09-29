@@ -1,7 +1,10 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getCurrentAttendee } from "@/lib/attendee-session";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import {
   getEventBySlugForRegistration,
   DEFAULT_INTEREST_OPTIONS,
@@ -22,10 +25,11 @@ export default async function ProfilePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const origin = getOrigin(await headers());
   const attendee = await getCurrentAttendee(slug);
 
   if (!attendee) {
-    redirect(`/e/${slug}`);
+    redirect(buildEventInternalPath(slug, "", origin) || "/");
   }
 
   const event = await getEventBySlugForRegistration(slug);
@@ -52,7 +56,7 @@ export default async function ProfilePage({
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
       <Button asChild variant="outline" size="sm" className="w-fit">
-        <Link href={`/e/${slug}/attendees`}>
+        <Link href={buildEventInternalPath(slug, "/attendees", origin)}>
           <ArrowLeft className="size-4" /> Powrót
         </Link>
       </Button>

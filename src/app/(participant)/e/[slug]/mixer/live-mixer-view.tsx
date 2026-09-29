@@ -201,9 +201,11 @@ function RoundCard({
 export function LiveMixerView({
   mixer,
   slug,
+  backHref,
 }: {
   mixer: MyMixerData;
   slug: string;
+  backHref?: string;
 }) {
   const router = useRouter();
 
@@ -223,7 +225,7 @@ export function LiveMixerView({
         headlineAccent="mixer"
         subtitle={mixer.mixerName}
         media={<SectionHeroMedia icon={Network} />}
-        backHref={`/e/${slug}`}
+        backHref={backHref ?? `/e/${slug}`}
       />
 
       {/* Duży blok TERAZ — tylko gdy aktywna runda */}

@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { getContactSections } from "@/lib/contact-requests";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,16 +19,18 @@ export default async function ContactsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const origin = getOrigin(await headers());
+  const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
   const attendee = await getCurrentAttendee(slug);
 
   if (!attendee) {
-    redirect(`/e/${slug}`);
+    redirect(eventRoot);
   }
 
   const event = await getEventBySlugForRegistration(slug);
 
   if (!event) {
-    redirect(`/e/${slug}`);
+    redirect(eventRoot);
   }
 
   // Jedno zapytanie na wszystkie trzy sekcje.
@@ -40,7 +45,7 @@ export default async function ContactsPage({
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
       <Button asChild variant="outline" size="sm" className="w-fit">
-        <Link href={`/e/${slug}`}>
+        <Link href={eventRoot}>
           <ArrowLeft className="size-4" /> Powrót
         </Link>
       </Button>
@@ -54,7 +59,7 @@ export default async function ContactsPage({
               i poproś kogoś o kontakt.
             </p>
             <Button asChild>
-              <Link href={`/e/${slug}/attendees`}>Przeglądaj uczestników</Link>
+              <Link href={buildEventInternalPath(slug, "/attendees", origin)}>Przeglądaj uczestników</Link>
             </Button>
           </CardContent>
         </Card>

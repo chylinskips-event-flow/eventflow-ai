@@ -1,12 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   getCurrentAttendee,
   ATTENDEE_TOKEN_COOKIE,
 } from "@/lib/attendee-session";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkProfileQuestProgress } from "@/lib/gamification";
 import { AVATAR_BUCKET, storagePathFromPublicUrl } from "@/lib/avatar-storage";
@@ -258,9 +260,10 @@ export async function removeAttendeeAvatar(
  * i przekierowujemy na stronę eventu z ?deleted=1 → jednorazowy baner.
  */
 export async function deleteMyAttendeeData(slug: string): Promise<void> {
+  const origin = getOrigin(await headers());
   const attendee = await getCurrentAttendee(slug);
   if (!attendee) {
-    redirect(`/e/${slug}`);
+    redirect(buildEventInternalPath(slug, "", origin) || "/");
   }
 
   const { error } = await deleteAttendeeCompletely(attendee.id);
@@ -271,7 +274,8 @@ export async function deleteMyAttendeeData(slug: string): Promise<void> {
   }
 
   const cookieStore = await cookies();
-  cookieStore.delete({ name: ATTENDEE_TOKEN_COOKIE, path: `/e/${slug}` });
+  cookieStore.delete({ name: ATTENDEE_TOKEN_COOKIE, path: "/" });
 
-  redirect(`/e/${slug}?deleted=1`);
+  const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
+  redirect(`${eventRoot}?deleted=1`);
 }

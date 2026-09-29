@@ -1,6 +1,9 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CheckCircle2, Clock, XCircle } from "lucide-react";
+import { getOrigin } from "@/lib/request-origin";
+import { buildEventInternalPath } from "@/lib/event-url";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -13,6 +16,8 @@ export default async function CheckoutReturnPage({
 }) {
   const { slug } = await params;
   const { sessionId } = await searchParams;
+  const origin = getOrigin(await headers());
+  const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
 
   if (!sessionId) {
     return (
@@ -23,7 +28,7 @@ export default async function CheckoutReturnPage({
           </CardHeader>
           <CardContent>
             <Button asChild className="w-full">
-              <Link href={`/e/${slug}`}>Wróć do strony wydarzenia</Link>
+              <Link href={eventRoot}>Wróć do strony wydarzenia</Link>
             </Button>
           </CardContent>
         </Card>
@@ -54,7 +59,7 @@ export default async function CheckoutReturnPage({
           </p>
         </div>
         <Button asChild>
-          <Link href={`/e/${slug}`}>Przejdz do strony wydarzenia</Link>
+          <Link href={eventRoot}>Przejdz do strony wydarzenia</Link>
         </Button>
       </main>
     );
@@ -72,7 +77,7 @@ export default async function CheckoutReturnPage({
           </p>
         </div>
         <Button asChild>
-          <Link href={`/e/${slug}#register`}>Sprobuj ponownie</Link>
+          <Link href={`${eventRoot}#register`}>Sprobuj ponownie</Link>
         </Button>
       </main>
     );
@@ -94,7 +99,7 @@ export default async function CheckoutReturnPage({
         </p>
       </div>
       <Button asChild>
-        <Link href={`/e/${slug}`}>Przejdz do strony wydarzenia</Link>
+        <Link href={eventRoot}>Przejdz do strony wydarzenia</Link>
       </Button>
     </main>
   );
