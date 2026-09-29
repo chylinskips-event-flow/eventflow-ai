@@ -18,6 +18,7 @@ import { toDateTimeLocalValue } from "@/lib/format";
 import { validateImageFile, MB } from "@/lib/upload-validation";
 import { EVENT_TYPE_OPTIONS, NO_EVENT_TYPE_VALUE } from "@/lib/event-options";
 import { slugify } from "@/lib/slug";
+import { BadgeBgUpload } from "./badges/badge-bg-upload";
 import { TIMEZONES } from "@/lib/timezones";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -652,6 +653,8 @@ export function EventEditForm({
           </form>
         </CardContent>
       </Card>
+
+      <BadgeBgUpload eventId={event.id} badgeBgUrl={event.badge_bg_url ?? null} />
 
       {/* Strefa niebezpieczna */}
       <Card className="border-destructive/40">

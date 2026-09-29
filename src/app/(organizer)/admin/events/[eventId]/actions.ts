@@ -420,3 +420,63 @@ export async function uploadEventLogo(
   revalidatePath(`/admin/events/${eventId}`);
   return { status: "success", message: "Logo zapisane." };
 }
+
+export async function uploadEventBadgeBg(
+  eventId: string,
+  _prevState: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const file = formData.get("badge_bg");
+
+  if (!(file instanceof File) || file.size === 0) {
+    return { status: "error", message: "Wybierz plik tła." };
+  }
+
+  if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
+    return {
+      status: "error",
+      message: "Tło musi być w formacie JPEG, PNG lub WebP.",
+    };
+  }
+
+  if (file.size > MAX_LOGO_SIZE_BYTES) {
+    return {
+      status: "error",
+      message: "Plik tła nie może być większy niż 5MB.",
+    };
+  }
+
+  const supabase = await createClient();
+  const extension = file.name.split(".").pop() ?? "jpg";
+  const storagePath = `${eventId}/badge-bg-${Date.now()}.${extension}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("event-logos")
+    .upload(storagePath, file, { contentType: file.type, upsert: true });
+
+  if (uploadError) {
+    return {
+      status: "error",
+      message: "Nie udało się wgrać tła. Spróbuj ponownie.",
+    };
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("event-logos").getPublicUrl(storagePath);
+
+  const { error } = await supabase
+    .from("events")
+    .update({ badge_bg_url: publicUrl })
+    .eq("id", eventId);
+
+  if (error) {
+    return {
+      status: "error",
+      message: "Nie udało się zapisać tła. Spróbuj ponownie.",
+    };
+  }
+
+  revalidatePath(`/admin/events/${eventId}`);
+  return { status: "success", message: "Tło identyfikatora zapisane." };
+}

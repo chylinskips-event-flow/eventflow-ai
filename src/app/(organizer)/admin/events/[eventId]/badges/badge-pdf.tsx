@@ -48,18 +48,46 @@ function initials(a: Attendee): string {
   return (f + l).toUpperCase() || "?";
 }
 
-const styles = StyleSheet.create({
+const S = StyleSheet.create({
   page: {
     fontFamily: "Roboto",
     backgroundColor: "#ffffff",
     flexDirection: "column",
   },
+
+  // Full-bleed background image (absolutely positioned behind content)
+  bgImage: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+
+  // Outer content wrapper — fills the page over the bg
+  content: {
+    flex: 1,
+    flexDirection: "column",
+  },
+
+  // ── Header ──────────────────────────────────────────────
+  // Solid accent-colored header (no bg image)
   header: {
     paddingHorizontal: 14,
     paddingVertical: 11,
     flexDirection: "row",
     alignItems: "center",
     gap: 9,
+  },
+  // Dark scrim header (with bg image)
+  headerOverlay: {
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    backgroundColor: "rgba(0,0,0,0.55)",
   },
   logo: {
     width: 38,
@@ -77,11 +105,8 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     letterSpacing: 0.2,
   },
-  eventSubtitle: {
-    fontSize: 8,
-    color: "rgba(255,255,255,0.75)",
-    marginTop: 2,
-  },
+
+  // ── Body ────────────────────────────────────────────────
   body: {
     flex: 1,
     flexDirection: "column",
@@ -89,47 +114,83 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 16,
     paddingVertical: 8,
-    gap: 0,
+    gap: 8,
   },
+
+  // ── Avatar ──────────────────────────────────────────────
   avatarImg: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    marginBottom: 10,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  avatarImgBorder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: "#ffffff",
   },
   avatarInitials: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 10,
+  },
+  avatarInitialsBorder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#ffffff",
   },
   initialsText: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: 700,
     color: "#ffffff",
+  },
+
+  // ── Name/info card ──────────────────────────────────────
+  // On white page: no card background needed
+  nameCardDefault: {
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  // On bg image: white scrim for legibility
+  nameCardScrim: {
+    backgroundColor: "rgba(255,255,255,0.88)",
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    alignItems: "center",
+    alignSelf: "stretch",
   },
   name: {
     fontSize: 19,
     fontWeight: 700,
     color: "#111111",
     textAlign: "center",
-    marginBottom: 5,
+    marginBottom: 3,
   },
   info: {
     fontSize: 10,
     color: "#555555",
     textAlign: "center",
-    marginBottom: 2,
   },
-  qrWrap: {
+
+  // ── QR card — ALWAYS solid white (hard requirement for scanability) ──
+  qrCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     alignItems: "center",
-    marginTop: 12,
   },
   qrImg: {
-    width: 86,
-    height: 86,
+    width: 84,
+    height: 84,
   },
   qrCaption: {
     fontSize: 7.5,
@@ -137,6 +198,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: "center",
   },
+
+  // ── Bottom accent strip (no-bg layout only) ──────────────
   accentStrip: {
     height: 8,
   },
@@ -159,6 +222,7 @@ export function BadgesPdf({
 }: BadgesPdfProps) {
   const accent = event.primary_color ?? "#1a1a2e";
   const title = customTitle ?? event.name;
+  const hasBg = Boolean(event.badge_bg_url);
 
   return (
     <Document>
@@ -166,46 +230,74 @@ export function BadgesPdf({
         const info = [a.company, a.job_title].filter(Boolean).join(" · ");
         const fullName =
           [a.first_name, a.last_name].filter(Boolean).join(" ") || "—";
+        const bg = avatarBg(a.id);
 
         return (
-          <Page key={a.id} size="A6" style={styles.page}>
-            {/* Branded header */}
-            <View style={[styles.header, { backgroundColor: accent }]}>
-              {event.logo_url ? (
-                <Image src={event.logo_url} style={styles.logo} />
-              ) : null}
-              <View style={styles.headerText}>
-                <Text style={styles.eventName}>{title}</Text>
+          <Page key={a.id} size="A6" style={S.page}>
+            {/* Layer 1: full-bleed background image */}
+            {hasBg && event.badge_bg_url && (
+              <Image src={event.badge_bg_url} style={S.bgImage} />
+            )}
+
+            {/* Layer 2: content (sits on top of bg due to normal flow order) */}
+            <View style={S.content}>
+              {/* Header */}
+              <View
+                style={
+                  hasBg
+                    ? S.headerOverlay
+                    : [S.header, { backgroundColor: accent }]
+                }
+              >
+                {event.logo_url ? (
+                  <Image src={event.logo_url} style={S.logo} />
+                ) : null}
+                <View style={S.headerText}>
+                  <Text style={S.eventName}>{title}</Text>
+                </View>
               </View>
-            </View>
 
-            {/* Main body */}
-            <View style={styles.body}>
-              {a.avatar_url ? (
-                <Image src={a.avatar_url} style={styles.avatarImg} />
-              ) : (
-                <View
-                  style={[styles.avatarInitials, { backgroundColor: avatarBg(a.id) }]}
-                >
-                  <Text style={styles.initialsText}>{initials(a)}</Text>
+              {/* Body */}
+              <View style={S.body}>
+                {/* Avatar */}
+                {a.avatar_url ? (
+                  <Image
+                    src={a.avatar_url}
+                    style={hasBg ? S.avatarImgBorder : S.avatarImg}
+                  />
+                ) : (
+                  <View
+                    style={[
+                      hasBg ? S.avatarInitialsBorder : S.avatarInitials,
+                      { backgroundColor: bg },
+                    ]}
+                  >
+                    <Text style={S.initialsText}>{initials(a)}</Text>
+                  </View>
+                )}
+
+                {/* Name + info */}
+                <View style={hasBg ? S.nameCardScrim : S.nameCardDefault}>
+                  <Text style={S.name}>{fullName}</Text>
+                  {info ? <Text style={S.info}>{info}</Text> : null}
                 </View>
+
+                {/* QR — always on white card */}
+                {qrDataUrls[a.id] ? (
+                  <View style={S.qrCard}>
+                    <Image src={qrDataUrls[a.id]} style={S.qrImg} />
+                    <Text style={S.qrCaption}>
+                      Zeskanuj, by wymienić kontakt
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {/* Bottom accent strip — only when no background image */}
+              {!hasBg && (
+                <View style={[S.accentStrip, { backgroundColor: accent }]} />
               )}
-
-              <Text style={styles.name}>{fullName}</Text>
-              {info ? <Text style={styles.info}>{info}</Text> : null}
-
-              {qrDataUrls[a.id] ? (
-                <View style={styles.qrWrap}>
-                  <Image src={qrDataUrls[a.id]} style={styles.qrImg} />
-                  <Text style={styles.qrCaption}>
-                    Zeskanuj, by wymienić kontakt
-                  </Text>
-                </View>
-              ) : null}
             </View>
-
-            {/* Bottom accent strip */}
-            <View style={[styles.accentStrip, { backgroundColor: accent }]} />
           </Page>
         );
       })}

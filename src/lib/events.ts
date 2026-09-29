@@ -31,6 +31,7 @@ export type Event = {
   gamification_enabled: boolean;
   lottery_points_per_ticket: number | null;
   reception_token: string | null;
+  badge_bg_url: string | null;
   created_at: string;
   updated_at: string;
 };
