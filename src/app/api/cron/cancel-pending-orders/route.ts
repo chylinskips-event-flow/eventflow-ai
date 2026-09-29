@@ -4,9 +4,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Zamówienia pending starsze niż TTL_MINUTES → cancelled + zwolnienie puli.
-// Pokrywa: porzucone checkouty (zamknięcie karty, timeout) gdzie P24 nie woła
-// webhooka. Cron co 5 minut; TTL 20 minut = zawsze max 25 min blokady.
+// DB hygiene: marks stale pending orders as cancelled.
+// Correctness does NOT depend on this cron — try_reserve_ticket_quantity subtracts
+// expired pending lazily on every reservation attempt, and unreserve_ticket_quantity
+// is called immediately on explicit P24 failures via the webhook.
+// This daily sweep just keeps the orders table tidy and quantity_sold accurate.
 const TTL_MINUTES = 20;
 
 export async function GET(request: NextRequest) {

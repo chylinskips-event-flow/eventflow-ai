@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getOwnEvent } from "@/lib/events";
-import { getTicketTypes, getDiscountCodes, formatPrice, availableQuantity } from "@/lib/tickets";
+import { getTicketTypes, getDiscountCodes, formatPrice, availableQuantity, isTicketTypeSoldOut } from "@/lib/tickets";
 import { Badge } from "@/components/ui/badge";
 import { CreateTicketTypeButton, EditTicketTypeButton } from "./ticket-type-form";
 import { CreateDiscountCodeButton } from "./discount-code-form";
@@ -60,7 +60,7 @@ export default async function TicketsPage({
                 <tr>
                   <th className="px-4 py-3 text-left font-medium">Nazwa</th>
                   <th className="px-4 py-3 text-right font-medium">Cena</th>
-                  <th className="px-4 py-3 text-right font-medium">Sprzedane / Pula</th>
+                  <th className="px-4 py-3 text-right font-medium">Opłacone / Pula</th>
                   <th className="px-4 py-3 text-left font-medium">Okno sprzedaży</th>
                   <th className="px-4 py-3 text-center font-medium">Aktywny</th>
                   <th className="px-4 py-3" />
@@ -69,8 +69,9 @@ export default async function TicketsPage({
               <tbody className="divide-y">
                 {ticketTypes.map((tt) => {
                   const avail = availableQuantity(tt);
-                  const soldOut =
-                    tt.quantity_total !== null && tt.quantity_sold >= tt.quantity_total;
+                  const soldOut = isTicketTypeSoldOut(tt);
+                  const paidQty = tt.paid_quantity ?? tt.quantity_sold;
+                  const pendingQty = tt.active_pending_quantity ?? 0;
                   return (
                     <tr key={tt.id} className="hover:bg-muted/20">
                       <td className="px-4 py-3">
@@ -87,12 +88,19 @@ export default async function TicketsPage({
                       <td className="px-4 py-3 text-right tabular-nums">
                         {tt.quantity_total === null ? (
                           <span>
-                            {tt.quantity_sold} /{" "}
-                            <span className="text-muted-foreground">∞</span>
+                            {paidQty}
+                            {pendingQty > 0 && (
+                              <span className="text-muted-foreground"> (+{pendingQty})</span>
+                            )}{" "}
+                            / <span className="text-muted-foreground">∞</span>
                           </span>
                         ) : (
                           <span>
-                            {tt.quantity_sold} / {tt.quantity_total}
+                            {paidQty}
+                            {pendingQty > 0 && (
+                              <span className="text-muted-foreground"> (+{pendingQty})</span>
+                            )}{" "}
+                            / {tt.quantity_total}
                             {soldOut && (
                               <Badge variant="destructive" className="ml-2 text-xs">
                                 Wyprzedany

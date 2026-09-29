@@ -10,13 +10,17 @@ export type TicketType = {
   price: number;           // grosze (PLN*100); 0 = free
   currency: string;
   quantity_total: number | null;  // null = unlimited
-  quantity_sold: number;
+  quantity_sold: number;          // internal counter (paid + all pending incl. expired)
   sales_start: string | null;
   sales_end: string | null;
   position: number;
   enabled: boolean;
   created_at: string;
   updated_at: string;
+  // Enriched by get_ticket_types_with_availability RPC — used for accurate display.
+  // paid_quantity + active_pending_quantity = effective_sold (expired pending excluded).
+  paid_quantity?: number;
+  active_pending_quantity?: number;
 };
 
 export type DiscountKind = "percent" | "amount";
@@ -102,39 +106,49 @@ export function isTicketTypeAvailable(tt: TicketType): boolean {
 
 export function isTicketTypeSoldOut(tt: TicketType): boolean {
   if (tt.quantity_total === null) return false;
-  return tt.quantity_sold >= tt.quantity_total;
+  // Use accurate paid+active_pending when available (from RPC); otherwise fall back
+  // to quantity_sold (may briefly over-report soldout if expired pending not swept yet)
+  const effectiveSold =
+    tt.paid_quantity !== undefined
+      ? tt.paid_quantity + (tt.active_pending_quantity ?? 0)
+      : tt.quantity_sold;
+  return effectiveSold >= tt.quantity_total;
 }
 
 export function availableQuantity(tt: TicketType): number | null {
   if (tt.quantity_total === null) return null;
-  return Math.max(0, tt.quantity_total - tt.quantity_sold);
+  const effectiveSold =
+    tt.paid_quantity !== undefined
+      ? tt.paid_quantity + (tt.active_pending_quantity ?? 0)
+      : tt.quantity_sold;
+  return Math.max(0, tt.quantity_total - effectiveSold);
 }
 
 // ---- Data access (service_role only) ------------------------------------
 
+/** All ticket types for an event (organizer view). Includes paid/pending breakdown. */
 export async function getTicketTypes(eventId: string): Promise<TicketType[]> {
   const supabase = createAdminClient();
-  const { data } = await supabase
-    .from("ticket_types")
-    .select("*")
-    .eq("event_id", eventId)
-    .order("position", { ascending: true });
+  const { data } = await supabase.rpc("get_ticket_types_with_availability", {
+    p_event_id: eventId,
+  });
   return (data ?? []) as TicketType[];
 }
 
-/** Returns enabled types within their sale window — for public display. */
+/** Enabled types within their sale window — for public display. Includes paid/pending breakdown. */
 export async function getPublicTicketTypes(eventId: string): Promise<TicketType[]> {
   const supabase = createAdminClient();
-  const now = new Date().toISOString();
-  const { data } = await supabase
-    .from("ticket_types")
-    .select("*")
-    .eq("event_id", eventId)
-    .eq("enabled", true)
-    .or(`sales_start.is.null,sales_start.lte.${now}`)
-    .or(`sales_end.is.null,sales_end.gte.${now}`)
-    .order("position", { ascending: true });
-  return (data ?? []) as TicketType[];
+  const { data } = await supabase.rpc("get_ticket_types_with_availability", {
+    p_event_id: eventId,
+  });
+  if (!data) return [];
+  const now = new Date();
+  return (data as TicketType[]).filter(
+    (tt) =>
+      tt.enabled &&
+      (tt.sales_start == null || new Date(tt.sales_start) <= now) &&
+      (tt.sales_end == null || new Date(tt.sales_end) >= now),
+  );
 }
 
 export async function getDiscountCodes(eventId: string): Promise<DiscountCode[]> {

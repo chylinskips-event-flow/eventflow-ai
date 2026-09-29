@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/cancel-pending-orders",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }
