@@ -25,6 +25,7 @@ import {
 } from "@/lib/event-content";
 import { getEnabledEventSections } from "@/lib/event-sections";
 import { EventSectionsRenderer } from "@/components/event-sections";
+import { getPublicTicketTypes, formatPrice, isTicketTypeSoldOut, availableQuantity } from "@/lib/tickets";
 import { computeLevel, computeNextLevelThreshold, LEVEL_LABELS } from "@/lib/gamification";
 import { formatDate, formatDateTimeRange, pluralizePl } from "@/lib/format";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -394,25 +395,29 @@ export default async function ParticipantEventPage({
   // W trybie podglądu (własność potwierdzona) czytamy przez service_role —
   // publiczne polityki RLS ujawniają te dane tylko dla published/live, więc
   // draft inaczej dałby pustą stronę bez agendy/prelegentów/sekcji.
-  const [sections, sessions, speakers, eventSections] = previewMode
+  const [sections, sessions, speakers, eventSections, publicTicketTypes] = previewMode
     ? await Promise.all([
         getEventContentSectionsForPreview(event.id),
         getEventSessionsForParticipant(event.id),
         getEventSpeakersForParticipant(event.id),
         getEnabledEventSections(event.id),
+        getPublicTicketTypes(event.id),
       ])
     : await Promise.all([
         getEventContentSections(event.id),
         getEventSessions(event.id),
         getEventSpeakers(event.id),
         getEnabledEventSections(event.id),
+        getPublicTicketTypes(event.id),
       ]);
+
+  const hasTickets = publicTicketTypes.length > 0;
 
   const navLinks = [
     sections.length > 0 ? { href: "#about", label: "O wydarzeniu" } : null,
     speakers.length > 0 ? { href: "#speakers", label: "Prelegenci" } : null,
     sessions.length > 0 ? { href: "#agenda", label: "Agenda" } : null,
-    { href: "#register", label: "Rejestracja" },
+    { href: "#register", label: hasTickets ? "Bilety" : "Rejestracja" },
   ].filter((link): link is { href: string; label: string } => link !== null);
 
   const showPreviewBanner =
@@ -564,17 +569,65 @@ export default async function ParticipantEventPage({
 
       <EventSectionsRenderer sections={eventSections} />
 
-      <div id="register" className="bg-secondary">
-        <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-3 p-8 text-center">
-          <h2 className="text-2xl font-bold">Dołącz do nas!</h2>
-          <p className="text-muted-foreground">
-            Miejsca są ograniczone – zarezerwuj swoje już teraz.
-          </p>
-          <Button asChild size="lg" className="w-full sm:w-auto">
-            <Link href={`/e/${slug}/register`}>Zarejestruj się</Link>
-          </Button>
+      {hasTickets ? (
+        <div id="register" className="bg-secondary">
+          <div className="mx-auto w-full max-w-4xl p-8">
+            <h2 className="mb-6 text-center text-2xl font-bold">Bilety</h2>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {publicTicketTypes.map((tt) => {
+                const soldOut = isTicketTypeSoldOut(tt);
+                const avail = availableQuantity(tt);
+                return (
+                  <div
+                    key={tt.id}
+                    className={`rounded-xl border bg-background p-5 shadow-sm ${
+                      soldOut ? "opacity-60" : ""
+                    }`}
+                  >
+                    <div className="mb-1 text-lg font-semibold">{tt.name}</div>
+                    {tt.description && (
+                      <p className="mb-3 text-sm text-muted-foreground">
+                        {tt.description}
+                      </p>
+                    )}
+                    <div className="mb-4 text-2xl font-bold">
+                      {formatPrice(tt.price)}
+                    </div>
+                    {avail !== null && !soldOut && avail <= 10 && (
+                      <p className="mb-2 text-xs text-amber-600 font-medium">
+                        Ostatnie {avail} {avail === 1 ? "miejsce" : "miejsca"}
+                      </p>
+                    )}
+                    {soldOut ? (
+                      <Button disabled className="w-full">
+                        Wyprzedany
+                      </Button>
+                    ) : (
+                      <Button asChild className="w-full">
+                        <Link href={`/e/${slug}/checkout?ticket=${tt.id}`}>
+                          {tt.price === 0 ? "Zarejestruj się bezpłatnie" : "Kup bilet"}
+                        </Link>
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div id="register" className="bg-secondary">
+          <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-3 p-8 text-center">
+            <h2 className="text-2xl font-bold">Dołącz do nas!</h2>
+            <p className="text-muted-foreground">
+              Miejsca są ograniczone – zarezerwuj swoje już teraz.
+            </p>
+            <Button asChild size="lg" className="w-full sm:w-auto">
+              <Link href={`/e/${slug}/register`}>Zarejestruj się</Link>
+            </Button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

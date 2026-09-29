@@ -16,6 +16,8 @@ import {
   Megaphone,
   Network,
   ScanLine,
+  ShoppingBag,
+  CreditCard,
   ChevronLeft,
   Menu,
   X,
@@ -57,6 +59,8 @@ export function EventSidebar({
     ...(hasLottery
       ? [{ href: `${base}/lottery`, icon: Ticket, label: "Loteria" } as NavItem]
       : []),
+    { href: `${base}/tickets`,    icon: ShoppingBag, label: "Bilety"     },
+    { href: `${base}/payments`,  icon: CreditCard,  label: "Płatności"  },
     { href: `${base}/content`,   icon: FileText,    label: "Treść"      },
     { href: `${base}/messages`,  icon: Megaphone,   label: "Komunikaty" },
   ];

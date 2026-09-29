@@ -1,0 +1,214 @@
+import { notFound } from "next/navigation";
+import { getOwnEvent } from "@/lib/events";
+import { getTicketTypes, getDiscountCodes, formatPrice, availableQuantity } from "@/lib/tickets";
+import { Badge } from "@/components/ui/badge";
+import { CreateTicketTypeButton, EditTicketTypeButton } from "./ticket-type-form";
+import { CreateDiscountCodeButton } from "./discount-code-form";
+import { TicketTypeToggle, DeleteTicketTypeButton, DeleteDiscountCodeButton } from "./ticket-row-actions";
+
+function formatDateRange(start: string | null, end: string | null): string {
+  if (!start && !end) return "Bez okna";
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString("pl-PL", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  if (start && end) return `${fmt(start)} – ${fmt(end)}`;
+  if (start) return `od ${fmt(start)}`;
+  return `do ${fmt(end!)}`;
+}
+
+export default async function TicketsPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
+  const { eventId } = await params;
+  const event = await getOwnEvent(eventId);
+  if (!event) notFound();
+
+  const [ticketTypes, discountCodes] = await Promise.all([
+    getTicketTypes(eventId),
+    getDiscountCodes(eventId),
+  ]);
+
+  return (
+    <div className="space-y-10">
+      {/* ---- Ticket types ---- */}
+      <section>
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Typy biletów</h2>
+            <p className="text-sm text-muted-foreground">
+              Zarządzaj cenami, pulami i oknami sprzedaży.
+            </p>
+          </div>
+          <CreateTicketTypeButton eventId={eventId} />
+        </div>
+
+        {ticketTypes.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
+            Brak typów biletów. Dodaj pierwszy typ, aby włączyć sprzedaż.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-lg border">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-muted/40">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium">Nazwa</th>
+                  <th className="px-4 py-3 text-right font-medium">Cena</th>
+                  <th className="px-4 py-3 text-right font-medium">Sprzedane / Pula</th>
+                  <th className="px-4 py-3 text-left font-medium">Okno sprzedaży</th>
+                  <th className="px-4 py-3 text-center font-medium">Aktywny</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {ticketTypes.map((tt) => {
+                  const avail = availableQuantity(tt);
+                  const soldOut =
+                    tt.quantity_total !== null && tt.quantity_sold >= tt.quantity_total;
+                  return (
+                    <tr key={tt.id} className="hover:bg-muted/20">
+                      <td className="px-4 py-3">
+                        <div className="font-medium">{tt.name}</div>
+                        {tt.description && (
+                          <div className="text-xs text-muted-foreground line-clamp-1">
+                            {tt.description}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {formatPrice(tt.price)}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {tt.quantity_total === null ? (
+                          <span>
+                            {tt.quantity_sold} /{" "}
+                            <span className="text-muted-foreground">∞</span>
+                          </span>
+                        ) : (
+                          <span>
+                            {tt.quantity_sold} / {tt.quantity_total}
+                            {soldOut && (
+                              <Badge variant="destructive" className="ml-2 text-xs">
+                                Wyprzedany
+                              </Badge>
+                            )}
+                            {!soldOut && avail !== null && avail <= 10 && (
+                              <Badge variant="secondary" className="ml-2 text-xs">
+                                Ostatnie {avail}
+                              </Badge>
+                            )}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {formatDateRange(tt.sales_start, tt.sales_end)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <TicketTypeToggle
+                          eventId={eventId}
+                          ticketTypeId={tt.id}
+                          enabled={tt.enabled}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <EditTicketTypeButton eventId={eventId} ticket={tt} />
+                          <DeleteTicketTypeButton
+                            eventId={eventId}
+                            ticketTypeId={tt.id}
+                            name={tt.name}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* ---- Discount codes ---- */}
+      <section>
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Kody rabatowe</h2>
+            <p className="text-sm text-muted-foreground">
+              Procentowe lub kwotowe zniżki; opcjonalnie z limitem i datą ważności.
+            </p>
+          </div>
+          <CreateDiscountCodeButton eventId={eventId} />
+        </div>
+
+        {discountCodes.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
+            Brak kodów rabatowych.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-lg border">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-muted/40">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium">Kod</th>
+                  <th className="px-4 py-3 text-left font-medium">Rabat</th>
+                  <th className="px-4 py-3 text-right font-medium">Użycia</th>
+                  <th className="px-4 py-3 text-left font-medium">Ważność</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {discountCodes.map((dc) => {
+                  const exhausted =
+                    dc.max_uses !== null && dc.uses_count >= dc.max_uses;
+                  return (
+                    <tr key={dc.id} className="hover:bg-muted/20">
+                      <td className="px-4 py-3 font-mono font-semibold tracking-wider">
+                        {dc.code}
+                        {!dc.enabled && (
+                          <Badge variant="secondary" className="ml-2">
+                            Wyłączony
+                          </Badge>
+                        )}
+                        {exhausted && (
+                          <Badge variant="destructive" className="ml-2">
+                            Wyczerpany
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {dc.kind === "percent"
+                          ? `${dc.value}%`
+                          : formatPrice(dc.value)}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {dc.uses_count}
+                        {dc.max_uses !== null && ` / ${dc.max_uses}`}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {formatDateRange(dc.valid_from, dc.valid_until)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <DeleteDiscountCodeButton
+                          eventId={eventId}
+                          codeId={dc.id}
+                          code={dc.code}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
