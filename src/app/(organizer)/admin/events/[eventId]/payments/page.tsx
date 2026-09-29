@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { getOwnEvent } from "@/lib/events";
-import { CreditCard, Info } from "lucide-react";
+import { getPaymentConfigMasked } from "./actions";
+import { PaymentsForm } from "./payments-form";
+import { AlertTriangle } from "lucide-react";
 
 export default async function PaymentsPage({
   params,
@@ -11,32 +13,31 @@ export default async function PaymentsPage({
   const event = await getOwnEvent(eventId);
   if (!event) notFound();
 
+  const existing = await getPaymentConfigMasked(eventId);
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">Płatności (Przelewy24)</h2>
+        <h2 className="text-xl font-semibold">Platnosci (Przelewy24)</h2>
         <p className="text-sm text-muted-foreground">
-          Konfiguracja bramki płatniczej dla tego wydarzenia.
+          Konfiguracja bramki platniczej P24 dla tego konta organizatora.
         </p>
       </div>
 
-      <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4 text-sm">
-        <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <div className="flex items-start gap-3 rounded-lg border bg-amber-50 p-4 text-sm dark:bg-amber-950/20">
+        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
         <div className="space-y-1">
-          <p className="font-medium">Integracja P24 — w przygotowaniu</p>
-          <p className="text-muted-foreground">
-            Konfiguracja kont Przelewy24 (pos_id, merchant_id, klucze API, CRC) zostanie
-            dostępna w kolejnej fazie. Bilety darmowe działają już teraz bez płatności.
+          <p className="font-medium text-amber-800 dark:text-amber-300">
+            Testuj wylacznie w sandboxie
+          </p>
+          <p className="text-amber-700 dark:text-amber-400">
+            Klucze produkcyjne wpisz dopiero po pelnych testach w sandboxie P24.
+            Regulamin i polityka zwrotow wymagaja aktualizacji prawnej przed uruchomieniem platnosci.
           </p>
         </div>
       </div>
 
-      <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
-        <div className="text-center">
-          <CreditCard className="mx-auto mb-2 size-8 opacity-40" />
-          <p className="text-sm">Formularz konfiguracji P24 — wkrótce</p>
-        </div>
-      </div>
+      <PaymentsForm eventId={eventId} existing={existing} />
     </div>
   );
 }

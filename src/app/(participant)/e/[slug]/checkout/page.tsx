@@ -58,29 +58,11 @@ export default async function CheckoutPage({
     );
   }
 
-  if (ticket.price !== 0) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4">
-        <Card className="w-full max-w-sm">
-          <CardHeader>
-            <CardTitle>Płatności P24 — wkrótce</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              Zakup biletów płatnych będzie dostępny po uruchomieniu integracji
-              z Przelewy24.
-            </p>
-          </CardContent>
-        </Card>
-      </main>
-    );
-  }
-
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
       <div className="flex w-full max-w-2xl flex-col gap-2">
         <Badge variant="secondary" className="w-fit">
-          REJESTRACJA — BILET BEZPŁATNY
+          {ticket.price === 0 ? "REJESTRACJA — BILET BEZPLATNY" : "KUP BILET"}
         </Badge>
         <h1 className="text-2xl font-semibold">{event.name}</h1>
         {event.starts_at && (
