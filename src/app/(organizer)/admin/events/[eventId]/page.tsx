@@ -2,8 +2,10 @@ import { notFound } from "next/navigation";
 import { Handshake, Users, Target } from "lucide-react";
 import { getOwnEvent } from "@/lib/events";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getDomainStatus } from "@/lib/vercel-domains";
 import { EventEditForm } from "./form";
 import { Card, CardContent } from "@/components/ui/card";
+import { SubdomainStatus } from "./subdomain-status";
 
 export default async function EventDetailPage({
   params,
@@ -15,6 +17,21 @@ export default async function EventDetailPage({
 
   if (!event) {
     notFound();
+  }
+
+  const isPublished = event.status === "published" || event.status === "live";
+  const rootDomain = process.env.ROOT_DOMAIN ?? "eventro.pl";
+  let subdomainInitialState: "active" | "activating" | "error" | "unknown" = "unknown";
+
+  if (isPublished && process.env.VERCEL_API_TOKEN && process.env.VERCEL_PROJECT_ID) {
+    const domainStatus = await getDomainStatus(`${event.slug}.${rootDomain}`);
+    if (domainStatus === null) {
+      subdomainInitialState = "error";
+    } else if (domainStatus.verified) {
+      subdomainInitialState = "active";
+    } else {
+      subdomainInitialState = "activating";
+    }
   }
 
   let stats: {
@@ -55,6 +72,16 @@ export default async function EventDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
+      {isPublished && (
+        <div className="mx-auto w-full max-w-2xl px-6 pt-4">
+          <SubdomainStatus
+            eventId={eventId}
+            slug={event.slug}
+            initialState={subdomainInitialState}
+          />
+        </div>
+      )}
+
       {stats && (
         <div className="mx-auto w-full max-w-2xl px-6 pt-6">
           <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">

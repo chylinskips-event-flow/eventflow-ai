@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseLines } from "@/lib/events";
 import { parseDateTimeLocal } from "@/lib/format";
-import { SLUG_PATTERN } from "@/lib/slug";
+import { validateSlug } from "@/lib/slug";
+import { addDomain, removeDomain, getDomainStatus } from "@/lib/vercel-domains";
+
+const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? "eventro.pl";
+const hasVercelConfig = () =>
+  !!(process.env.VERCEL_API_TOKEN && process.env.VERCEL_PROJECT_ID);
 
 export type EventFormState = {
   status: "idle" | "error" | "success";
@@ -29,8 +34,6 @@ export async function updateEvent(
   const requiresApproval = formData.get("requires_approval") === "on";
   const gamificationEnabled = formData.get("gamification_enabled") === "on";
 
-  // Punkty na 1 los loterii: pusta wartość = loteria wyłączona (NULL).
-  // Dodatnia liczba całkowita albo błąd — zero/ujemne nie mają sensu.
   const lotteryRaw = formData.get("lottery_points_per_ticket");
   let lotteryPointsPerTicket: number | null = null;
   if (typeof lotteryRaw === "string" && lotteryRaw.trim()) {
@@ -48,13 +51,12 @@ export async function updateEvent(
     return { status: "error", message: "Podaj nazwę eventu." };
   }
 
-  if (typeof slug !== "string" || !SLUG_PATTERN.test(slug)) {
-    return {
-      status: "error",
-      message:
-        "Adres może zawierać tylko małe litery, cyfry i myślniki (np. moj-event).",
-    };
+  if (typeof slug !== "string") {
+    return { status: "error", message: "Podaj adres URL eventu." };
   }
+
+  const slugError = validateSlug(slug);
+  if (slugError) return { status: "error", message: slugError };
 
   if (typeof startsAt !== "string" || !startsAt) {
     return { status: "error", message: "Podaj datę i godzinę rozpoczęcia." };
@@ -68,8 +70,6 @@ export async function updateEvent(
     return { status: "error", message: "Wybierz strefę czasową." };
   }
 
-  // Naiwne godziny z pól interpretujemy w WYBRANEJ strefie (nowej, jeśli
-  // organizator ją zmienił w tym samym zapisie).
   const startsAtIso = parseDateTimeLocal(startsAt, timezone);
   const endsAtIso = parseDateTimeLocal(endsAt, timezone);
 
@@ -81,6 +81,13 @@ export async function updateEvent(
   }
 
   const supabase = await createClient();
+
+  // Odczytaj aktualny slug i status — potrzebne do ewentualnej rotacji domeny.
+  const { data: currentEvent } = await supabase
+    .from("events")
+    .select("slug, status")
+    .eq("id", eventId)
+    .maybeSingle();
 
   const { data: existing } = await supabase
     .from("events")
@@ -117,7 +124,6 @@ export async function updateEvent(
           ? primaryColor.trim()
           : null,
       room_names: roomNames,
-      // Pusta lista -> NULL: fallback do domyślnej, zahardkodowanej listy.
       interest_options: interestOptions.length > 0 ? interestOptions : null,
       requires_approval: requiresApproval,
       gamification_enabled: gamificationEnabled,
@@ -138,6 +144,20 @@ export async function updateEvent(
     };
   }
 
+  // Przy zmianie sluga opublikowanego eventu: zamień domeny (best-effort).
+  if (
+    currentEvent &&
+    currentEvent.slug !== slug &&
+    (currentEvent.status === "published" || currentEvent.status === "live") &&
+    hasVercelConfig()
+  ) {
+    const oldHost = `${currentEvent.slug}.${ROOT_DOMAIN}`;
+    const newHost = `${slug}.${ROOT_DOMAIN}`;
+    Promise.all([removeDomain(oldHost), addDomain(newHost)]).catch((err) =>
+      console.error("[vercel-domains] slug swap failed:", err),
+    );
+  }
+
   revalidatePath(`/admin/events/${eventId}`);
   return { status: "success", message: "Zapisano zmiany." };
 }
@@ -149,7 +169,7 @@ export async function publishEvent(eventId: string) {
     .update({ status: "published" })
     .eq("id", eventId)
     .eq("status", "draft")
-    .select();
+    .select("id, slug");
 
   if (error) {
     throw new Error(`Publish failed: ${error.message} (code: ${error.code})`);
@@ -161,12 +181,18 @@ export async function publishEvent(eventId: string) {
     );
   }
 
+  // Zarejestruj subdomenę w Vercel (best-effort — publikacja nie jest blokowana).
+  if (hasVercelConfig()) {
+    const host = `${data[0].slug}.${ROOT_DOMAIN}`;
+    addDomain(host).catch((err) =>
+      console.error(`[vercel-domains] addDomain(${host}) after publish threw:`, err),
+    );
+  }
+
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath("/admin");
 }
 
-// published -> live. Guard .eq("status","published") wymusza stan źródłowy,
-// własność egzekwuje RLS (createClient) — ten sam wzorzec co publishEvent.
 export async function startEvent(eventId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -190,7 +216,6 @@ export async function startEvent(eventId: string) {
   revalidatePath("/admin");
 }
 
-// live -> completed. Analogicznie do startEvent.
 export async function completeEvent(eventId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -214,8 +239,30 @@ export async function completeEvent(eventId: string) {
   revalidatePath("/admin");
 }
 
+/** Ponawia rejestrację subdomeny — wywoływane z widgetu statusu w panelu. */
+export async function retrySubdomain(
+  eventId: string,
+): Promise<"active" | "activating" | "error"> {
+  const supabase = await createClient();
+  const { data: event } = await supabase
+    .from("events")
+    .select("slug")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (!event) return "error";
+  if (!hasVercelConfig()) return "error";
+
+  const host = `${event.slug}.${ROOT_DOMAIN}`;
+  const addResult = await addDomain(host);
+  if (!addResult.ok) return "error";
+
+  const status = await getDomainStatus(host);
+  return status?.verified ? "active" : "activating";
+}
+
 const ALLOWED_LOGO_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
 
 export async function uploadEventLogo(
   eventId: string,
