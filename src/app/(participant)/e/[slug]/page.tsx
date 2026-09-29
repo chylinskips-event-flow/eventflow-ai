@@ -23,6 +23,8 @@ import {
   getEventContentSections,
   getEventContentSectionsForPreview,
 } from "@/lib/event-content";
+import { getEnabledEventSections } from "@/lib/event-sections";
+import { EventSectionsRenderer } from "@/components/event-sections";
 import { computeLevel, computeNextLevelThreshold, LEVEL_LABELS } from "@/lib/gamification";
 import { formatDate, formatDateTimeRange, pluralizePl } from "@/lib/format";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -392,16 +394,18 @@ export default async function ParticipantEventPage({
   // W trybie podglądu (własność potwierdzona) czytamy przez service_role —
   // publiczne polityki RLS ujawniają te dane tylko dla published/live, więc
   // draft inaczej dałby pustą stronę bez agendy/prelegentów/sekcji.
-  const [sections, sessions, speakers] = previewMode
+  const [sections, sessions, speakers, eventSections] = previewMode
     ? await Promise.all([
         getEventContentSectionsForPreview(event.id),
         getEventSessionsForParticipant(event.id),
         getEventSpeakersForParticipant(event.id),
+        getEnabledEventSections(event.id),
       ])
     : await Promise.all([
         getEventContentSections(event.id),
         getEventSessions(event.id),
         getEventSpeakers(event.id),
+        getEnabledEventSections(event.id),
       ]);
 
   const navLinks = [
@@ -557,6 +561,8 @@ export default async function ParticipantEventPage({
           />
         </section>
       )}
+
+      <EventSectionsRenderer sections={eventSections} />
 
       <div id="register" className="bg-secondary">
         <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-3 p-8 text-center">

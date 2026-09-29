@@ -1,11 +1,13 @@
 import { notFound } from "next/navigation";
 import { getOwnEvent } from "@/lib/events";
 import { getEventContentSections } from "@/lib/event-content";
+import { getEventSections } from "@/lib/event-sections";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BannerUpload } from "./banner-upload";
 import { SectionFormDialog } from "./section-form-dialog";
 import { SectionCard } from "./section-card";
+import { EventSectionsBuilder } from "./event-sections-builder";
 
 export default async function EventContentPage({
   params,
@@ -19,7 +21,10 @@ export default async function EventContentPage({
     notFound();
   }
 
-  const sections = await getEventContentSections(eventId);
+  const [sections, eventSections] = await Promise.all([
+    getEventContentSections(eventId),
+    getEventSections(eventId),
+  ]);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
@@ -56,6 +61,13 @@ export default async function EventContentPage({
           ))}
         </div>
       )}
+
+      <div className="flex items-center justify-between border-t pt-6">
+        <h2 className="text-lg font-medium">Sekcje strony</h2>
+        <p className="text-xs text-muted-foreground">Widoczne po agendzie, przed rejestracją</p>
+      </div>
+
+      <EventSectionsBuilder eventId={eventId} initialSections={eventSections} />
     </main>
   );
 }
