@@ -6,11 +6,28 @@
  * Działa zarówno server-side (origin z getOrigin(headers())), jak i
  * client-side (origin z window.location.origin) — NEXT_PUBLIC_ jest
  * wbudowany w bundle przez Next.js.
+ *
+ * NIE używaj tego w mailach wychodzących — subdomena może nie być podpięta.
+ * Do maili używaj buildEventApexUrl.
  */
 export function buildEventUrl(slug: string, origin: string): string {
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
   if (rootDomain) {
     return `https://${slug}.${rootDomain}`;
+  }
+  return `${origin}/e/${slug}`;
+}
+
+/**
+ * Buduje URL apexowy dla linków wychodzących w mailach.
+ * Zawsze używa https://{rootDomain}/e/{slug} — niezależnie od stanu subdomeny.
+ * Subdomena może nie być podpięta do Vercela (limit planu, błąd addDomain),
+ * więc linki krytyczne (wejście uczestnika, QR biletu) muszą iść przez apex.
+ */
+export function buildEventApexUrl(slug: string, origin: string): string {
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+  if (rootDomain) {
+    return `https://${rootDomain}/e/${slug}`;
   }
   return `${origin}/e/${slug}`;
 }
