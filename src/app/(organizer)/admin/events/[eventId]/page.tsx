@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Handshake, Users, Target } from "lucide-react";
 import { getOwnEvent } from "@/lib/events";
+import { getPaidOrderCount } from "@/lib/orders";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDomainStatus } from "@/lib/vercel-domains";
 import { EventEditForm } from "./form";
@@ -36,16 +37,12 @@ export default async function EventDetailPage({
 
   const admin = createAdminClient();
 
-  const [{ count: attendeeCount }, { count: paidOrderCount }] = await Promise.all([
+  const [{ count: attendeeCount }, paidOrderCount] = await Promise.all([
     admin
       .from("attendees")
       .select("id", { count: "exact", head: true })
       .eq("event_id", eventId),
-    admin
-      .from("orders")
-      .select("id", { count: "exact", head: true })
-      .eq("event_id", eventId)
-      .eq("status", "completed"),
+    getPaidOrderCount(eventId),
   ]);
 
   let stats: {

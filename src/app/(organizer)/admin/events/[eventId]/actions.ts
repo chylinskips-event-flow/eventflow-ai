@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { parseLines } from "@/lib/events";
 import { parseDateTimeLocal } from "@/lib/format";
 import { validateSlug } from "@/lib/slug";
 import { addDomain, removeDomain, getDomainStatus } from "@/lib/vercel-domains";
+import { getPaidOrderCount } from "@/lib/orders";
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? "eventro.pl";
 const hasVercelConfig = () =>
@@ -304,14 +304,8 @@ export async function softDeleteEvent(
   }
 
   // Block if paid orders exist — financial records must not be lost.
-  const admin = createAdminClient();
-  const { count: paidCount } = await admin
-    .from("orders")
-    .select("id", { count: "exact", head: true })
-    .eq("event_id", eventId)
-    .eq("status", "completed");
-
-  if (paidCount && paidCount > 0) {
+  const paidCount = await getPaidOrderCount(eventId);
+  if (paidCount > 0) {
     return {
       status: "error",
       blockedByPayments: true,
