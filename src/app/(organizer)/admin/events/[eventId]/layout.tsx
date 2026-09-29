@@ -100,7 +100,7 @@ export default async function EventLayout({
         </header>
 
         {/* Treść strony */}
-        <div className="flex-1">
+        <div className="flex-1 px-4 sm:px-0">
           {children}
         </div>
       </div>
