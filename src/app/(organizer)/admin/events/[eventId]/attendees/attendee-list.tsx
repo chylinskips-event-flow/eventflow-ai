@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AttendeeActions } from "./attendee-actions";
 import { DeleteAttendeeButton } from "./delete-attendee-button";
+import { EditAttendeeButton } from "./edit-attendee-button";
 
 const STATUS_LABELS: Record<Attendee["status"], string> = {
   pending: "Oczekuje",
@@ -69,13 +70,14 @@ export function AttendeeList({
                       {attendee.email}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <Badge variant={STATUS_VARIANTS[attendee.status]}>
                       {STATUS_LABELS[attendee.status]}
                     </Badge>
                     {attendee.status === "pending" && (
                       <AttendeeActions eventId={eventId} attendeeId={attendee.id} />
                     )}
+                    <EditAttendeeButton eventId={eventId} attendee={attendee} />
                     <DeleteAttendeeButton
                       eventId={eventId}
                       attendeeId={attendee.id}

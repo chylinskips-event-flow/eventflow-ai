@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { parseLines } from "@/lib/events";
 import { parseDateTimeLocal } from "@/lib/format";
 import { validateSlug } from "@/lib/slug";
@@ -14,6 +16,12 @@ const hasVercelConfig = () =>
 export type EventFormState = {
   status: "idle" | "error" | "success";
   message?: string;
+};
+
+export type EventDangerState = {
+  status: "idle" | "error" | "success";
+  message?: string;
+  blockedByPayments?: boolean;
 };
 
 export async function updateEvent(
@@ -237,6 +245,101 @@ export async function completeEvent(eventId: string) {
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath("/admin");
+}
+
+export async function unpublishEvent(eventId: string): Promise<EventDangerState> {
+  const supabase = await createClient();
+
+  const { data: event } = await supabase
+    .from("events")
+    .select("slug, status")
+    .eq("id", eventId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (!event) return { status: "error", message: "Event nie istnieje." };
+  if (event.status !== "published" && event.status !== "live") {
+    return { status: "error", message: "Event nie jest opublikowany." };
+  }
+
+  const { error } = await supabase
+    .from("events")
+    .update({ status: "draft" })
+    .eq("id", eventId)
+    .in("status", ["published", "live"]);
+
+  if (error) {
+    return { status: "error", message: "Nie udało się cofnąć publikacji. Spróbuj ponownie." };
+  }
+
+  if (hasVercelConfig()) {
+    const host = `${event.slug}.${ROOT_DOMAIN}`;
+    removeDomain(host).catch((err) =>
+      console.error(`[vercel-domains] removeDomain(${host}) after unpublish:`, err),
+    );
+  }
+
+  revalidatePath(`/admin/events/${eventId}`);
+  revalidatePath("/admin");
+  return { status: "success" };
+}
+
+export async function softDeleteEvent(
+  eventId: string,
+  confirmedName: string,
+): Promise<EventDangerState> {
+  const supabase = await createClient();
+
+  const { data: event } = await supabase
+    .from("events")
+    .select("slug, status, name")
+    .eq("id", eventId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (!event) return { status: "error", message: "Event nie istnieje." };
+
+  if (confirmedName.trim() !== event.name) {
+    return { status: "error", message: "Wpisana nazwa nie pasuje do nazwy eventu." };
+  }
+
+  // Block if paid orders exist — financial records must not be lost.
+  const admin = createAdminClient();
+  const { count: paidCount } = await admin
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .eq("event_id", eventId)
+    .eq("status", "completed");
+
+  if (paidCount && paidCount > 0) {
+    return {
+      status: "error",
+      blockedByPayments: true,
+      message: `Ten event ma ${paidCount} opłacone zamówienie(a) — nie można go usunąć. Najpierw obsłuż zwroty lub skontaktuj się z supportem.`,
+    };
+  }
+
+  const { error } = await supabase
+    .from("events")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", eventId);
+
+  if (error) {
+    return { status: "error", message: "Nie udało się usunąć eventu. Spróbuj ponownie." };
+  }
+
+  if (
+    hasVercelConfig() &&
+    (event.status === "published" || event.status === "live")
+  ) {
+    const host = `${event.slug}.${ROOT_DOMAIN}`;
+    removeDomain(host).catch((err) =>
+      console.error(`[vercel-domains] removeDomain(${host}) after delete:`, err),
+    );
+  }
+
+  revalidatePath("/admin");
+  redirect("/admin");
 }
 
 /** Ponawia rejestrację subdomeny — wywoływane z widgetu statusu w panelu. */

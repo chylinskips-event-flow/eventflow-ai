@@ -105,6 +105,47 @@ export async function rejectAttendee(
   return { status: "success", message: "Uczestnik odrzucony." };
 }
 
+export async function updateAttendeeAsOrganizer(
+  eventId: string,
+  attendeeId: string,
+  formData: FormData,
+): Promise<AttendeeModerationState> {
+  const event = await getOwnEvent(eventId);
+  if (!event) {
+    return { status: "error", message: "Event nie został znaleziony." };
+  }
+
+  const firstName = formData.get("first_name");
+  const lastName = formData.get("last_name");
+  const email = formData.get("email");
+  const company = formData.get("company");
+  const jobTitle = formData.get("job_title");
+
+  if (typeof email !== "string" || !email.trim()) {
+    return { status: "error", message: "Adres e-mail jest wymagany." };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("attendees")
+    .update({
+      first_name: typeof firstName === "string" ? firstName.trim() || null : null,
+      last_name: typeof lastName === "string" ? lastName.trim() || null : null,
+      email: email.trim(),
+      company: typeof company === "string" ? company.trim() || null : null,
+      job_title: typeof jobTitle === "string" ? jobTitle.trim() || null : null,
+    })
+    .eq("id", attendeeId)
+    .eq("event_id", eventId);
+
+  if (error) {
+    return { status: "error", message: "Nie udało się zaktualizować danych. Spróbuj ponownie." };
+  }
+
+  revalidatePath(`/admin/events/${eventId}/attendees`);
+  return { status: "success", message: "Dane uczestnika zaktualizowane." };
+}
+
 /**
  * Trwałe usunięcie danych uczestnika przez organizatora (RODO na żądanie osoby
  * zgłoszone organizatorowi).

@@ -88,6 +88,7 @@ export async function getOrganizationEvents(
     .from("events")
     .select("*")
     .eq("organization_id", organizationId)
+    .is("deleted_at", null)
     .order("starts_at", { ascending: false });
 
   return data ?? [];
@@ -127,6 +128,7 @@ export async function getOwnEvent(eventId: string): Promise<Event | null> {
     .from("events")
     .select("*")
     .eq("id", eventId)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (error) {
@@ -151,6 +153,7 @@ export const getEventBySlugForRegistration = cache(async function (
     .from("events")
     .select("*")
     .eq("slug", slug)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (error) {

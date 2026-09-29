@@ -8,7 +8,10 @@ import {
   startEvent,
   completeEvent,
   uploadEventLogo,
+  unpublishEvent,
+  softDeleteEvent,
   type EventFormState,
+  type EventDangerState,
 } from "./actions";
 import type { Event } from "@/lib/events";
 import { toDateTimeLocalValue } from "@/lib/format";
@@ -48,6 +51,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const STATUS_LABELS: Record<Event["status"], string> = {
   draft: "Szkic",
@@ -59,7 +71,15 @@ const STATUS_LABELS: Record<Event["status"], string> = {
 
 const initialState: EventFormState = { status: "idle" };
 
-export function EventEditForm({ event }: { event: Event }) {
+export function EventEditForm({
+  event,
+  attendeeCount,
+  paidOrderCount,
+}: {
+  event: Event;
+  attendeeCount: number;
+  paidOrderCount: number;
+}) {
   const updateEventForEvent = updateEvent.bind(null, event.id);
   const uploadLogoForEvent = uploadEventLogo.bind(null, event.id);
 
@@ -187,6 +207,40 @@ export function EventEditForm({ event }: { event: Event }) {
     });
   }
 
+  const [isUnpublishOpen, setIsUnpublishOpen] = useState(false);
+  const [isUnpublishing, startUnpublishTransition] = useTransition();
+  const [unpublishError, setUnpublishError] = useState<string | null>(null);
+
+  function handleUnpublish() {
+    setUnpublishError(null);
+    startUnpublishTransition(async () => {
+      const result = await unpublishEvent(event.id);
+      if (result.status === "error") {
+        setUnpublishError(result.message ?? "Nie udało się cofnąć publikacji.");
+        return;
+      }
+      setIsUnpublishOpen(false);
+      toast.success("Publikacja cofnięta — wydarzenie jest teraz szkicem.");
+    });
+  }
+
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [isDeleting, startDeleteTransition] = useTransition();
+  const [deleteState, setDeleteState] = useState<EventDangerState>({ status: "idle" });
+
+  function handleDelete() {
+    setDeleteState({ status: "idle" });
+    startDeleteTransition(async () => {
+      const result = await softDeleteEvent(event.id, deleteConfirmName);
+      if (result.status === "error") {
+        setDeleteState(result);
+        return;
+      }
+      // softDeleteEvent redirects on success — nothing to do here.
+    });
+  }
+
   function handleNameChange(value: string) {
     setName(value);
     if (!slugTouched) {
@@ -201,8 +255,52 @@ export function EventEditForm({ event }: { event: Event }) {
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
-      <div className="flex items-center justify-end gap-2">
-          {event.status === "draft" ? (
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {/* Cofnij publikację — widoczne dla published i live */}
+        {(event.status === "published" || event.status === "live") && (
+          <AlertDialog
+            open={isUnpublishOpen}
+            onOpenChange={(open) => {
+              if (isUnpublishing) return;
+              setIsUnpublishOpen(open);
+            }}
+          >
+            <AlertDialogTrigger asChild>
+              <Button variant="outline">Cofnij publikację</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Cofnąć publikację?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {attendeeCount > 0
+                    ? `Ten event ma ${attendeeCount} zarejestrowanych uczestnik${attendeeCount === 1 ? "a" : "ów"}. `
+                    : ""}
+                  Cofnięcie publikacji ukryje stronę publiczną i zdejmie
+                  subdomenę. Dane zostaną — możesz ponownie opublikować
+                  wydarzenie później.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {unpublishError && (
+                <p className="text-sm text-destructive">{unpublishError}</p>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isUnpublishing}>
+                  Anuluj
+                </AlertDialogCancel>
+                <Button
+                  variant="destructive"
+                  onClick={handleUnpublish}
+                  disabled={isUnpublishing}
+                >
+                  {isUnpublishing ? "Cofanie..." : "Cofnij publikację"}
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
+        {/* Główny przycisk akcji wg statusu */}
+        {event.status === "draft" ? (
           <AlertDialog
             open={isPublishOpen}
             onOpenChange={(open) => {
@@ -217,8 +315,8 @@ export function EventEditForm({ event }: { event: Event }) {
               <AlertDialogHeader>
                 <AlertDialogTitle>Opublikować event?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Event stanie się widoczny publicznie. Tej operacji nie da
-                  się jeszcze wycofać z panelu.
+                  Event stanie się widoczny publicznie. Możesz cofnąć
+                  publikację w dowolnym momencie z tego panelu.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               {publishError && (
@@ -298,9 +396,9 @@ export function EventEditForm({ event }: { event: Event }) {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-          ) : (
-            <Badge variant="secondary">{STATUS_LABELS[event.status]}</Badge>
-          )}
+        ) : (
+          <Badge variant="secondary">{STATUS_LABELS[event.status]}</Badge>
+        )}
       </div>
 
       <Card>
@@ -552,6 +650,97 @@ export function EventEditForm({ event }: { event: Event }) {
               {isLogoPending ? "Wgrywanie..." : "Wgraj logo"}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Strefa niebezpieczna */}
+      <Card className="border-destructive/40">
+        <CardHeader>
+          <CardTitle className="text-destructive">Strefa niebezpieczna</CardTitle>
+          <CardDescription>
+            Nieodwracalne operacje. Działaj ostrożnie.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="font-medium text-sm">Usuń wydarzenie</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {paidOrderCount > 0
+                  ? `Zablokowane — event ma ${paidOrderCount} opłacone zamówienie(a).`
+                  : attendeeCount > 0
+                  ? `Trwale usunie dane ${attendeeCount} uczestnik${attendeeCount === 1 ? "a" : "ów"} i wszystkie powiązane rekordy.`
+                  : "Trwale usunie to wydarzenie i wszystkie powiązane dane."}
+              </p>
+            </div>
+            <Dialog
+              open={isDeleteOpen}
+              onOpenChange={(open) => {
+                if (isDeleting) return;
+                if (!open) setDeleteConfirmName("");
+                setDeleteState({ status: "idle" });
+                setIsDeleteOpen(open);
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  disabled={paidOrderCount > 0}
+                  title={
+                    paidOrderCount > 0
+                      ? "Nie można usunąć eventu z opłaconymi zamówieniami"
+                      : undefined
+                  }
+                >
+                  Usuń wydarzenie
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Usunąć wydarzenie?</DialogTitle>
+                  <DialogDescription>
+                    To działanie jest nieodwracalne. Wydarzenie zniknie z listy
+                    i strona publiczna przestanie być dostępna.
+                    {attendeeCount > 0 && (
+                      <> Usunie dane {attendeeCount} uczestnik{attendeeCount === 1 ? "a" : "ów"}, ich bilety, punkty i wszystkie powiązane rekordy.</>
+                    )}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col gap-2 py-2">
+                  <Label htmlFor="delete-confirm">
+                    Wpisz dokładną nazwę wydarzenia, aby potwierdzić:
+                    <span className="ml-1 font-semibold">{event.name}</span>
+                  </Label>
+                  <Input
+                    id="delete-confirm"
+                    value={deleteConfirmName}
+                    onChange={(e) => setDeleteConfirmName(e.target.value)}
+                    placeholder={event.name}
+                    autoComplete="off"
+                  />
+                </div>
+                {deleteState.status === "error" && (
+                  <p className="text-sm text-destructive">{deleteState.message}</p>
+                )}
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsDeleteOpen(false)}
+                    disabled={isDeleting}
+                  >
+                    Anuluj
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleDelete}
+                    disabled={isDeleting || deleteConfirmName.trim() !== event.name}
+                  >
+                    {isDeleting ? "Usuwanie..." : "Usuń trwale"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardContent>
       </Card>
     </main>

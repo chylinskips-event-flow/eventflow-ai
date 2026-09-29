@@ -34,6 +34,20 @@ export default async function EventDetailPage({
     }
   }
 
+  const admin = createAdminClient();
+
+  const [{ count: attendeeCount }, { count: paidOrderCount }] = await Promise.all([
+    admin
+      .from("attendees")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", eventId),
+    admin
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", eventId)
+      .eq("status", "completed"),
+  ]);
+
   let stats: {
     totalCheckins: number;
     activePlayers: number;
@@ -41,7 +55,6 @@ export default async function EventDetailPage({
   } | null = null;
 
   if (event.gamification_enabled) {
-    const admin = createAdminClient();
     const [
       { count: checkinsCount },
       { count: activePlayersCount },
@@ -113,7 +126,11 @@ export default async function EventDetailPage({
         </div>
       )}
 
-      <EventEditForm event={event} />
+      <EventEditForm
+        event={event}
+        attendeeCount={attendeeCount ?? 0}
+        paidOrderCount={paidOrderCount ?? 0}
+      />
     </div>
   );
 }
