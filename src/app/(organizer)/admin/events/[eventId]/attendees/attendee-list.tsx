@@ -62,10 +62,10 @@ export function AttendeeList({
           <div className="flex flex-col gap-3">
             {filtered.map((attendee) => (
               <Card key={attendee.id}>
-                <CardContent className="flex items-center justify-between gap-4 py-4">
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium">{attendeeName(attendee)}</span>
-                    <span className="text-sm text-muted-foreground">
+                <CardContent className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-4">
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span className="truncate font-medium">{attendeeName(attendee)}</span>
+                    <span className="truncate text-sm text-muted-foreground">
                       {attendee.email}
                     </span>
                   </div>

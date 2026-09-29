@@ -54,92 +54,178 @@ export default async function TicketsPage({
             Brak typów biletów. Dodaj pierwszy typ, aby włączyć sprzedaż.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-lg border">
-            <table className="w-full text-sm">
-              <thead className="border-b bg-muted/40">
-                <tr>
-                  <th className="px-4 py-3 text-left font-medium">Nazwa</th>
-                  <th className="px-4 py-3 text-right font-medium">Cena</th>
-                  <th className="px-4 py-3 text-right font-medium">Opłacone / Pula</th>
-                  <th className="px-4 py-3 text-left font-medium">Okno sprzedaży</th>
-                  <th className="px-4 py-3 text-center font-medium">Aktywny</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {ticketTypes.map((tt) => {
-                  const avail = availableQuantity(tt);
-                  const soldOut = isTicketTypeSoldOut(tt);
-                  const paidQty = tt.paid_quantity ?? tt.quantity_sold;
-                  const pendingQty = tt.active_pending_quantity ?? 0;
-                  return (
-                    <tr key={tt.id} className="hover:bg-muted/20">
-                      <td className="px-4 py-3">
+          <>
+            {/* Mobile card layout (<sm) */}
+            <div className="flex flex-col gap-3 sm:hidden">
+              {ticketTypes.map((tt) => {
+                const avail = availableQuantity(tt);
+                const soldOut = isTicketTypeSoldOut(tt);
+                const paidQty = tt.paid_quantity ?? tt.quantity_sold;
+                const pendingQty = tt.active_pending_quantity ?? 0;
+                return (
+                  <div key={tt.id} className="rounded-lg border bg-card p-4 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
                         <div className="font-medium">{tt.name}</div>
                         {tt.description && (
-                          <div className="text-xs text-muted-foreground line-clamp-1">
+                          <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
                             {tt.description}
                           </div>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        {formatPrice(tt.price)}
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        {tt.quantity_total === null ? (
-                          <span>
-                            {paidQty}
-                            {pendingQty > 0 && (
-                              <span className="text-muted-foreground"> (+{pendingQty})</span>
-                            )}{" "}
-                            / <span className="text-muted-foreground">∞</span>
-                          </span>
-                        ) : (
-                          <span>
-                            {paidQty}
-                            {pendingQty > 0 && (
-                              <span className="text-muted-foreground"> (+{pendingQty})</span>
-                            )}{" "}
-                            / {tt.quantity_total}
-                            {soldOut && (
-                              <Badge variant="destructive" className="ml-2 text-xs">
-                                Wyprzedany
-                              </Badge>
-                            )}
-                            {!soldOut && avail !== null && avail <= 10 && (
-                              <Badge variant="secondary" className="ml-2 text-xs">
-                                Ostatnie {avail}
-                              </Badge>
-                            )}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {formatDateRange(tt.sales_start, tt.sales_end)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <TicketTypeToggle
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <EditTicketTypeButton eventId={eventId} ticket={tt} />
+                        <DeleteTicketTypeButton
                           eventId={eventId}
                           ticketTypeId={tt.id}
-                          enabled={tt.enabled}
+                          name={tt.name}
                         />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          <EditTicketTypeButton eventId={eventId} ticket={tt} />
-                          <DeleteTicketTypeButton
+                      </div>
+                    </div>
+                    <div className="mt-3 space-y-1.5">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Cena</span>
+                        <span className="tabular-nums font-medium">{formatPrice(tt.price)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Opłacone / Pula</span>
+                        <span className="tabular-nums">
+                          {tt.quantity_total === null ? (
+                            <span>
+                              {paidQty}
+                              {pendingQty > 0 && (
+                                <span className="text-muted-foreground"> (+{pendingQty})</span>
+                              )}{" "}
+                              / <span className="text-muted-foreground">∞</span>
+                            </span>
+                          ) : (
+                            <span>
+                              {paidQty}
+                              {pendingQty > 0 && (
+                                <span className="text-muted-foreground"> (+{pendingQty})</span>
+                              )}{" "}
+                              / {tt.quantity_total}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground">Okno sprzedaży</span>
+                        <span className="text-right text-xs text-muted-foreground">
+                          {formatDateRange(tt.sales_start, tt.sales_end)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between border-t pt-3">
+                      <span className="text-muted-foreground">Aktywny</span>
+                      <TicketTypeToggle
+                        eventId={eventId}
+                        ticketTypeId={tt.id}
+                        enabled={tt.enabled}
+                      />
+                    </div>
+                    {(soldOut || (!soldOut && avail !== null && avail <= 10)) && (
+                      <div className="mt-2">
+                        {soldOut ? (
+                          <Badge variant="destructive" className="text-xs">Wyprzedany</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">Ostatnie {avail}</Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop table (sm+) */}
+            <div className="hidden overflow-hidden rounded-lg border sm:block">
+              <table className="w-full text-sm">
+                <thead className="border-b bg-muted/40">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium">Nazwa</th>
+                    <th className="px-4 py-3 text-right font-medium">Cena</th>
+                    <th className="px-4 py-3 text-right font-medium">Opłacone / Pula</th>
+                    <th className="px-4 py-3 text-left font-medium">Okno sprzedaży</th>
+                    <th className="px-4 py-3 text-center font-medium">Aktywny</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {ticketTypes.map((tt) => {
+                    const avail = availableQuantity(tt);
+                    const soldOut = isTicketTypeSoldOut(tt);
+                    const paidQty = tt.paid_quantity ?? tt.quantity_sold;
+                    const pendingQty = tt.active_pending_quantity ?? 0;
+                    return (
+                      <tr key={tt.id} className="hover:bg-muted/20">
+                        <td className="px-4 py-3">
+                          <div className="font-medium">{tt.name}</div>
+                          {tt.description && (
+                            <div className="text-xs text-muted-foreground line-clamp-1">
+                              {tt.description}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {formatPrice(tt.price)}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {tt.quantity_total === null ? (
+                            <span>
+                              {paidQty}
+                              {pendingQty > 0 && (
+                                <span className="text-muted-foreground"> (+{pendingQty})</span>
+                              )}{" "}
+                              / <span className="text-muted-foreground">∞</span>
+                            </span>
+                          ) : (
+                            <span>
+                              {paidQty}
+                              {pendingQty > 0 && (
+                                <span className="text-muted-foreground"> (+{pendingQty})</span>
+                              )}{" "}
+                              / {tt.quantity_total}
+                              {soldOut && (
+                                <Badge variant="destructive" className="ml-2 text-xs">
+                                  Wyprzedany
+                                </Badge>
+                              )}
+                              {!soldOut && avail !== null && avail <= 10 && (
+                                <Badge variant="secondary" className="ml-2 text-xs">
+                                  Ostatnie {avail}
+                                </Badge>
+                              )}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground">
+                          {formatDateRange(tt.sales_start, tt.sales_end)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <TicketTypeToggle
                             eventId={eventId}
                             ticketTypeId={tt.id}
-                            name={tt.name}
+                            enabled={tt.enabled}
                           />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            <EditTicketTypeButton eventId={eventId} ticket={tt} />
+                            <DeleteTicketTypeButton
+                              eventId={eventId}
+                              ticketTypeId={tt.id}
+                              name={tt.name}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
 
@@ -160,8 +246,8 @@ export default async function TicketsPage({
             Brak kodów rabatowych.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-lg border">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto overflow-hidden rounded-lg border">
+            <table className="w-full min-w-[480px] text-sm">
               <thead className="border-b bg-muted/40">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium">Kod</th>
