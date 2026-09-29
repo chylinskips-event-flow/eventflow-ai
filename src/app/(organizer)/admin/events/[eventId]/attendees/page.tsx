@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getOwnEvent } from "@/lib/events";
 import { getEventAttendees } from "@/lib/attendees";
 import { AttendeeList } from "./attendee-list";
+import { BadgesButton } from "../badges/badges-button";
 
 export default async function EventAttendeesPage({
   params,
@@ -23,7 +24,10 @@ export default async function EventAttendeesPage({
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
-      <h1 className="text-2xl font-semibold">Uczestnicy</h1>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <h1 className="text-2xl font-semibold">Uczestnicy</h1>
+        <BadgesButton eventId={eventId} />
+      </div>
       <AttendeeList eventId={eventId} attendees={attendees} />
     </main>
   );
