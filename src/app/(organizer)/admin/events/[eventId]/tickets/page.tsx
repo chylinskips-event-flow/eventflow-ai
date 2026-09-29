@@ -39,7 +39,7 @@ export default async function TicketsPage({
     <div className="space-y-10">
       {/* ---- Ticket types ---- */}
       <section>
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div>
             <h2 className="text-xl font-semibold">Typy biletów</h2>
             <p className="text-sm text-muted-foreground">
@@ -145,7 +145,7 @@ export default async function TicketsPage({
 
       {/* ---- Discount codes ---- */}
       <section>
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div>
             <h2 className="text-xl font-semibold">Kody rabatowe</h2>
             <p className="text-sm text-muted-foreground">

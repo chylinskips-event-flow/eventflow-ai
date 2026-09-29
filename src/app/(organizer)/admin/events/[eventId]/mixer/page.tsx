@@ -36,7 +36,7 @@ export default async function MixerListPage({
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div>
           <h1 className="text-2xl font-semibold">Business Mixer</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -45,7 +45,7 @@ export default async function MixerListPage({
         </div>
         <CreateMixerDialog
           eventId={eventId}
-          trigger={<Button className="shrink-0">Nowy mixer</Button>}
+          trigger={<Button>Nowy mixer</Button>}
         />
       </div>
 

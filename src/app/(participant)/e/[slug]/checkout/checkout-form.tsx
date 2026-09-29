@@ -61,14 +61,14 @@ export function CheckoutForm({
           <CardTitle className="text-base">Wybrany bilet</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+            <div className="min-w-0">
               <div className="font-semibold">{ticket.name}</div>
               {ticket.description && (
                 <div className="text-sm text-muted-foreground">{ticket.description}</div>
               )}
             </div>
-            <div className="text-2xl font-bold">{formatPrice(ticket.price)}</div>
+            <div className="shrink-0 text-2xl font-bold">{formatPrice(ticket.price)}</div>
           </div>
         </CardContent>
       </Card>

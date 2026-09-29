@@ -32,7 +32,7 @@ export default async function EventContentPage({
 
       <BannerUpload eventId={eventId} bannerUrl={event.banner_url} />
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <h2 className="text-lg font-medium">Sekcje opisu</h2>
         <SectionFormDialog
           eventId={eventId}
@@ -62,7 +62,7 @@ export default async function EventContentPage({
         </div>
       )}
 
-      <div className="flex items-center justify-between border-t pt-6">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t pt-6">
         <h2 className="text-lg font-medium">Sekcje strony</h2>
         <p className="text-xs text-muted-foreground">Widoczne po agendzie, przed rejestracją</p>
       </div>

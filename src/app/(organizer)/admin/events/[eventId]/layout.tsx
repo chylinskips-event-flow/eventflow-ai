@@ -60,9 +60,9 @@ export default async function EventLayout({
       />
 
       {/* Workspace — przesuwa się za sidebar na desktop */}
-      <div className="flex min-h-screen flex-1 flex-col md:pl-64">
+      <div className="flex min-h-screen flex-1 flex-col overflow-x-hidden md:pl-64">
         {/* Workspace header */}
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b bg-background px-6 py-3">
+        <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b bg-background px-6 py-3">
           {/* pl-12 na mobile — robi miejsce na hamburger z EventSidebar */}
           <div className="flex flex-col pl-12 md:pl-0">
             <span className="text-sm font-semibold leading-tight">
@@ -78,14 +78,14 @@ export default async function EventLayout({
             )}
           </div>
           {event?.slug && (
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex items-center gap-2">
               <ShareEventDialog
                 url={buildEventUrl(event.slug, origin)}
                 eventName={event.name ?? ""}
                 slug={event.slug}
                 disabled={event.status === "draft"}
               />
-              <Button asChild variant="outline" size="sm" className="shrink-0">
+              <Button asChild variant="outline" size="sm">
                 <a
                   href={`/e/${event.slug}?preview=1`}
                   target="_blank"

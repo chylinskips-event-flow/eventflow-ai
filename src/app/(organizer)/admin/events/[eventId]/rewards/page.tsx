@@ -81,7 +81,7 @@ export default async function RewardsPage({
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div>
           <h1 className="text-2xl font-semibold">Nagrody</h1>
           {!event.gamification_enabled && (
@@ -92,7 +92,7 @@ export default async function RewardsPage({
         </div>
         <RewardFormDialog
           eventId={eventId}
-          trigger={<Button className="shrink-0">Dodaj nagrodę</Button>}
+          trigger={<Button>Dodaj nagrodę</Button>}
         />
       </div>
 

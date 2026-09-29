@@ -98,7 +98,7 @@ export function RedeemSection({
     <>
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <CardTitle className="text-base">Wydaj nagrodę uczestnikowi</CardTitle>
             {/* Przełącznik trybu */}
             <div className="flex rounded-lg border p-0.5 text-sm">
