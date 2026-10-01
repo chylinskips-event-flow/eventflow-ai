@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
+import Link from "next/link";
+import { Info } from "lucide-react";
 import { toast } from "sonner";
 import {
   updateEvent,
@@ -26,15 +28,15 @@ import { FileInput } from "@/components/ui/file-input";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { SettingsNav, type SettingsSectionId } from "./settings-nav";
 import {
   Select,
   SelectContent,
@@ -72,14 +74,20 @@ const STATUS_LABELS: Record<Event["status"], string> = {
 
 const initialState: EventFormState = { status: "idle" };
 
+const GENERAL_FORM_ID = "event-general-form";
+
 export function EventEditForm({
   event,
   attendeeCount,
   paidOrderCount,
+  subdomainStatus,
+  summary,
 }: {
   event: Event;
   attendeeCount: number;
   paidOrderCount: number;
+  subdomainStatus?: React.ReactNode;
+  summary?: React.ReactNode;
 }) {
   const updateEventForEvent = updateEvent.bind(null, event.id);
   const uploadLogoForEvent = uploadEventLogo.bind(null, event.id);
@@ -93,6 +101,8 @@ export function EventEditForm({
     initialState,
   );
   const [logoClientError, setLogoClientError] = useState<string | null>(null);
+  // Formularz „Ogólne" ma dwa przyciski zapisu (Ogólne + kolor w Branding) — komunikat pokazujemy przy tym, który kliknięto.
+  const [lastSubmit, setLastSubmit] = useState<"general" | "branding">("general");
 
   function handleLogoSubmit(event: React.FormEvent<HTMLFormElement>) {
     const input = event.currentTarget.elements.namedItem(
@@ -255,162 +265,129 @@ export function EventEditForm({
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {/* Cofnij publikację — widoczne dla published i live */}
-        {(event.status === "published" || event.status === "live") && (
-          <AlertDialog
-            open={isUnpublishOpen}
-            onOpenChange={(open) => {
-              if (isUnpublishing) return;
-              setIsUnpublishOpen(open);
-            }}
-          >
-            <AlertDialogTrigger asChild>
-              <Button variant="outline">Cofnij publikację</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Cofnąć publikację?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {attendeeCount > 0
-                    ? `Ten event ma ${attendeeCount} zarejestrowanych uczestnik${attendeeCount === 1 ? "a" : "ów"}. `
-                    : ""}
-                  Cofnięcie publikacji ukryje stronę publiczną i zdejmie
-                  subdomenę. Dane zostaną — możesz ponownie opublikować
-                  wydarzenie później.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              {unpublishError && (
-                <p className="text-sm text-destructive">{unpublishError}</p>
-              )}
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={isUnpublishing}>
-                  Anuluj
-                </AlertDialogCancel>
-                <Button
-                  variant="destructive"
-                  onClick={handleUnpublish}
-                  disabled={isUnpublishing}
+    <main className="mx-auto w-full max-w-2xl p-6 xl:grid xl:max-w-none xl:grid-cols-[11rem_minmax(0,42rem)] xl:justify-center xl:gap-10">
+      <SettingsNav className="hidden xl:block" />
+
+      <div className="flex min-w-0 flex-col gap-6">
+        {summary}
+
+        <SettingsSection
+          id="ogolne"
+          title="Ogólne"
+          description="Podstawowe informacje o wydarzeniu, status publikacji i adres strony."
+        >
+          <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm">
+                <span className="text-muted-foreground">Status:</span>{" "}
+                <span className="font-medium">{STATUS_LABELS[event.status]}</span>
+              </p>
+              {event.status === "draft" ? (
+                <AlertDialog
+                  open={isPublishOpen}
+                  onOpenChange={(open) => {
+                    if (isPublishing) return;
+                    setIsPublishOpen(open);
+                  }}
                 >
-                  {isUnpublishing ? "Cofanie..." : "Cofnij publikację"}
-                </Button>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
+                  <AlertDialogTrigger asChild>
+                    <Button>Opublikuj event</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Opublikować event?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Event stanie się widoczny publicznie. Możesz cofnąć
+                        publikację w dowolnym momencie z tego panelu.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {publishError && (
+                      <p className="text-sm text-destructive">{publishError}</p>
+                    )}
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isPublishing}>
+                        Anuluj
+                      </AlertDialogCancel>
+                      <Button onClick={handlePublish} disabled={isPublishing}>
+                        {isPublishing ? "Publikowanie..." : "Opublikuj"}
+                      </Button>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : event.status === "published" ? (
+                <AlertDialog
+                  open={isStartOpen}
+                  onOpenChange={(open) => {
+                    if (isStarting) return;
+                    setIsStartOpen(open);
+                  }}
+                >
+                  <AlertDialogTrigger asChild>
+                    <Button>Rozpocznij wydarzenie</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Rozpocząć wydarzenie?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Czy na pewno chcesz rozpocząć wydarzenie? Uczestnicy zobaczą
+                        sekcję na żywo.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {startError && (
+                      <p className="text-sm text-destructive">{startError}</p>
+                    )}
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isStarting}>
+                        Anuluj
+                      </AlertDialogCancel>
+                      <Button onClick={handleStart} disabled={isStarting}>
+                        {isStarting ? "Rozpoczynanie..." : "Rozpocznij"}
+                      </Button>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : event.status === "live" ? (
+                <AlertDialog
+                  open={isCompleteOpen}
+                  onOpenChange={(open) => {
+                    if (isCompleting) return;
+                    setIsCompleteOpen(open);
+                  }}
+                >
+                  <AlertDialogTrigger asChild>
+                    <Button>Zakończ wydarzenie</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Zakończyć wydarzenie?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Czy na pewno chcesz zakończyć wydarzenie? Sekcja na żywo
+                        zniknie, uczestnicy zachowają dostęp do swoich danych.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {completeError && (
+                      <p className="text-sm text-destructive">{completeError}</p>
+                    )}
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isCompleting}>
+                        Anuluj
+                      </AlertDialogCancel>
+                      <Button onClick={handleComplete} disabled={isCompleting}>
+                        {isCompleting ? "Kończenie..." : "Zakończ"}
+                      </Button>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : null}
+            </div>
+            {subdomainStatus}
+          </div>
 
-        {/* Główny przycisk akcji wg statusu */}
-        {event.status === "draft" ? (
-          <AlertDialog
-            open={isPublishOpen}
-            onOpenChange={(open) => {
-              if (isPublishing) return;
-              setIsPublishOpen(open);
-            }}
+          <form
+            id={GENERAL_FORM_ID}
+            action={formAction}
+            className="flex flex-col gap-4"
           >
-            <AlertDialogTrigger asChild>
-              <Button>Opublikuj event</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Opublikować event?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Event stanie się widoczny publicznie. Możesz cofnąć
-                  publikację w dowolnym momencie z tego panelu.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              {publishError && (
-                <p className="text-sm text-destructive">{publishError}</p>
-              )}
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={isPublishing}>
-                  Anuluj
-                </AlertDialogCancel>
-                <Button onClick={handlePublish} disabled={isPublishing}>
-                  {isPublishing ? "Publikowanie..." : "Opublikuj"}
-                </Button>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        ) : event.status === "published" ? (
-          <AlertDialog
-            open={isStartOpen}
-            onOpenChange={(open) => {
-              if (isStarting) return;
-              setIsStartOpen(open);
-            }}
-          >
-            <AlertDialogTrigger asChild>
-              <Button>Rozpocznij wydarzenie</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Rozpocząć wydarzenie?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Czy na pewno chcesz rozpocząć wydarzenie? Uczestnicy zobaczą
-                  sekcję na żywo.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              {startError && (
-                <p className="text-sm text-destructive">{startError}</p>
-              )}
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={isStarting}>
-                  Anuluj
-                </AlertDialogCancel>
-                <Button onClick={handleStart} disabled={isStarting}>
-                  {isStarting ? "Rozpoczynanie..." : "Rozpocznij"}
-                </Button>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        ) : event.status === "live" ? (
-          <AlertDialog
-            open={isCompleteOpen}
-            onOpenChange={(open) => {
-              if (isCompleting) return;
-              setIsCompleteOpen(open);
-            }}
-          >
-            <AlertDialogTrigger asChild>
-              <Button>Zakończ wydarzenie</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Zakończyć wydarzenie?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Czy na pewno chcesz zakończyć wydarzenie? Sekcja na żywo
-                  zniknie, uczestnicy zachowają dostęp do swoich danych.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              {completeError && (
-                <p className="text-sm text-destructive">{completeError}</p>
-              )}
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={isCompleting}>
-                  Anuluj
-                </AlertDialogCancel>
-                <Button onClick={handleComplete} disabled={isCompleting}>
-                  {isCompleting ? "Kończenie..." : "Zakończ"}
-                </Button>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        ) : (
-          <Badge variant="secondary">{STATUS_LABELS[event.status]}</Badge>
-        )}
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Szczegóły wydarzenia</CardTitle>
-          <CardDescription>
-            Status: {STATUS_LABELS[event.status]}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form action={formAction} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="name">Nazwa wydarzenia</Label>
               <Input
@@ -585,47 +562,36 @@ export function EventEditForm({
                 </p>
               </div>
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="primary_color">Kolor podstawowy</Label>
-              <Input
-                id="primary_color"
-                name="primary_color"
-                type="color"
-                defaultValue={event.primary_color ?? "#000000"}
-                className="h-10 w-20 p-1"
-              />
-            </div>
-            {state.status === "error" && (
-              <p className="text-sm text-destructive">{state.message}</p>
-            )}
-            {state.status === "success" && (
-              <p className="text-sm text-muted-foreground">
-                {state.message}
-              </p>
-            )}
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Zapisywanie..." : "Zapisz zmiany"}
+            {lastSubmit === "general" && <FormStateMessage state={state} />}
+            <Button
+              type="submit"
+              disabled={isPending}
+              onClick={() => setLastSubmit("general")}
+            >
+              {isPending && lastSubmit === "general"
+                ? "Zapisywanie..."
+                : "Zapisz zmiany"}
             </Button>
           </form>
-        </CardContent>
-      </Card>
+        </SettingsSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Logo wydarzenia</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <SettingsSection
+          id="branding"
+          title="Branding"
+          description="Logo i kolor akcentu widoczne na stronie wydarzenia i identyfikatorach."
+        >
           <form
             action={logoFormAction}
             onSubmit={handleLogoSubmit}
             className="flex flex-col gap-4"
             encType="multipart/form-data"
           >
+            <h3 className="text-sm font-semibold">Logo wydarzenia</h3>
             {event.logo_url && (
               <img
                 src={event.logo_url}
                 alt={`Logo ${event.name}`}
-                className="h-16 w-auto rounded border object-contain"
+                className="h-16 w-fit max-w-full rounded border object-contain"
               />
             )}
             <div className="flex flex-col gap-2">
@@ -639,32 +605,119 @@ export function EventEditForm({
             {logoClientError && (
               <p className="text-sm text-destructive">{logoClientError}</p>
             )}
-            {logoState.status === "error" && (
-              <p className="text-sm text-destructive">{logoState.message}</p>
-            )}
-            {logoState.status === "success" && (
-              <p className="text-sm text-muted-foreground">
-                {logoState.message}
-              </p>
-            )}
+            <FormStateMessage state={logoState} />
             <Button type="submit" disabled={isLogoPending} variant="outline">
               {isLogoPending ? "Wgrywanie..." : "Wgraj logo"}
             </Button>
           </form>
-        </CardContent>
-      </Card>
 
-      <BadgeBgUpload eventId={event.id} badgeBgUrl={event.badge_bg_url ?? null} />
+          {/* Pole koloru należy do formularza „Ogólne" (atrybut form) — zapis tą samą akcją co dotąd. */}
+          <div className="flex flex-col gap-4 border-t pt-6">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="primary_color">Kolor akcentu</Label>
+              <Input
+                id="primary_color"
+                name="primary_color"
+                form={GENERAL_FORM_ID}
+                type="color"
+                defaultValue={event.primary_color ?? "#000000"}
+                className="h-10 w-20 p-1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Zapis koloru zapisuje też niezapisane zmiany z sekcji Ogólne.
+              </p>
+            </div>
+            {lastSubmit === "branding" && <FormStateMessage state={state} />}
+            <Button
+              type="submit"
+              form={GENERAL_FORM_ID}
+              variant="outline"
+              disabled={isPending}
+              onClick={() => setLastSubmit("branding")}
+            >
+              {isPending && lastSubmit === "branding"
+                ? "Zapisywanie..."
+                : "Zapisz kolor"}
+            </Button>
+          </div>
+        </SettingsSection>
 
-      {/* Strefa niebezpieczna */}
-      <Card className="border-destructive/40">
-        <CardHeader>
-          <CardTitle className="text-destructive">Strefa niebezpieczna</CardTitle>
-          <CardDescription>
-            Nieodwracalne operacje. Działaj ostrożnie.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <SettingsSection
+          id="identyfikatory"
+          title="Identyfikatory"
+          description="Wygląd identyfikatorów PDF drukowanych dla uczestników."
+        >
+          <BadgeBgUpload eventId={event.id} badgeBgUrl={event.badge_bg_url ?? null} />
+          <p className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+            <Info className="mt-0.5 size-4 shrink-0" />
+            <span>
+              Generowanie identyfikatorów (PDF) znajdziesz w zakładce{" "}
+              <Link
+                href={`/admin/events/${event.id}/attendees`}
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                Uczestnicy
+              </Link>
+              .
+            </span>
+          </p>
+        </SettingsSection>
+
+        <SettingsSection
+          id="strefa-niebezpieczna"
+          title="Strefa niebezpieczna"
+          description="Operacje wpływające na dostępność lub istnienie wydarzenia. Działaj ostrożnie."
+          danger
+        >
+          {(event.status === "published" || event.status === "live") && (
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-6">
+              <div>
+                <p className="font-medium text-sm">Cofnij publikację</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Ukryje stronę publiczną i zdejmie subdomenę. Dane zostaną.
+                </p>
+              </div>
+              <AlertDialog
+                open={isUnpublishOpen}
+                onOpenChange={(open) => {
+                  if (isUnpublishing) return;
+                  setIsUnpublishOpen(open);
+                }}
+              >
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline">Cofnij publikację</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cofnąć publikację?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {attendeeCount > 0
+                        ? `Ten event ma ${attendeeCount} zarejestrowanych uczestnik${attendeeCount === 1 ? "a" : "ów"}. `
+                        : ""}
+                      Cofnięcie publikacji ukryje stronę publiczną i zdejmie
+                      subdomenę. Dane zostaną — możesz ponownie opublikować
+                      wydarzenie później.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  {unpublishError && (
+                    <p className="text-sm text-destructive">{unpublishError}</p>
+                  )}
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isUnpublishing}>
+                      Anuluj
+                    </AlertDialogCancel>
+                    <Button
+                      variant="destructive"
+                      onClick={handleUnpublish}
+                      disabled={isUnpublishing}
+                    >
+                      {isUnpublishing ? "Cofanie..." : "Cofnij publikację"}
+                    </Button>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="font-medium text-sm">Usuń wydarzenie</p>
@@ -744,8 +797,56 @@ export function EventEditForm({
               </DialogContent>
             </Dialog>
           </div>
-        </CardContent>
-      </Card>
+        </SettingsSection>
+      </div>
     </main>
   );
+}
+
+function SettingsSection({
+  id,
+  title,
+  description,
+  danger = false,
+  children,
+}: {
+  id: SettingsSectionId;
+  title: string;
+  description: string;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      id={id}
+      aria-labelledby={`${id}-title`}
+      className={cn("scroll-mt-24", danger && "mt-6")}
+    >
+      <Card className={danger ? "border-destructive/40" : undefined}>
+        <CardHeader className="border-b">
+          <h2
+            id={`${id}-title`}
+            className={cn(
+              "text-lg font-semibold leading-tight",
+              danger && "text-destructive",
+            )}
+          >
+            {title}
+          </h2>
+          <CardDescription>{description}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-6">{children}</CardContent>
+      </Card>
+    </section>
+  );
+}
+
+function FormStateMessage({ state }: { state: EventFormState }) {
+  if (state.status === "error") {
+    return <p className="text-sm text-destructive">{state.message}</p>;
+  }
+  if (state.status === "success") {
+    return <p className="text-sm text-muted-foreground">{state.message}</p>;
+  }
+  return null;
 }

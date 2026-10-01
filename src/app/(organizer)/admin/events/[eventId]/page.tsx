@@ -81,53 +81,51 @@ export default async function EventDetailPage({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {isPublished && (
-        <div className="mx-auto w-full max-w-2xl px-6 pt-4">
+    <EventEditForm
+      event={event}
+      attendeeCount={attendeeCount ?? 0}
+      paidOrderCount={paidOrderCount ?? 0}
+      subdomainStatus={
+        isPublished ? (
           <SubdomainStatus
             eventId={eventId}
             slug={event.slug}
             initialState={subdomainInitialState}
           />
-        </div>
-      )}
-
-      {stats && (
-        <div className="mx-auto w-full max-w-2xl px-6 pt-6">
-          <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-            Grywalizacja
-          </h2>
-          <div className="grid grid-cols-3 gap-3">
-            <Card>
-              <CardContent className="flex flex-col items-center gap-1 py-4 text-center">
-                <Handshake className="mb-1 size-5 text-primary" />
-                <span className="text-2xl font-bold text-primary">{stats.totalCheckins}</span>
-                <span className="text-xs text-muted-foreground">Wizyty u partnerów</span>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex flex-col items-center gap-1 py-4 text-center">
-                <Users className="mb-1 size-5 text-primary" />
-                <span className="text-2xl font-bold text-primary">{stats.activePlayers}</span>
-                <span className="text-xs text-muted-foreground">Aktywnych graczy</span>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex flex-col items-center gap-1 py-4 text-center">
-                <Target className="mb-1 size-5 text-primary" />
-                <span className="text-2xl font-bold text-primary">{stats.completedQuests}</span>
-                <span className="text-xs text-muted-foreground">Ukończonych questów</span>
-              </CardContent>
-            </Card>
+        ) : null
+      }
+      summary={
+        stats ? (
+          <div>
+            <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Grywalizacja
+            </h2>
+            <div className="grid grid-cols-3 gap-3">
+              <Card>
+                <CardContent className="flex flex-col items-center gap-1 py-4 text-center">
+                  <Handshake className="mb-1 size-5 text-primary" />
+                  <span className="text-2xl font-bold text-primary">{stats.totalCheckins}</span>
+                  <span className="text-xs text-muted-foreground">Wizyty u partnerów</span>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center gap-1 py-4 text-center">
+                  <Users className="mb-1 size-5 text-primary" />
+                  <span className="text-2xl font-bold text-primary">{stats.activePlayers}</span>
+                  <span className="text-xs text-muted-foreground">Aktywnych graczy</span>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center gap-1 py-4 text-center">
+                  <Target className="mb-1 size-5 text-primary" />
+                  <span className="text-2xl font-bold text-primary">{stats.completedQuests}</span>
+                  <span className="text-xs text-muted-foreground">Ukończonych questów</span>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
-      )}
-
-      <EventEditForm
-        event={event}
-        attendeeCount={attendeeCount ?? 0}
-        paidOrderCount={paidOrderCount ?? 0}
-      />
-    </div>
+        ) : null
+      }
+    />
   );
 }
