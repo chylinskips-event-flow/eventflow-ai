@@ -13,6 +13,7 @@ import {
 import type { Event } from "@/lib/events";
 import { getPaymentConfig, registerTransaction, getP24BaseUrl } from "@/lib/p24";
 import { randomUUID } from "crypto";
+import { ATTENDEE_LIMIT_MESSAGE, hasFeature, isAttendeeLimitReached } from "@/lib/entitlements";
 
 export type FreeCheckoutState = {
   status: "idle" | "error";
@@ -54,6 +55,8 @@ export async function completeFreeCheckout(
 
   if (!event)
     return { status: "error", message: "Wydarzenie nie istnieje." };
+  if (await isAttendeeLimitReached(event))
+    return { status: "error", message: ATTENDEE_LIMIT_MESSAGE };
 
   const { data: tt } = await supabase
     .from("ticket_types")
@@ -279,6 +282,10 @@ export async function startPaidCheckout(
     .eq("id", eventId)
     .maybeSingle<Event>();
   if (!event) return { status: "error", message: "Wydarzenie nie istnieje." };
+  if (!(await hasFeature(event.organization_id, "tickets_paid")))
+    return { status: "error", message: "Sprzedaż biletów płatnych jest niedostępna dla tego wydarzenia." };
+  if (await isAttendeeLimitReached(event))
+    return { status: "error", message: ATTENDEE_LIMIT_MESSAGE };
 
   // 2. Verify ticket type server-side (price never from client)
   const { data: tt } = await supabase

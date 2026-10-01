@@ -14,6 +14,7 @@ import {
   ATTENDEE_TOKEN_MAX_AGE_SECONDS,
 } from "@/lib/attendee-session";
 import type { Event } from "@/lib/events";
+import { ATTENDEE_LIMIT_MESSAGE, isAttendeeLimitReached } from "@/lib/entitlements";
 
 export type RegisterAttendeeState = {
   status: "idle" | "error";
@@ -75,6 +76,10 @@ export async function registerAttendee(
       status: "error",
       message: "Nie udało się zarejestrować. Spróbuj ponownie.",
     };
+  }
+
+  if (await isAttendeeLimitReached(event)) {
+    return { status: "error", message: ATTENDEE_LIMIT_MESSAGE };
   }
 
   const { data: attendee, error } = await supabase

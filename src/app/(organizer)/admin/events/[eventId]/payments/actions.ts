@@ -9,6 +9,7 @@ import {
   getPaymentConfig,
   testConnection,
 } from "@/lib/p24";
+import { featureGate } from "@/lib/entitlements";
 
 export type PaymentConfigState = {
   status: "idle" | "error" | "success";
@@ -22,6 +23,8 @@ export async function savePaymentConfig(
 ): Promise<PaymentConfigState> {
   const event = await getOwnEvent(eventId);
   if (!event) return { status: "error", message: "Brak dostepu." };
+  const gate = await featureGate(event.organization_id, "tickets_paid");
+  if (!gate.ok) return { status: "error", message: gate.message };
 
   const posId = formData.get("pos_id");
   const merchantId = formData.get("merchant_id");

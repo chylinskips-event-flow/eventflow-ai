@@ -8,6 +8,8 @@ import {
 } from "@/lib/mixer/getters";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MixerDetail } from "./mixer-detail";
+import { featureGate } from "@/lib/entitlements";
+import { FeatureLockedPage } from "@/components/upgrade-notice";
 
 export default async function MixerDetailPage({
   params,
@@ -25,6 +27,9 @@ export default async function MixerDetailPage({
   ]);
 
   if (!event || !mixer) notFound();
+
+  const gate = await featureGate(event.organization_id, "business_mixer");
+  if (!gate.ok) return <FeatureLockedPage title="Business Mixer" message={gate.message} />;
 
   // Fetch approved attendees for "add from list" dialog
   const supabase = createAdminClient();

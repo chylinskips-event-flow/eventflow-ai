@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { CreateTicketTypeButton, EditTicketTypeButton } from "./ticket-type-form";
 import { CreateDiscountCodeButton } from "./discount-code-form";
 import { TicketTypeToggle, DeleteTicketTypeButton, DeleteDiscountCodeButton } from "./ticket-row-actions";
+import { featureGate } from "@/lib/entitlements";
+import { UpgradeNotice } from "@/components/upgrade-notice";
 
 function formatDateRange(start: string | null, end: string | null): string {
   if (!start && !end) return "Bez okna";
@@ -30,6 +32,8 @@ export default async function TicketsPage({
   const event = await getOwnEvent(eventId);
   if (!event) notFound();
 
+  const paidTicketsGate = await featureGate(event.organization_id, "tickets_paid");
+
   const [ticketTypes, discountCodes] = await Promise.all([
     getTicketTypes(eventId),
     getDiscountCodes(eventId),
@@ -37,6 +41,8 @@ export default async function TicketsPage({
 
   return (
     <div className="space-y-10">
+      {!paidTicketsGate.ok && <UpgradeNotice message={paidTicketsGate.message} />}
+
       {/* ---- Ticket types ---- */}
       <section>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">

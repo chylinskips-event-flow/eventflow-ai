@@ -5,6 +5,7 @@ import React from "react";
 import { renderToBuffer } from "@react-pdf/renderer";
 import QRCode from "qrcode";
 import { getOwnEvent } from "@/lib/events";
+import { featureGate } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Attendee } from "@/lib/attendees";
 import { BadgesPdf } from "./badge-pdf";
@@ -21,6 +22,13 @@ export async function GET(
   const event = await getOwnEvent(eventId);
   if (!event) {
     return new Response("Not found", { status: 404 });
+  }
+  const gate = await featureGate(event.organization_id, "badges");
+  if (!gate.ok) {
+    return new Response(gate.message, {
+      status: 403,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
   }
 
   const searchParams = request.nextUrl.searchParams;

@@ -7,6 +7,7 @@ import { assign, computeQuality, assignRemaining } from "@/lib/mixer/assign";
 import type { RoundAssignment, TableAssignment } from "@/lib/mixer/assign";
 import { assignIcebreakers, nextUnusedQuestion } from "@/lib/mixer/icebreakers";
 import type { MixerRow } from "@/lib/mixer/getters";
+import { featureGate } from "@/lib/entitlements";
 
 export type MixerFormState = {
   status: "idle" | "success" | "error";
@@ -51,6 +52,8 @@ export async function createMixer(
 ): Promise<MixerFormState> {
   const event = await getOwnEvent(eventId);
   if (!event) return { status: "error", message: "Event nie znaleziony." };
+  const gate = await featureGate(event.organization_id, "business_mixer");
+  if (!gate.ok) return { status: "error", message: gate.message };
 
   const name = (formData.get("name") as string)?.trim();
   if (!name) return { status: "error", message: "Podaj nazwę mixera." };
@@ -341,6 +344,8 @@ export async function generatePlan(
 ): Promise<MixerFormState> {
   const event = await getOwnEvent(eventId);
   if (!event) return { status: "error", message: "Event nie znaleziony." };
+  const gate = await featureGate(event.organization_id, "business_mixer");
+  if (!gate.ok) return { status: "error", message: gate.message };
 
   return runGenerate(mixerId, eventId);
 }
@@ -353,6 +358,8 @@ export async function rerollPlan(
 ): Promise<MixerFormState> {
   const event = await getOwnEvent(eventId);
   if (!event) return { status: "error", message: "Event nie znaleziony." };
+  const gate = await featureGate(event.organization_id, "business_mixer");
+  if (!gate.ok) return { status: "error", message: gate.message };
 
   const newSeed = Math.floor(Math.random() * 2147483647);
   return runGenerate(mixerId, eventId, newSeed);
@@ -647,6 +654,8 @@ export async function startMixer(
 ): Promise<MixerFormState> {
   const event = await getOwnEvent(eventId);
   if (!event) return { status: "error", message: "Event nie znaleziony." };
+  const gate = await featureGate(event.organization_id, "business_mixer");
+  if (!gate.ok) return { status: "error", message: gate.message };
 
   const supabase = createAdminClient();
 

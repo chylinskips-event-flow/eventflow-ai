@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { RewardFormDialog, type RewardForEdit } from "./reward-form-dialog";
 import { RewardCard } from "./reward-card";
 import { RedeemSection } from "./redeem-section";
+import { featureGate } from "@/lib/entitlements";
+import { FeatureLockedPage } from "@/components/upgrade-notice";
 
 export default async function RewardsPage({
   params,
@@ -15,6 +17,9 @@ export default async function RewardsPage({
   const { eventId } = await params;
   const event = await getOwnEvent(eventId);
   if (!event) notFound();
+
+  const gate = await featureGate(event.organization_id, "gamification_rewards");
+  if (!gate.ok) return <FeatureLockedPage title="Nagrody" message={gate.message} />;
 
   const supabase = createAdminClient();
 

@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getOwnEvent } from "@/lib/events";
 import { validateImageFile, MB } from "@/lib/upload-validation";
 import type { CheckInResult } from "@/lib/reception";
+import { featureGate } from "@/lib/entitlements";
 
 export type RewardFormState = {
   status: "idle" | "success" | "error";
@@ -27,6 +28,8 @@ export async function createReward(
 ): Promise<RewardFormState> {
   const event = await getOwnEvent(eventId);
   if (!event) return { status: "error", message: "Event nie znaleziony." };
+  const gate = await featureGate(event.organization_id, "gamification_rewards");
+  if (!gate.ok) return { status: "error", message: gate.message };
 
   const name = (formData.get("name") as string)?.trim();
   const description = (formData.get("description") as string)?.trim() || null;

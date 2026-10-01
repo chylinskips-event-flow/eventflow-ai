@@ -10,6 +10,7 @@ import {
   getEventSections,
 } from "@/lib/event-sections";
 import sharp from "sharp";
+import { featureGate } from "@/lib/entitlements";
 
 const STORAGE_BUCKET = "event-sections";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -21,6 +22,12 @@ export async function createEventSection(
 ): Promise<{ ok: boolean; error?: string }> {
   const event = await getOwnEvent(eventId);
   if (!event) return { ok: false, error: "Brak dostępu." };
+  const gate = await featureGate(event.organization_id, "page_builder");
+  if (!gate.ok) return { ok: false, error: gate.message };
+  if (type === "galeria") {
+    const galleryGate = await featureGate(event.organization_id, "photo_gallery");
+    if (!galleryGate.ok) return { ok: false, error: galleryGate.message };
+  }
 
   const existing = await getEventSections(eventId);
   const maxPos = existing.reduce((m, s) => Math.max(m, s.position), -1);
@@ -47,6 +54,8 @@ export async function updateEventSectionContent(
 ): Promise<{ ok: boolean; error?: string }> {
   const event = await getOwnEvent(eventId);
   if (!event) return { ok: false, error: "Brak dostępu." };
+  const gate = await featureGate(event.organization_id, "page_builder");
+  if (!gate.ok) return { ok: false, error: gate.message };
 
   const supabase = createAdminClient();
   const { data: section } = await supabase
@@ -144,6 +153,8 @@ export async function uploadGaleriaImage(
 ): Promise<{ ok: boolean; error?: string; storage_path?: string; public_url?: string }> {
   const event = await getOwnEvent(eventId);
   if (!event) return { ok: false, error: "Brak dostępu." };
+  const gate = await featureGate(event.organization_id, "photo_gallery");
+  if (!gate.ok) return { ok: false, error: gate.message };
 
   const file = formData.get("image");
   if (!(file instanceof File) || file.size === 0)

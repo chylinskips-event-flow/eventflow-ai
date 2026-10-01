@@ -7,6 +7,7 @@ import { getDomainStatus } from "@/lib/vercel-domains";
 import { EventEditForm } from "./form";
 import { Card, CardContent } from "@/components/ui/card";
 import { SubdomainStatus } from "./subdomain-status";
+import { featureGate } from "@/lib/entitlements";
 
 export default async function EventDetailPage({
   params,
@@ -21,10 +22,14 @@ export default async function EventDetailPage({
   }
 
   const isPublished = event.status === "published" || event.status === "live";
+  const [subdomainsGate, badgesGate] = await Promise.all([
+    featureGate(event.organization_id, "subdomains"),
+    featureGate(event.organization_id, "badges"),
+  ]);
   const rootDomain = process.env.ROOT_DOMAIN ?? "eventro.pl";
   let subdomainInitialState: "active" | "activating" | "error" | "unknown" = "unknown";
 
-  if (isPublished && process.env.VERCEL_API_TOKEN && process.env.VERCEL_PROJECT_ID) {
+  if (isPublished && subdomainsGate.ok && process.env.VERCEL_API_TOKEN && process.env.VERCEL_PROJECT_ID) {
     const domainStatus = await getDomainStatus(`${event.slug}.${rootDomain}`);
     if (domainStatus === null) {
       subdomainInitialState = "error";
@@ -85,8 +90,11 @@ export default async function EventDetailPage({
       event={event}
       attendeeCount={attendeeCount ?? 0}
       paidOrderCount={paidOrderCount ?? 0}
+      badgesLockedMessage={badgesGate.ok ? null : badgesGate.message}
       subdomainStatus={
-        isPublished ? (
+        isPublished && !subdomainsGate.ok ? (
+          <p className="text-sm text-muted-foreground">{subdomainsGate.message}</p>
+        ) : isPublished ? (
           <SubdomainStatus
             eventId={eventId}
             slug={event.slug}

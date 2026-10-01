@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOwnEvent } from "@/lib/events";
+import { featureGate } from "@/lib/entitlements";
 
 export type QuestFormState = {
   status: "idle" | "success" | "error";
@@ -66,6 +67,8 @@ export async function createQuest(
 ): Promise<QuestFormState> {
   const event = await getOwnEvent(eventId);
   if (!event) return { status: "error", message: "Event nie znaleziony." };
+  const gate = await featureGate(event.organization_id, "gamification");
+  if (!gate.ok) return { status: "error", message: gate.message };
 
   const type = (formData.get("type") as string)?.trim();
   const title = (formData.get("title") as string)?.trim();
@@ -237,6 +240,8 @@ export async function seedQuests(
 ): Promise<QuestFormState> {
   const event = await getOwnEvent(eventId);
   if (!event) return { status: "error", message: "Event nie znaleziony." };
+  const gate = await featureGate(event.organization_id, "gamification");
+  if (!gate.ok) return { status: "error", message: gate.message };
 
   const supabase = createAdminClient();
 

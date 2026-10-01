@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { QuestFormDialog, type QuestForEdit } from "./quest-form-dialog";
 import { QuestCard } from "./quest-card";
 import { SeedQuestsButton } from "./seed-button";
+import { featureGate } from "@/lib/entitlements";
+import { FeatureLockedPage } from "@/components/upgrade-notice";
 
 export default async function QuestsPage({
   params,
@@ -20,6 +22,9 @@ export default async function QuestsPage({
   ]);
 
   if (!event) notFound();
+
+  const gate = await featureGate(event.organization_id, "gamification");
+  if (!gate.ok) return <FeatureLockedPage title="Questy" message={gate.message} />;
 
   const supabase = await createClient();
   const { data: rawQuests } = await supabase

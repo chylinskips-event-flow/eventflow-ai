@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CreateMixerDialog } from "./create-mixer-dialog";
 import { SeedAttendeesButton } from "./seed-attendees-button";
+import { featureGate } from "@/lib/entitlements";
+import { FeatureLockedPage } from "@/components/upgrade-notice";
 
 const STATUS_LABEL: Record<string, string> = {
   draft:     "Szkic",
@@ -33,6 +35,9 @@ export default async function MixerListPage({
   ]);
 
   if (!event) notFound();
+
+  const gate = await featureGate(event.organization_id, "business_mixer");
+  if (!gate.ok) return <FeatureLockedPage title="Business Mixer" message={gate.message} />;
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">

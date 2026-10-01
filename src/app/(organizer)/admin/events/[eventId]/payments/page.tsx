@@ -3,6 +3,8 @@ import { getOwnEvent } from "@/lib/events";
 import { getPaymentConfigMasked } from "./actions";
 import { PaymentsForm } from "./payments-form";
 import { AlertTriangle } from "lucide-react";
+import { featureGate } from "@/lib/entitlements";
+import { FeatureLockedPage } from "@/components/upgrade-notice";
 
 export default async function PaymentsPage({
   params,
@@ -12,6 +14,9 @@ export default async function PaymentsPage({
   const { eventId } = await params;
   const event = await getOwnEvent(eventId);
   if (!event) notFound();
+
+  const gate = await featureGate(event.organization_id, "tickets_paid");
+  if (!gate.ok) return <FeatureLockedPage title="Płatności" message={gate.message} />;
 
   const existing = await getPaymentConfigMasked(eventId);
 

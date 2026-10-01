@@ -6,6 +6,7 @@ import { getOwnOrganization } from "@/lib/organizations";
 import { parseLines } from "@/lib/events";
 import { parseDateTimeLocal } from "@/lib/format";
 import { SLUG_PATTERN } from "@/lib/slug";
+import { getLimit } from "@/lib/entitlements";
 
 export type CreateEventState = {
   status: "idle" | "error";
@@ -67,6 +68,23 @@ export async function createEvent(
   }
 
   const supabase = await createClient();
+
+  // Limit aktywnych eventów w planie (zakończone, zarchiwizowane i usunięte się nie liczą).
+  const maxEvents = await getLimit(organization.id, "max_events");
+  if (maxEvents != null) {
+    const { count } = await supabase
+      .from("events")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organization.id)
+      .is("deleted_at", null)
+      .in("status", ["draft", "published", "live"]);
+    if ((count ?? 0) >= maxEvents) {
+      return {
+        status: "error",
+        message: `Twój plan pozwala na ${maxEvents} aktywn${maxEvents === 1 ? "y event" : "e eventy"} naraz. Zakończ lub usuń event albo przejdź na wyższy plan.`,
+      };
+    }
+  }
 
   const { data: existing } = await supabase
     .from("events")

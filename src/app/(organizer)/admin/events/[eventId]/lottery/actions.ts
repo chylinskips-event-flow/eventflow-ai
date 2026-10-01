@@ -1,5 +1,6 @@
 "use server";
 
+import { featureGate } from "@/lib/entitlements";
 import { getOwnEvent } from "@/lib/events";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -27,6 +28,8 @@ export async function drawLotteryWinner(
   if (!event.gamification_enabled || event.lottery_points_per_ticket == null) {
     return { status: "error", message: "Loteria nieaktywna dla tego eventu." };
   }
+  const gate = await featureGate(event.organization_id, "gamification_rewards");
+  if (!gate.ok) return { status: "error", message: gate.message };
 
   const ppt = event.lottery_points_per_ticket;
   const admin = createAdminClient();

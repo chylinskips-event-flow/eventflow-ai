@@ -8,6 +8,8 @@ import { BannerUpload } from "./banner-upload";
 import { SectionFormDialog } from "./section-form-dialog";
 import { SectionCard } from "./section-card";
 import { EventSectionsBuilder } from "./event-sections-builder";
+import { featureGate } from "@/lib/entitlements";
+import { UpgradeNotice } from "@/components/upgrade-notice";
 
 export default async function EventContentPage({
   params,
@@ -21,6 +23,8 @@ export default async function EventContentPage({
     notFound();
   }
 
+  const pageBuilderGate = await featureGate(event.organization_id, "page_builder");
+
   const [sections, eventSections] = await Promise.all([
     getEventContentSections(eventId),
     getEventSections(eventId),
@@ -29,6 +33,8 @@ export default async function EventContentPage({
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
       <h1 className="text-2xl font-semibold">Treść</h1>
+
+      {!pageBuilderGate.ok && <UpgradeNotice message={pageBuilderGate.message} />}
 
       <BannerUpload eventId={eventId} bannerUrl={event.banner_url} />
 

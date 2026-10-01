@@ -21,6 +21,7 @@ import { validateImageFile, MB } from "@/lib/upload-validation";
 import { EVENT_TYPE_OPTIONS, NO_EVENT_TYPE_VALUE } from "@/lib/event-options";
 import { slugify } from "@/lib/slug";
 import { BadgeBgUpload } from "./badges/badge-bg-upload";
+import { UpgradeNotice } from "@/components/upgrade-notice";
 import { TIMEZONES } from "@/lib/timezones";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,12 +83,15 @@ export function EventEditForm({
   paidOrderCount,
   subdomainStatus,
   summary,
+  badgesLockedMessage = null,
 }: {
   event: Event;
   attendeeCount: number;
   paidOrderCount: number;
   subdomainStatus?: React.ReactNode;
   summary?: React.ReactNode;
+  /** Komunikat „dostępne w planie X", gdy identyfikatory są spoza planu. */
+  badgesLockedMessage?: string | null;
 }) {
   const updateEventForEvent = updateEvent.bind(null, event.id);
   const uploadLogoForEvent = uploadEventLogo.bind(null, event.id);
@@ -649,7 +653,11 @@ export function EventEditForm({
           title="Identyfikatory"
           description="Wygląd identyfikatorów PDF drukowanych dla uczestników."
         >
-          <BadgeBgUpload eventId={event.id} badgeBgUrl={event.badge_bg_url ?? null} />
+          {badgesLockedMessage ? (
+            <UpgradeNotice message={badgesLockedMessage} />
+          ) : (
+            <BadgeBgUpload eventId={event.id} badgeBgUrl={event.badge_bg_url ?? null} />
+          )}
           <p className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
             <Info className="mt-0.5 size-4 shrink-0" />
             <span>

@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { getOwnEvent } from "@/lib/events";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LotteryClient } from "./lottery-client";
+import { featureGate } from "@/lib/entitlements";
+import { FeatureLockedPage } from "@/components/upgrade-notice";
 
 export default async function LotteryPage({
   params,
@@ -11,6 +13,9 @@ export default async function LotteryPage({
   const { eventId } = await params;
   const event = await getOwnEvent(eventId);
   if (!event) notFound();
+
+  const gate = await featureGate(event.organization_id, "gamification_rewards");
+  if (!gate.ok) return <FeatureLockedPage title="Loteria" message={gate.message} />;
 
   if (!event.gamification_enabled || event.lottery_points_per_ticket == null) {
     notFound();

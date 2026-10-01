@@ -8,6 +8,7 @@ import { parseDateTimeLocal } from "@/lib/format";
 import { validateSlug } from "@/lib/slug";
 import { addDomain, removeDomain, getDomainStatus } from "@/lib/vercel-domains";
 import { getPaidOrderCount } from "@/lib/orders";
+import { featureGate, hasFeature } from "@/lib/entitlements";
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? "eventro.pl";
 const hasVercelConfig = () =>
@@ -93,9 +94,24 @@ export async function updateEvent(
   // Odczytaj aktualny slug i status — potrzebne do ewentualnej rotacji domeny.
   const { data: currentEvent } = await supabase
     .from("events")
-    .select("slug, status")
+    .select("slug, status, organization_id, gamification_enabled, lottery_points_per_ticket")
     .eq("id", eventId)
     .maybeSingle();
+
+  if (!currentEvent) {
+    return { status: "error", message: "Event nie znaleziony." };
+  }
+
+  // Bramki planu — blokujemy tylko WŁĄCZANIE funkcji spoza planu (już włączone zostawiamy,
+  // żeby zapis pozostałych pól nie przestał działać po zmianie planu).
+  if (gamificationEnabled && !currentEvent.gamification_enabled) {
+    const gate = await featureGate(currentEvent.organization_id, "gamification");
+    if (!gate.ok) return { status: "error", message: gate.message };
+  }
+  if (lotteryPointsPerTicket != null && currentEvent.lottery_points_per_ticket == null) {
+    const gate = await featureGate(currentEvent.organization_id, "gamification_rewards");
+    if (!gate.ok) return { status: "error", message: gate.message };
+  }
 
   const { data: existing } = await supabase
     .from("events")
@@ -161,7 +177,11 @@ export async function updateEvent(
   ) {
     const oldHost = `${currentEvent.slug}.${ROOT_DOMAIN}`;
     const newHost = `${slug}.${ROOT_DOMAIN}`;
-    Promise.all([removeDomain(oldHost), addDomain(newHost)]).catch((err) =>
+    const subdomainsAllowed = await hasFeature(currentEvent.organization_id, "subdomains");
+    Promise.all([
+      removeDomain(oldHost),
+      subdomainsAllowed ? addDomain(newHost) : null,
+    ]).catch((err) =>
       console.error("[vercel-domains] slug swap failed:", err),
     );
   }
@@ -177,7 +197,7 @@ export async function publishEvent(eventId: string) {
     .update({ status: "published" })
     .eq("id", eventId)
     .eq("status", "draft")
-    .select("id, slug");
+    .select("id, slug, organization_id");
 
   if (error) {
     throw new Error(`Publish failed: ${error.message} (code: ${error.code})`);
@@ -190,7 +210,11 @@ export async function publishEvent(eventId: string) {
   }
 
   // Zarejestruj subdomenę w Vercel (best-effort — publikacja nie jest blokowana).
-  if (hasVercelConfig()) {
+  // Bez subdomeny w planie event działa pod adresem /e/{slug}.
+  if (
+    hasVercelConfig() &&
+    (await hasFeature(data[0].organization_id, "subdomains"))
+  ) {
     const host = `${data[0].slug}.${ROOT_DOMAIN}`;
     addDomain(host).catch((err) =>
       console.error(`[vercel-domains] addDomain(${host}) after publish threw:`, err),
@@ -343,11 +367,12 @@ export async function retrySubdomain(
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("slug")
+    .select("slug, organization_id")
     .eq("id", eventId)
     .maybeSingle();
 
   if (!event) return "error";
+  if (!(await hasFeature(event.organization_id, "subdomains"))) return "error";
   if (!hasVercelConfig()) return "error";
 
   const host = `${event.slug}.${ROOT_DOMAIN}`;
@@ -447,6 +472,14 @@ export async function uploadEventBadgeBg(
   }
 
   const supabase = await createClient();
+  const { data: ownEvent } = await supabase
+    .from("events")
+    .select("organization_id")
+    .eq("id", eventId)
+    .maybeSingle();
+  if (!ownEvent) return { status: "error", message: "Event nie znaleziony." };
+  const gate = await featureGate(ownEvent.organization_id, "badges");
+  if (!gate.ok) return { status: "error", message: gate.message };
   const extension = file.name.split(".").pop() ?? "jpg";
   const storagePath = `${eventId}/badge-bg-${Date.now()}.${extension}`;
 

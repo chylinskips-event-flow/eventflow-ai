@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOwnEvent } from "@/lib/events";
 import { getTicketTypes } from "@/lib/tickets";
+import { featureGate } from "@/lib/entitlements";
 
 // ---- Ticket types --------------------------------------------------------
 
@@ -35,6 +36,10 @@ export async function createTicketType(
     : 0;
   if (isNaN(price) || price < 0)
     return { status: "error", message: "Nieprawidłowa cena." };
+  if (price > 0) {
+    const gate = await featureGate(event.organization_id, "tickets_paid");
+    if (!gate.ok) return { status: "error", message: gate.message };
+  }
 
   const quantityTotalVal =
     typeof quantityTotal === "string" && quantityTotal.trim()
@@ -90,6 +95,10 @@ export async function updateTicketType(
     : 0;
   if (isNaN(price) || price < 0)
     return { status: "error", message: "Nieprawidlowa cena." };
+  if (price > 0) {
+    const gate = await featureGate(event.organization_id, "tickets_paid");
+    if (!gate.ok) return { status: "error", message: gate.message };
+  }
 
   const quantityTotalVal =
     typeof quantityTotal === "string" && quantityTotal.trim()
@@ -169,6 +178,8 @@ export async function createDiscountCode(
 ): Promise<DiscountCodeFormState> {
   const event = await getOwnEvent(eventId);
   if (!event) return { status: "error", message: "Brak dostepu." };
+  const gate = await featureGate(event.organization_id, "tickets_paid");
+  if (!gate.ok) return { status: "error", message: gate.message };
 
   const code = formData.get("code");
   const kind = formData.get("kind");
