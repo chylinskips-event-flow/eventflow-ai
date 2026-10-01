@@ -36,7 +36,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { SettingsNav, type SettingsSectionId } from "./settings-nav";
+import { SettingsBar, SettingsNav, type SettingsSectionId } from "./settings-nav";
 import {
   Select,
   SelectContent,
@@ -269,6 +269,8 @@ export function EventEditForm({
       <SettingsNav className="hidden xl:block" />
 
       <div className="flex min-w-0 flex-col gap-6">
+        <SettingsBar className="xl:hidden" />
+
         {summary}
 
         <SettingsSection

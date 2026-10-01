@@ -64,7 +64,7 @@ export default async function EventLayout({
           sticky (nagłówek, sub-nav Ustawień). min-w-0 — clip nie zeruje min-width elementu flex. */}
       <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-x-clip md:pl-64">
         {/* Workspace header */}
-        <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b bg-background px-6 py-3">
+        <header data-workspace-header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b bg-background px-6 py-3">
           {/* pl-12 na mobile — robi miejsce na hamburger z EventSidebar */}
           <div className="flex flex-col pl-12 md:pl-0">
             <span className="text-sm font-semibold leading-tight">
