@@ -41,7 +41,8 @@ export function BadgeBgUpload({
         <h3 className="text-sm font-semibold">Tło identyfikatora</h3>
         <p className="text-sm text-muted-foreground">
           Własne tło wgrane tutaj zastąpi jednolity pasek koloru na identyfikatorach PDF.
-          Logo z sekcji „Branding” wyświetli się automatycznie w nagłówku.
+          Nazwa wydarzenia jest wtedy ukryta (zakładamy, że jest w grafice tła), a logo
+          z sekcji „Branding” wyświetli się automatycznie w nagłówku.
         </p>
       </div>
       <form

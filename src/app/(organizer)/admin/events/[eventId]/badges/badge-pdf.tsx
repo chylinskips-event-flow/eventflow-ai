@@ -239,6 +239,10 @@ export function BadgesPdf({
   const headerTextColor = isLight(accent) ? "#111111" : "#ffffff";
   const title = customTitle ?? event.name;
   const hasBg = Boolean(event.badge_bg_url);
+  // Własne tło zwykle ma już nazwę wydarzenia w grafice — wtedy nie dublujemy jej w nagłówku.
+  // Jawny ?title= nadal wygrywa.
+  const showTitle = !hasBg || customTitle != null;
+  const showHeader = showTitle || Boolean(event.logo_url);
 
   return (
     <Document>
@@ -257,30 +261,34 @@ export function BadgesPdf({
 
             {/* Layer 2: content (sits on top of bg due to normal flow order) */}
             <View style={S.content}>
-              {/* Header */}
-              <View
-                style={
-                  hasBg
-                    ? S.headerOverlay
-                    : [S.header, { backgroundColor: accent }]
-                }
-              >
-                {event.logo_url ? (
-                  <Image src={event.logo_url} style={S.logo} />
-                ) : null}
-                <View style={S.headerText}>
-                  <Text
-                    style={[
-                      S.eventName,
-                      // Overlay header has dark scrim — keep white.
-                      // Default header: adapt text color to accent luminance.
-                      hasBg ? undefined : { color: headerTextColor },
-                    ]}
-                  >
-                    {title}
-                  </Text>
+              {/* Header — z tłem: tylko logo (bez nazwy); bez logo nagłówek znika */}
+              {showHeader && (
+                <View
+                  style={
+                    hasBg
+                      ? S.headerOverlay
+                      : [S.header, { backgroundColor: accent }]
+                  }
+                >
+                  {event.logo_url ? (
+                    <Image src={event.logo_url} style={S.logo} />
+                  ) : null}
+                  {showTitle && (
+                    <View style={S.headerText}>
+                      <Text
+                        style={[
+                          S.eventName,
+                          // Overlay header has dark scrim — keep white.
+                          // Default header: adapt text color to accent luminance.
+                          hasBg ? undefined : { color: headerTextColor },
+                        ]}
+                      >
+                        {title}
+                      </Text>
+                    </View>
+                  )}
                 </View>
-              </View>
+              )}
 
               {/* Body */}
               <View style={S.body}>
