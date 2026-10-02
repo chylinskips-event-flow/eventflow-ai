@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,9 +24,12 @@ export function UpgradeNotice({
       <Lock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="flex flex-col gap-1">
         <p className="font-medium">{message}</p>
-        <p className="text-muted-foreground">
-          Skontaktuj się z nami, aby zmienić plan.
-        </p>
+        <Link
+          href="/admin/billing"
+          className="w-fit font-medium text-primary underline underline-offset-4"
+        >
+          Zobacz plany
+        </Link>
       </div>
     </div>
   );

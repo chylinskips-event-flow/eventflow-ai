@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/logo";
 import { CopyEventLink } from "@/components/copy-event-link";
+import { isBillingEnabled } from "@/lib/entitlements";
 
 const STATUS_LABELS: Record<Event["status"], string> = {
   draft: "Szkic",
@@ -57,6 +58,11 @@ export default async function OrganizerAdminPage() {
       <header className="flex items-center justify-between border-b bg-background px-6 py-3">
         <Logo variant="adaptive" />
         <div className="flex items-center gap-4">
+          {isBillingEnabled() && (
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/admin/billing">Plan i płatności</Link>
+            </Button>
+          )}
           {user?.email && (
             <span className="text-sm text-muted-foreground">{user.email}</span>
           )}
