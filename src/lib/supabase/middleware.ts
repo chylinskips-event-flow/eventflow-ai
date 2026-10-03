@@ -59,7 +59,15 @@ export async function updateSession(request: NextRequest) {
     }
 
     // Zawieszone konto (panel operatora) — brak dostępu do panelu i akcji organizatora.
-    const { data: suspended } = await supabase.rpc("is_current_user_suspended");
+    const { data: suspended, error: suspendedError } = await supabase.rpc(
+      "is_current_user_suspended",
+    );
+    if (suspendedError) {
+      console.warn(
+        "[middleware] suspension check failed",
+        JSON.stringify({ code: suspendedError.code, message: suspendedError.message }),
+      );
+    }
     if (suspended === true) {
       const url = request.nextUrl.clone();
       url.pathname = "/suspended";
@@ -69,7 +77,15 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && pathname === "/onboarding") {
-    const { data: suspended } = await supabase.rpc("is_current_user_suspended");
+    const { data: suspended, error: suspendedError } = await supabase.rpc(
+      "is_current_user_suspended",
+    );
+    if (suspendedError) {
+      console.warn(
+        "[middleware] suspension check failed",
+        JSON.stringify({ code: suspendedError.code, message: suspendedError.message }),
+      );
+    }
     if (suspended === true) {
       const url = request.nextUrl.clone();
       url.pathname = "/suspended";

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { redirectIfSuspended } from "@/lib/suspension";
 
 export type Organization = {
   id: string;
@@ -12,6 +13,8 @@ export type Organization = {
 };
 
 export async function getOwnOrganization(): Promise<Organization | null> {
+  // Zawieszone konto (panel operatora) — brak dostępu do danych organizatora.
+  await redirectIfSuspended();
   const supabase = await createClient();
   const {
     data: { user },

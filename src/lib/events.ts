@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { redirectIfSuspended } from "@/lib/suspension";
 
 export type EventStatus =
   | "draft"
@@ -124,6 +125,8 @@ export async function isCurrentUserEventOwner(
 }
 
 export async function getOwnEvent(eventId: string): Promise<Event | null> {
+  // Zawieszone konto (panel operatora) — brak dostępu do danych organizatora.
+  await redirectIfSuspended();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("events")
