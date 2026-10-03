@@ -99,7 +99,7 @@ export async function getParticipantEngagement(
   const [questionsRes, votesRes, pollRes, feedbackRes] = await Promise.all([
     admin
       .from("questions")
-      .select("id, session_id, attendee_id, content, status, vote_count, is_anonymous, created_at, attendees(first_name, last_name, company)")
+      .select("id, session_id, attendee_id, content, status, vote_count, is_anonymous, created_at, attendees!questions_attendee_id_fkey(first_name, last_name, company)")
       .eq("session_id", sessionId)
       .order("created_at", { ascending: true })
       .limit(1000),
@@ -241,7 +241,7 @@ export async function getOrganizerEngagement(sessionId: string): Promise<Organiz
   const [questionsRes, pollsRes, feedbackRes] = await Promise.all([
     admin
       .from("questions")
-      .select("id, session_id, attendee_id, content, status, vote_count, is_anonymous, created_at, attendees(first_name, last_name, company)")
+      .select("id, session_id, attendee_id, content, status, vote_count, is_anonymous, created_at, attendees!questions_attendee_id_fkey(first_name, last_name, company)")
       .eq("session_id", sessionId)
       .order("created_at", { ascending: true })
       .limit(1000),
@@ -252,7 +252,7 @@ export async function getOrganizerEngagement(sessionId: string): Promise<Organiz
       .order("created_at", { ascending: false }),
     admin
       .from("feedback")
-      .select("rating, comment, created_at, attendees(first_name, last_name, company)")
+      .select("rating, comment, created_at, attendees!feedback_attendee_id_fkey(first_name, last_name, company)")
       .eq("session_id", sessionId)
       .order("created_at", { ascending: false })
       .limit(1000),
@@ -345,7 +345,7 @@ export async function getQaProjectorState(token: string): Promise<QaProjectorSta
   const [questionsRes, pollRes] = await Promise.all([
     admin
       .from("questions")
-      .select("id, session_id, attendee_id, content, status, vote_count, is_anonymous, created_at, attendees(first_name, last_name, company)")
+      .select("id, session_id, attendee_id, content, status, vote_count, is_anonymous, created_at, attendees!questions_attendee_id_fkey(first_name, last_name, company)")
       .eq("session_id", session.id)
       .in("status", ["pending", "selected"])
       .limit(1000),
@@ -359,6 +359,9 @@ export async function getQaProjectorState(token: string): Promise<QaProjectorSta
       .maybeSingle(),
   ]);
 
+  if (questionsRes.error) {
+    console.error("[engagement] projector read failed", JSON.stringify({ code: questionsRes.error.code, message: questionsRes.error.message }));
+  }
   const rows = sortQuestions((questionsRes.data ?? []) as unknown as QuestionRow[]);
   const toView = (q: QuestionRow) => ({
     id: q.id,
