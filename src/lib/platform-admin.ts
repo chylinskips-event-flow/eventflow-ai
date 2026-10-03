@@ -19,7 +19,18 @@ export async function requireSuperAdmin(): Promise<SuperAdmin> {
   if (!user) notFound();
 
   const { data, error } = await supabase.rpc("is_platform_admin");
-  if (error || data !== true) notFound();
+  if (error || data !== true) {
+    // Tylko log serwera (diagnostyka) — klient dostaje zwykłe 404.
+    console.warn(
+      "[platform-admin] access denied",
+      JSON.stringify({
+        userId: user.id,
+        result: data ?? null,
+        error: error ? { code: error.code, message: error.message } : null,
+      }),
+    );
+    notFound();
+  }
 
   return { userId: user.id, email: user.email ?? null };
 }
