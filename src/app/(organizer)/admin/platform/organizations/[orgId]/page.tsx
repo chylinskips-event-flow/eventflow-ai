@@ -78,7 +78,8 @@ export default async function PlatformOrganizationPage({
               <dd>
                 {org.subscription
                   ? `${org.subscription.plan_key} — ${SUB_STATUS[org.subscription.status] ?? org.subscription.status}` +
-                    (org.subscription.current_period_end
+                    (org.subscription.current_period_end &&
+                    ["trialing", "active", "past_due"].includes(org.subscription.status)
                       ? `, do ${formatDate(org.subscription.current_period_end)}`
                       : "")
                   : "brak"}
