@@ -18,10 +18,12 @@ export default async function PlatformLayout({ children }: { children: React.Rea
           <Button asChild variant="ghost" size="sm">
             <Link href="/admin">
               <ChevronLeft className="size-4" />
-              Panel
+              Panel organizatora
             </Link>
           </Button>
-          <span className="font-semibold">Panel operatora</span>
+          <Link href="/admin/platform" className="font-semibold underline-offset-4 hover:underline">
+            Panel operatora
+          </Link>
           <Badge variant={billingEnabled ? "success" : "secondary"}>
             Billing {billingEnabled ? "włączony" : "wyłączony"}
           </Badge>
