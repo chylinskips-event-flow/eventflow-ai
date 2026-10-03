@@ -52,7 +52,11 @@ async function pollCounts(pollIds: string[]): Promise<Map<string, Record<string,
   const { data, error } = await createAdminClient().rpc("poll_option_counts", {
     p_poll_ids: pollIds,
   });
-  if (error) throw new Error(`poll_option_counts failed: ${error.message}`);
+  if (error) {
+    // Bez wyników ankiety strona nadal działa (np. nieodświeżony schemat PostgREST).
+    console.error("[engagement] poll_option_counts failed", JSON.stringify({ code: error.code, message: error.message }));
+    return map;
+  }
   for (const row of (data ?? []) as { poll_id: string; option_id: string; votes: number }[]) {
     const counts = map.get(row.poll_id) ?? {};
     counts[row.option_id] = Number(row.votes);
@@ -119,7 +123,10 @@ export async function getParticipantEngagement(
       .eq("attendee_id", attendeeId)
       .maybeSingle(),
   ]);
-  if (questionsRes.error) throw new Error(`questions read failed: ${questionsRes.error.message}`);
+  if (questionsRes.error) {
+    console.error("[engagement] participant read failed", JSON.stringify({ code: questionsRes.error.code, message: questionsRes.error.message }));
+    throw new Error(`questions read failed: ${questionsRes.error.message}`);
+  }
 
   const rows = (questionsRes.data ?? []) as unknown as QuestionRow[];
   const voted = new Set((votesRes.data ?? []).map((v) => v.question_id as string));
@@ -179,8 +186,12 @@ export async function getEventEngagementSummary(
   const { data, error } = await createAdminClient().rpc("session_engagement_summary", {
     p_event_id: eventId,
   });
-  if (error) throw new Error(`session_engagement_summary failed: ${error.message}`);
   const map = new Map<string, SessionEngagementSummary>();
+  if (error) {
+    // Lista sesji działa bez liczników, zamiast wywracać stronę.
+    console.error("[engagement] session_engagement_summary failed", JSON.stringify({ code: error.code, message: error.message }));
+    return map;
+  }
   for (const r of (data ?? []) as Record<string, unknown>[]) {
     map.set(r.session_id as string, {
       session_id: r.session_id as string,
@@ -247,7 +258,10 @@ export async function getOrganizerEngagement(sessionId: string): Promise<Organiz
       .limit(1000),
   ]);
   for (const r of [questionsRes, pollsRes, feedbackRes]) {
-    if (r.error) throw new Error(`engagement read failed: ${r.error.message}`);
+    if (r.error) {
+      console.error("[engagement] organizer read failed", JSON.stringify({ code: r.error.code, message: r.error.message }));
+      throw new Error(`engagement read failed: ${r.error.message}`);
+    }
   }
 
   const questionRows = (questionsRes.data ?? []) as unknown as QuestionRow[];
