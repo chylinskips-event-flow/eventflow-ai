@@ -111,6 +111,8 @@ export default async function PlatformOrganizationPage({
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <PlatformActionForm
+              // Remount po zmianie override'u — pola pokazują aktualny stan, nie poprzedni wybór.
+              key={override?.updated_at ?? "no-override"}
               action={setPlanOverride.bind(null, org.id)}
               submitLabel={override ? "Zapisz override" : "Nadaj override"}
             >
