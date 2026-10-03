@@ -15,6 +15,7 @@ import {
   FileText,
   Megaphone,
   Network,
+  MessageCircleQuestion,
   ScanLine,
   ShoppingBag,
   CreditCard,
@@ -53,6 +54,7 @@ export function EventSidebar({
     { href: `${base}/partners`,  icon: Handshake,   label: "Partnerzy"  },
     { href: `${base}/quests`,    icon: Target,      label: "Questy"     },
     { href: `${base}/mixer`,    icon: Network,     label: "Business Mixer" },
+    { href: `${base}/engagement`, icon: MessageCircleQuestion, label: "Q&A i ankiety" },
     ...(gamificationEnabled
       ? [{ href: `${base}/rewards`, icon: Gift, label: "Nagrody" } as NavItem]
       : []),

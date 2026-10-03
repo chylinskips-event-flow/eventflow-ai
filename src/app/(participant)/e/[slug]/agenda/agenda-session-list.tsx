@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 import type { Session } from "@/lib/sessions";
 import {
@@ -64,6 +65,7 @@ export function AgendaSessionList({
   timezone,
   readOnly = false,
   activeDay,
+  sessionHrefBase,
 }: {
   slug: string;
   sessions: Session[];
@@ -72,6 +74,8 @@ export function AgendaSessionList({
   timezone: string | null;
   readOnly?: boolean;
   activeDay?: string;
+  /** Baza linku do strony sesji (Q&A, ankiety, ocena) — tylko w widokach uczestnika. */
+  sessionHrefBase?: string;
 }) {
   const now = getCurrentTimestamp();
 
@@ -167,9 +171,18 @@ export function AgendaSessionList({
                         )}
 
                         {/* Title */}
-                        <span className="font-semibold leading-snug">
-                          {session.title}
-                        </span>
+                        {sessionHrefBase ? (
+                          <Link
+                            href={`${sessionHrefBase}/${session.id}`}
+                            className="font-semibold leading-snug underline-offset-4 hover:underline"
+                          >
+                            {session.title}
+                          </Link>
+                        ) : (
+                          <span className="font-semibold leading-snug">
+                            {session.title}
+                          </span>
+                        )}
 
                         {/* Time range (shown only when ends_at present) */}
                         {session.ends_at && timeRange && (

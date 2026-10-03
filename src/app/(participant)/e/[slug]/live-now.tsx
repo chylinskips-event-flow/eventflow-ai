@@ -70,7 +70,12 @@ export function LiveNow({
               >
                 <CardContent className="flex flex-col gap-1 py-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">{session.title}</span>
+                    <Link
+                      href={`${agendaHref ?? `/e/${slug}/agenda`}/${session.id}`}
+                      className="font-semibold underline-offset-4 hover:underline"
+                    >
+                      {session.title}
+                    </Link>
                     {agendaSessionIds.has(session.id) && <AgendaBadge />}
                   </div>
                   {details && (
@@ -123,7 +128,12 @@ export function LiveNow({
               <Card key={session.id}>
                 <CardContent className="flex flex-col gap-1 py-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">{session.title}</span>
+                    <Link
+                      href={`${agendaHref ?? `/e/${slug}/agenda`}/${session.id}`}
+                      className="font-semibold underline-offset-4 hover:underline"
+                    >
+                      {session.title}
+                    </Link>
                     {agendaSessionIds.has(session.id) && <AgendaBadge />}
                   </div>
                   {meta && (

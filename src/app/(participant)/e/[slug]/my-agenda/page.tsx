@@ -68,6 +68,7 @@ export default async function MyAgendaPage({
           agendaSessionIds={agendaSessionIds}
           isLive={event.status === "live"}
           timezone={event.timezone}
+          sessionHrefBase={buildEventInternalPath(slug, "/agenda", origin)}
         />
       )}
     </main>

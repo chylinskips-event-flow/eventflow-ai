@@ -82,3 +82,22 @@ export async function getEventSessionsForParticipant(
 
   return ((data ?? []) as unknown as SessionRow[]).map(mapSession);
 }
+
+/**
+ * Pojedyncza sesja eventu (service_role) — po autoryzacji uczestnika/organizatora
+ * w wywołującym. Sprawdza przynależność do eventu (ID sesji z URL-a nie wystarczy).
+ */
+export async function getEventSessionById(
+  eventId: string,
+  sessionId: string,
+): Promise<Session | null> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("sessions")
+    .select(SESSION_SELECT)
+    .eq("event_id", eventId)
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  return data ? mapSession(data as unknown as SessionRow) : null;
+}
