@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, Clock, MapPin } from "lucide-react";
-import { getEventBySlugForRegistration } from "@/lib/events";
+import { getEventBySlugForRegistration, getRegistrationUnavailableReason } from "@/lib/events";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { getOrigin } from "@/lib/request-origin";
 import { buildEventInternalPath } from "@/lib/event-url";
@@ -12,6 +12,8 @@ import { hasFeature } from "@/lib/entitlements";
 import { getParticipantEngagement } from "@/lib/engagement";
 import { canAskQuestions, canRateSession, type EventStatus } from "@/lib/engagement-core";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { SessionEngagement } from "./session-engagement";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,12 +28,48 @@ export default async function SessionPage({
   const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
   const agendaHref = buildEventInternalPath(slug, "/agenda", origin);
 
-  const attendee = await getCurrentAttendee(slug);
-  if (!attendee) redirect(eventRoot);
-
-  const event = await getEventBySlugForRegistration(slug);
+  const [attendee, event] = await Promise.all([
+    getCurrentAttendee(slug),
+    getEventBySlugForRegistration(slug),
+  ]);
   if (!event) redirect(eventRoot);
   if (!UUID.test(sessionId)) notFound();
+
+  if (!attendee) {
+    // Np. wejście z kodu QR na rzutniku na telefonie bez zalogowanego uczestnika —
+    // zamiast cichego przekierowania mówimy, co zrobić.
+    const isPublic = event.status === "published" || event.status === "live";
+    if (!isPublic) redirect(eventRoot);
+    const session = await getEventSessionById(event.id, sessionId);
+    if (!session) notFound();
+    const canRegister = getRegistrationUnavailableReason(event) === null;
+    return (
+      <main className="mx-auto flex w-full max-w-md flex-col gap-5 p-4 pb-8">
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-muted-foreground">{event.name}</p>
+          <h1 className="text-2xl font-semibold leading-tight">{session.title}</h1>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col gap-4 py-6">
+            <p className="font-medium">Aby zadawać pytania i głosować, wejdź jako uczestnik.</p>
+            <p className="text-sm text-muted-foreground">
+              Jesteś już zarejestrowany? Otwórz na tym telefonie link z maila potwierdzającego
+              rejestrację (albo zeskanuj kod QR ze swojego biletu), a potem wróć do tej strony.
+            </p>
+            {canRegister && (
+              <Button asChild>
+                <Link href={buildEventInternalPath(slug, "/register", origin)}>Zarejestruj się</Link>
+              </Button>
+            )}
+            <Button asChild variant="outline">
+              <Link href={eventRoot}>Strona wydarzenia</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+  if (event.id !== attendee.event_id) redirect(eventRoot);
 
   const session = await getEventSessionById(event.id, sessionId);
   if (!session) notFound();
