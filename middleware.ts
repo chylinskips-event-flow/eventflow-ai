@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
+import { isEventSuspended, updateSession } from "@/lib/supabase/middleware";
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? "eventro.pl";
 
@@ -27,6 +27,8 @@ export async function middleware(request: NextRequest) {
       const sub = host.slice(0, host.length - ROOT_DOMAIN.length - 1);
 
       if (!RESERVED.has(sub)) {
+        if (await isEventSuspended(sub)) return eventUnavailable(request);
+
         const rewriteUrl = request.nextUrl.clone();
         // "/" → "/e/{sub}", "/register" → "/e/{sub}/register", itd.
         // search (query string) jest zachowany przez clone() — pathname nie go nie dotyka.
@@ -52,8 +54,22 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Zawieszony event (panel operatora) — publiczne ścieżki /e/{slug}/… zwracają 404.
+  const eventSlug = /^\/e\/([^/]+)/.exec(pathname)?.[1];
+  if (eventSlug && (await isEventSuspended(safeDecode(eventSlug)))) {
+    return eventUnavailable(request);
+  }
+
   // Domyślne: odświeżenie sesji Supabase + redirect /admin dla niezalogowanych.
   return await updateSession(request);
+}
+
+/** Przepisanie na nieistniejącą ścieżkę → standardowa strona 404 (bez ujawniania powodu). */
+function eventUnavailable(request: NextRequest) {
+  const url = request.nextUrl.clone();
+  url.pathname = "/_event-unavailable";
+  url.search = "";
+  return NextResponse.rewrite(url);
 }
 
 export const config = {
@@ -61,3 +77,11 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
+
+function safeDecode(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
