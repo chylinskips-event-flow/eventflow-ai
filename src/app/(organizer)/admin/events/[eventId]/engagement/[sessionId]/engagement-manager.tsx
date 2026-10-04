@@ -266,6 +266,7 @@ function QuestionRow({
         <p className="whitespace-pre-line break-words text-sm">{question.content}</p>
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <span>{question.author}</span>
+          {question.target && <Badge variant="indigo">→ {question.target}</Badge>}
           {question.is_anonymous && <Badge variant="outline">anonimowo</Badge>}
           {question.status !== "pending" && (
             <Badge variant={question.status === "selected" ? "indigo" : "secondary"}>

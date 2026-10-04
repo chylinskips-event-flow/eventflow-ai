@@ -55,6 +55,13 @@ export async function askQuestion(
   const validated = validateQuestionContent(formData.get("content"));
   if (!validated.ok) return { status: "error", message: validated.error };
 
+  // Adresat pytania (panel): tylko prelegent przypisany do TEJ sesji.
+  const rawTarget = formData.get("target_speaker_id");
+  const targetSpeakerId = typeof rawTarget === "string" && rawTarget ? rawTarget : null;
+  if (targetSpeakerId && !ctx.session.speakers.some(({ speaker }) => speaker.id === targetSpeakerId)) {
+    return { status: "error", message: "Wybrany prelegent nie występuje w tej sesji." };
+  }
+
   const admin = createAdminClient();
   const { count } = await admin
     .from("questions")
@@ -70,6 +77,7 @@ export async function askQuestion(
     attendee_id: ctx.attendee.id,
     content: validated.content,
     is_anonymous: formData.get("anonymous") === "on",
+    target_speaker_id: targetSpeakerId,
   });
   if (error) return { status: "error", message: "Nie udało się wysłać pytania. Spróbuj ponownie." };
 

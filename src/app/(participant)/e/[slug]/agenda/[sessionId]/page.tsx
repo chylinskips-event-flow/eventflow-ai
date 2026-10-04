@@ -135,6 +135,10 @@ export default async function SessionPage({
           canAsk={canAskQuestions(status)}
           canRate={canRateSession(session, status, now)}
           autoRefresh={status === "live" || status === "published"}
+          speakers={session.speakers.map(({ speaker }) => ({
+            id: speaker.id,
+            name: [speaker.first_name, speaker.last_name].filter(Boolean).join(" ") || "Prelegent",
+          }))}
         />
       )}
     </main>

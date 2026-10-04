@@ -5,7 +5,11 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const ctx = {
   attendee: null as null | { id: string; event_id: string },
   event: { id: "ev1", organization_id: "org1", status: "live" } as { id: string; organization_id: string; status: string },
-  session: { id: "s1", starts_at: "2020-01-01T10:00:00Z" } as null | { id: string; starts_at: string | null },
+  session: { id: "s1", starts_at: "2020-01-01T10:00:00Z", speakers: [] } as null | {
+    id: string;
+    starts_at: string | null;
+    speakers: { speaker: { id: string }; role: string }[];
+  },
   liveQa: true,
 };
 vi.mock("@/lib/attendee-session", () => ({ getCurrentAttendee: async () => ctx.attendee }));
@@ -50,7 +54,7 @@ beforeEach(() => {
   questionCount = 0;
   ctx.attendee = { id: "att1", event_id: "ev1" };
   ctx.event = { id: "ev1", organization_id: "org1", status: "live" };
-  ctx.session = { id: "s1", starts_at: "2020-01-01T10:00:00Z" };
+  ctx.session = { id: "s1", starts_at: "2020-01-01T10:00:00Z", speakers: [] };
   ctx.liveQa = true;
 });
 
@@ -88,8 +92,16 @@ describe("pytania", () => {
     expect(ops[0]).toEqual({
       table: "questions",
       op: "insert",
-      payload: { session_id: "s1", attendee_id: "att1", content: "Jak?", is_anonymous: true },
+      payload: { session_id: "s1", attendee_id: "att1", content: "Jak?", is_anonymous: true, target_speaker_id: null },
     });
+  });
+
+  it("pytanie do panelisty: tylko prelegent tej sesji", async () => {
+    ctx.session = { id: "s1", starts_at: null, speakers: [{ speaker: { id: "sp1" }, role: "speaker" }] };
+    expect(await a.askQuestion("ev", "s1", idle, form({ content: "x", target_speaker_id: "sp-obcy" }))).toMatchObject({ status: "error" });
+    expect(ops).toHaveLength(0);
+    expect(await a.askQuestion("ev", "s1", idle, form({ content: "x", target_speaker_id: "sp1" }))).toMatchObject({ status: "success" });
+    expect(ops[0]).toMatchObject({ payload: { target_speaker_id: "sp1" } });
   });
 
   it("limit pytań na sesję", async () => {

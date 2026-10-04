@@ -46,10 +46,13 @@ export function SessionEngagement({
   canAsk,
   canRate,
   autoRefresh,
+  speakers,
 }: {
   slug: string;
   sessionId: string;
   engagement: ParticipantEngagement;
+  /** Prelegenci sesji — przy ≥ 2 uczestnik może skierować pytanie do konkretnej osoby. */
+  speakers: { id: string; name: string }[];
   canAsk: boolean;
   canRate: boolean;
   autoRefresh: boolean;
@@ -63,6 +66,7 @@ export function SessionEngagement({
         slug={slug}
         sessionId={sessionId}
         questions={engagement.questions}
+        speakers={speakers}
         canAsk={canAsk && engagement.myQuestionCount < MAX_QUESTIONS_PER_ATTENDEE}
         askClosedReason={
           !canAsk
@@ -163,10 +167,12 @@ function QuestionsCard({
   questions,
   canAsk,
   askClosedReason,
+  speakers,
 }: {
   slug: string;
   sessionId: string;
   questions: ParticipantEngagement["questions"];
+  speakers: { id: string; name: string }[];
   canAsk: boolean;
   askClosedReason: string | null;
 }) {
@@ -204,6 +210,24 @@ function QuestionsCard({
               onChange={(e) => setLength(e.target.value.length)}
               aria-label="Treść pytania"
             />
+            {speakers.length >= 2 && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`target-${sessionId}`}>Do kogo (opcjonalnie)</Label>
+                <select
+                  id={`target-${sessionId}`}
+                  name="target_speaker_id"
+                  defaultValue=""
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                >
+                  <option value="">Do wszystkich prelegentów</option>
+                  {speakers.map((sp) => (
+                    <option key={sp.id} value={sp.id}>
+                      {sp.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Checkbox id={`anon-${sessionId}`} name="anonymous" />
@@ -295,6 +319,7 @@ function QuestionItem({
         <p className="whitespace-pre-line break-words text-sm">{question.content}</p>
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <span>{question.author ?? "Anonim"}</span>
+          {question.target && <Badge variant="indigo">→ {question.target}</Badge>}
           {question.is_mine && <Badge variant="outline">Twoje</Badge>}
           {question.status === "selected" && <Badge variant="indigo">Teraz omawiane</Badge>}
           {question.status === "answered" && <Badge variant="secondary">Odpowiedziane</Badge>}

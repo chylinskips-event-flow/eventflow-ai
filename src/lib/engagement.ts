@@ -16,6 +16,14 @@ import {
 
 type AttendeeName = { first_name: string | null; last_name: string | null; company: string | null };
 
+// FK hinty: questions ma kilka relacji do attendees/speakers — bez nich PostgREST zwraca PGRST201.
+const QUESTION_SELECT =
+  "id, session_id, attendee_id, content, status, vote_count, is_anonymous, created_at, target_speaker_id, " +
+  "attendees!questions_attendee_id_fkey(first_name, last_name, company), " +
+  "target_speaker:speakers!questions_target_speaker_id_fkey(first_name, last_name)";
+
+type SpeakerName = { first_name: string | null; last_name: string | null };
+
 type QuestionRow = {
   id: string;
   session_id: string;
@@ -25,8 +33,16 @@ type QuestionRow = {
   vote_count: number;
   is_anonymous: boolean;
   created_at: string;
+  target_speaker_id: string | null;
   attendees: AttendeeName | null;
+  target_speaker: SpeakerName | null;
 };
+
+/** „Anna Nowak” — adresat pytania do panelisty (null = do wszystkich). */
+function targetName(q: QuestionRow): string | null {
+  if (!q.target_speaker) return null;
+  return [q.target_speaker.first_name, q.target_speaker.last_name].filter(Boolean).join(" ") || null;
+}
 
 type PollRow = {
   id: string;
@@ -79,6 +95,7 @@ export type ParticipantQuestion = {
   vote_count: number;
   created_at: string;
   author: string | null;
+  target: string | null;
   is_mine: boolean;
   has_voted: boolean;
 };
@@ -99,7 +116,7 @@ export async function getParticipantEngagement(
   const [questionsRes, votesRes, pollRes, feedbackRes] = await Promise.all([
     admin
       .from("questions")
-      .select("id, session_id, attendee_id, content, status, vote_count, is_anonymous, created_at, attendees!questions_attendee_id_fkey(first_name, last_name, company)")
+      .select(QUESTION_SELECT)
       .eq("session_id", sessionId)
       .order("created_at", { ascending: true })
       .limit(1000),
@@ -139,6 +156,7 @@ export async function getParticipantEngagement(
       vote_count: q.vote_count,
       created_at: q.created_at,
       author: publicAuthorName(q.is_anonymous, q.attendees),
+      target: targetName(q),
       is_mine: q.attendee_id === attendeeId,
       has_voted: voted.has(q.id),
     }),
@@ -214,6 +232,7 @@ export type OrganizerQuestion = {
   created_at: string;
   /** Pełny autor — organizator widzi go także przy pytaniach anonimowych. */
   author: string;
+  target: string | null;
 };
 
 export type OrganizerFeedback = {
@@ -241,7 +260,7 @@ export async function getOrganizerEngagement(sessionId: string): Promise<Organiz
   const [questionsRes, pollsRes, feedbackRes] = await Promise.all([
     admin
       .from("questions")
-      .select("id, session_id, attendee_id, content, status, vote_count, is_anonymous, created_at, attendees!questions_attendee_id_fkey(first_name, last_name, company)")
+      .select(QUESTION_SELECT)
       .eq("session_id", sessionId)
       .order("created_at", { ascending: true })
       .limit(1000),
@@ -283,6 +302,7 @@ export async function getOrganizerEngagement(sessionId: string): Promise<Organiz
       is_anonymous: q.is_anonymous,
       created_at: q.created_at,
       author: fullName(q.attendees),
+      target: targetName(q),
     })),
     polls: pollRows.map((p) => toPollView(p, counts.get(p.id))),
     feedback: feedbackRows.map((f) => ({
@@ -297,6 +317,8 @@ export async function getOrganizerEngagement(sessionId: string): Promise<Organiz
 
 // ── Rzutnik ────────────────────────────────────────────────────────────────
 
+type ProjectorQuestion = { id: string; content: string; author: string | null; target: string | null; vote_count: number };
+
 export type QaProjectorState = {
   sessionId: string;
   eventSlug: string;
@@ -304,8 +326,8 @@ export type QaProjectorState = {
   eventName: string;
   room: string | null;
   primaryColor: string | null;
-  selected: { id: string; content: string; author: string | null; vote_count: number } | null;
-  questions: { id: string; content: string; author: string | null; vote_count: number }[];
+  selected: ProjectorQuestion | null;
+  questions: ProjectorQuestion[];
   poll: PollView | null;
 };
 
@@ -345,7 +367,7 @@ export async function getQaProjectorState(token: string): Promise<QaProjectorSta
   const [questionsRes, pollRes] = await Promise.all([
     admin
       .from("questions")
-      .select("id, session_id, attendee_id, content, status, vote_count, is_anonymous, created_at, attendees!questions_attendee_id_fkey(first_name, last_name, company)")
+      .select(QUESTION_SELECT)
       .eq("session_id", session.id)
       .in("status", ["pending", "selected"])
       .limit(1000),
@@ -367,6 +389,7 @@ export async function getQaProjectorState(token: string): Promise<QaProjectorSta
     id: q.id,
     content: q.content,
     author: publicAuthorName(q.is_anonymous, q.attendees),
+    target: targetName(q),
     vote_count: q.vote_count,
   });
   const selected = rows.find((q) => q.status === "selected") ?? null;
@@ -388,5 +411,63 @@ export async function getQaProjectorState(token: string): Promise<QaProjectorSta
     selected: selected ? toView(selected) : null,
     questions: rows.filter((q) => q.status === "pending").slice(0, 8).map(toView),
     poll,
+  };
+}
+
+// ── Prowadzący (link moderatora) ───────────────────────────────────────────
+
+export type ModeratorQuestion = {
+  id: string;
+  content: string;
+  status: QuestionStatus;
+  vote_count: number;
+  created_at: string;
+  /** Autor jak w widoku publicznym — przy pytaniach anonimowych null (prowadzący go nie widzi). */
+  author: string | null;
+  target: string | null;
+};
+
+export type ModeratorEngagement = {
+  questions: ModeratorQuestion[];
+  polls: PollView[];
+};
+
+/** Q&A i ankiety sesji dla prowadzącego — po walidacji tokenu i zakresu sali w wywołującym. */
+export async function getModeratorSessionEngagement(sessionId: string): Promise<ModeratorEngagement> {
+  const admin = createAdminClient();
+  const [questionsRes, pollsRes] = await Promise.all([
+    admin
+      .from("questions")
+      .select(QUESTION_SELECT)
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true })
+      .limit(1000),
+    admin
+      .from("polls")
+      .select("id, session_id, question, options, status, created_at")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: false }),
+  ]);
+  for (const r of [questionsRes, pollsRes]) {
+    if (r.error) {
+      console.error("[engagement] moderator read failed", JSON.stringify({ code: r.error.code, message: r.error.message }));
+      throw new Error(`moderator engagement read failed: ${r.error.message}`);
+    }
+  }
+  const questionRows = (questionsRes.data ?? []) as unknown as QuestionRow[];
+  const pollRows = (pollsRes.data ?? []) as PollRow[];
+  const counts = await pollCounts(pollRows.map((p) => p.id));
+
+  return {
+    questions: sortQuestions(questionRows).map((q) => ({
+      id: q.id,
+      content: q.content,
+      status: q.status,
+      vote_count: q.vote_count,
+      created_at: q.created_at,
+      author: publicAuthorName(q.is_anonymous, q.attendees),
+      target: targetName(q),
+    })),
+    polls: pollRows.map((p) => toPollView(p, counts.get(p.id))),
   };
 }

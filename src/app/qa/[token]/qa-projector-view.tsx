@@ -59,7 +59,8 @@ export function QaProjectorView({
               </p>
               <p className="text-3xl font-semibold leading-snug lg:text-4xl">{selected.content}</p>
               <p className="mt-3 text-base text-slate-400">
-                {selected.author ?? "Anonim"} · {selected.vote_count} głosów
+                {selected.author ?? "Anonim"}
+                {selected.target ? ` → ${selected.target}` : ""} · {selected.vote_count} głosów
               </p>
             </div>
           )}
@@ -82,7 +83,10 @@ export function QaProjectorView({
                   </span>
                   <div className="min-w-0">
                     <p className="text-xl leading-snug lg:text-2xl">{q.content}</p>
-                    <p className="mt-1 text-sm text-slate-500">{q.author ?? "Anonim"}</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {q.author ?? "Anonim"}
+                      {q.target && <span className="text-indigo-300"> → {q.target}</span>}
+                    </p>
                   </div>
                 </li>
               ))}
