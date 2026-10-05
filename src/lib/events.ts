@@ -124,7 +124,13 @@ export async function isCurrentUserEventOwner(
   return data !== null;
 }
 
-export async function getOwnEvent(eventId: string): Promise<Event | null> {
+/**
+ * Event zalogowanego organizatora. UWAGA: sama polityka RLS na events NIE wystarcza —
+ * „public can view published events” obejmuje też rolę authenticated, więc zapytanie
+ * po id zwróciłoby cudzy opublikowany event. Dlatego jawnie sprawdzamy właściciela
+ * organizacji (wywołujący dalej czytają/zapisują service_role po tym sprawdzeniu).
+ */
+export const getOwnEvent = cache(async function (eventId: string): Promise<Event | null> {
   // Zawieszone konto (panel operatora) — brak dostępu do danych organizatora.
   await redirectIfSuspended();
   const supabase = await createClient();
@@ -135,12 +141,16 @@ export async function getOwnEvent(eventId: string): Promise<Event | null> {
     .is("deleted_at", null)
     .maybeSingle();
 
-  if (error) {
+  if (error || !data) {
+    return null;
+  }
+
+  if (!(await isCurrentUserEventOwner(data))) {
     return null;
   }
 
   return data;
-}
+});
 
 /**
  * Pobiera event po slug, niezależnie od statusu/registration_open —

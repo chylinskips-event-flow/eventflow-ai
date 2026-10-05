@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getOwnEvent } from "@/lib/events";
 import { PARTNER_TIERS } from "@/lib/partner-options";
 
 export type PartnerFormState = {
@@ -228,6 +230,19 @@ export async function deletePartner(
   partnerId: string,
 ): Promise<PartnerFormState> {
   const supabase = await createClient();
+
+  // Pliki materiałów (prywatny bucket) nie znikają z kaskadą FK — sprzątamy je przed
+  // usunięciem partnera (tylko po potwierdzeniu, że event jest organizatora).
+  if (await getOwnEvent(eventId)) {
+    const admin = createAdminClient();
+    const { data: files } = await admin
+      .from("partner_materials")
+      .select("file_path")
+      .eq("partner_id", partnerId)
+      .eq("event_id", eventId);
+    const paths = (files ?? []).map((f) => f.file_path as string);
+    if (paths.length > 0) await admin.storage.from("partner-materials").remove(paths);
+  }
 
   // Kaskada FK (20260707100000) usuwa powiązane check-iny i zadania stoiska.
   const { error } = await supabase

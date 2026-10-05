@@ -10,6 +10,9 @@ export type Partner = {
   description: string | null;
   tier: string | null;
   booth_location: string | null;
+  website_url: string | null;
+  offer: string | null;
+  social_links: unknown;
   qr_code_token: string;
   created_at: string;
   updated_at: string;
@@ -104,4 +107,14 @@ export async function getPartnerStats(
     if (row.lead_consent_given) stats[row.partner_id].leads += 1;
   }
   return stats;
+}
+
+/** Partnerzy eventu przez service_role — strony uczestnika / podgląd organizatora (po autoryzacji). */
+export async function getEventPartnersForParticipant(eventId: string): Promise<Partner[]> {
+  const { data } = await createAdminClient()
+    .from("partners")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("name", { ascending: true });
+  return (data ?? []) as Partner[];
 }

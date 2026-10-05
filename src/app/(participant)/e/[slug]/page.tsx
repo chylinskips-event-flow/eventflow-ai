@@ -6,7 +6,7 @@ import { buildEventUrl, buildEventInternalPath } from "@/lib/event-url";
 import type { LucideIcon } from "lucide-react";
 import {
   Calendar, MapPin,
-  CalendarDays, Users, Handshake, Trophy, Gift, User, CalendarCheck, Network, ChevronRight,
+  CalendarDays, Users, Handshake, Trophy, Gift, User, CalendarCheck, Network, ChevronRight, Building2,
 } from "lucide-react";
 import {
   getEventBySlugForRegistration,
@@ -18,6 +18,7 @@ import { getCurrentAttendee } from "@/lib/attendee-session";
 import { hasActiveMixerForAttendee } from "@/lib/mixer/participant";
 import { getEventSessions, getEventSessionsForParticipant } from "@/lib/sessions";
 import { getEventSpeakers, getEventSpeakersForParticipant } from "@/lib/speakers";
+import { getEventPartners, getEventPartnersForParticipant } from "@/lib/partners";
 import { getAttendeeAgendaSessionIds } from "@/lib/agenda-items";
 import {
   getEventContentSections,
@@ -35,6 +36,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { AgendaSessionList } from "./agenda/agenda-session-list";
 import { SpeakerList } from "./speaker-list";
+import { PartnerGrid } from "./partner-grid";
 import { ContentSections } from "./content-sections";
 import { LiveNow } from "./live-now";
 import { ContactQr } from "./contact-qr";
@@ -143,7 +145,14 @@ export default async function ParticipantEventPage({
     // Dane grywalizacji — tylko gdy włączona
     let gamificationBar: React.ReactNode = null;
     let hasRewards = false;
-    const hasMixer = await hasActiveMixerForAttendee(attendee.id);
+    const [hasMixer, partnerCount] = await Promise.all([
+      hasActiveMixerForAttendee(attendee.id),
+      createAdminClient()
+        .from("partners")
+        .select("id", { count: "exact", head: true })
+        .eq("event_id", event.id)
+        .then((r) => r.count ?? 0),
+    ]);
     if (event.gamification_enabled) {
       const adminSupabase = createAdminClient();
       const { count } = await adminSupabase
@@ -267,6 +276,7 @@ export default async function ParticipantEventPage({
       secondaryItems.push(              { href: buildEventInternalPath(slug, "/my-agenda",   origin), icon: CalendarCheck, label: "Moja agenda"  });
     }
     if (hasMixer) secondaryItems.push({ href: buildEventInternalPath(slug, "/mixer",   origin), icon: Network, label: "Mój mixer" });
+    if (partnerCount > 0) secondaryItems.push({ href: buildEventInternalPath(slug, "/partners", origin), icon: Building2, label: "Partnerzy" });
     secondaryItems.push({ href: buildEventInternalPath(slug, "/profile", origin), icon: User, label: "Mój profil" });
 
     const navGrid = (
@@ -397,13 +407,14 @@ export default async function ParticipantEventPage({
   // W trybie podglądu (własność potwierdzona) czytamy przez service_role —
   // publiczne polityki RLS ujawniają te dane tylko dla published/live, więc
   // draft inaczej dałby pustą stronę bez agendy/prelegentów/sekcji.
-  const [sections, sessions, speakers, eventSections, publicTicketTypes] = previewMode
+  const [sections, sessions, speakers, eventSections, publicTicketTypes, partners] = previewMode
     ? await Promise.all([
         getEventContentSectionsForPreview(event.id),
         getEventSessionsForParticipant(event.id),
         getEventSpeakersForParticipant(event.id),
         getEnabledEventSections(event.id),
         getPublicTicketTypes(event.id),
+        getEventPartnersForParticipant(event.id),
       ])
     : await Promise.all([
         getEventContentSections(event.id),
@@ -411,6 +422,7 @@ export default async function ParticipantEventPage({
         getEventSpeakers(event.id),
         getEnabledEventSections(event.id),
         getPublicTicketTypes(event.id),
+        getEventPartners(event.id),
       ]);
 
   const hasTickets = publicTicketTypes.length > 0;
@@ -419,6 +431,7 @@ export default async function ParticipantEventPage({
     sections.length > 0 ? { href: "#about", label: "O wydarzeniu" } : null,
     speakers.length > 0 ? { href: "#speakers", label: "Prelegenci" } : null,
     sessions.length > 0 ? { href: "#agenda", label: "Agenda" } : null,
+    partners.length > 0 ? { href: "#partners", label: "Partnerzy" } : null,
     { href: "#register", label: hasTickets ? "Bilety" : "Rejestracja" },
   ].filter((link): link is { href: string; label: string } => link !== null);
 
@@ -566,6 +579,18 @@ export default async function ParticipantEventPage({
             timezone={event.timezone}
             readOnly
           />
+        </section>
+      )}
+
+      {partners.length > 0 && (
+        <section id="partners" className="bg-muted/50">
+          <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-12">
+            <h2 className="text-xl font-semibold">Partnerzy</h2>
+            <PartnerGrid
+              partners={partners}
+              hrefFor={(id) => buildEventInternalPath(slug, `/partners/${id}`, origin)}
+            />
+          </div>
         </section>
       )}
 

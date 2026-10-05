@@ -147,9 +147,9 @@ describe("ankiety i oceny", () => {
 
   it("ocena: zakres 1–5, dopiero po starcie sesji", async () => {
     expect(await a.rateSession("ev", "s1", idle, form({ rating: "7" }))).toMatchObject({ status: "error" });
-    ctx.session = { id: "s1", starts_at: "2999-01-01T10:00:00Z" };
+    ctx.session = { id: "s1", starts_at: "2999-01-01T10:00:00Z", speakers: [] };
     expect(await a.rateSession("ev", "s1", idle, form({ rating: "5" }))).toMatchObject({ status: "error" });
-    ctx.session = { id: "s1", starts_at: "2020-01-01T10:00:00Z" };
+    ctx.session = { id: "s1", starts_at: "2020-01-01T10:00:00Z", speakers: [] };
     expect(await a.rateSession("ev", "s1", idle, form({ rating: "4", comment: " ok " }))).toMatchObject({ status: "success" });
     expect(ops).toEqual([
       { table: "feedback", op: "upsert", payload: { session_id: "s1", attendee_id: "att1", rating: 4, comment: "ok" } },

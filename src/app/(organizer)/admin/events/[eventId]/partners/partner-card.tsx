@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { MapPin, QrCode, Building2, Download } from "lucide-react";
+import Link from "next/link";
+import { MapPin, QrCode, Building2, Download, UserCog } from "lucide-react";
 import { deletePartner } from "./actions";
 import type { Partner } from "@/lib/partners";
 import { partnerTierLabel } from "@/lib/partner-options";
@@ -33,11 +34,13 @@ export function PartnerCard({
   partner,
   checkinCount,
   leadCount,
+  pendingReviews,
 }: {
   eventId: string;
   partner: Partner;
   checkinCount: number;
   leadCount: number;
+  pendingReviews: number;
 }) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
@@ -59,7 +62,7 @@ export function PartnerCard({
 
   return (
     <Card>
-      <CardContent className="flex items-center gap-4 py-4">
+      <CardContent className="flex flex-wrap items-center gap-4 py-4">
         <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
           {partner.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element -- logo w Storage; next/image wymaga konfiguracji domen
@@ -97,6 +100,14 @@ export function PartnerCard({
             </span>
           </div>
         </div>
+        <Button asChild variant={pendingReviews > 0 ? "default" : "outline"} size="sm">
+          <Link href={`/admin/events/${eventId}/partners/${partner.id}`}>
+            <UserCog className="size-4" /> Panel partnera
+            {pendingReviews > 0 && (
+              <span className="rounded-full bg-background/20 px-1.5 text-xs tabular-nums">{pendingReviews}</span>
+            )}
+          </Link>
+        </Button>
         <Button asChild variant="outline" size="sm">
           <a
             href={`/admin/events/${eventId}/partners/${partner.id}/booth-qr`}
