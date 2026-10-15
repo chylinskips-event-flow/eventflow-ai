@@ -1,8 +1,5 @@
-import { Resend } from "resend";
 import type { FollowupContact } from "@/lib/contact-requests";
-import { getFromAddress } from "@/lib/email/config";
-
-const REPLY_TO = "kontakt@eventro.pl";
+import { sendAppEmail } from "@/lib/email/send";
 
 function escapeHtml(value: string): string {
   return value
@@ -83,17 +80,9 @@ export async function sendPostEventFollowupEmail(params: {
 }) {
   const { to, firstName, eventName, contacts } = params;
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("RESEND_API_KEY is not configured");
-
-  const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
-    from: getFromAddress(),
-    replyTo: REPLY_TO,
+  await sendAppEmail({
     to,
     subject: `Twoje kontakty z ${eventName}`,
     html: buildHtml(firstName, eventName, contacts),
   });
-
-  if (error) throw new Error(`Resend error: ${error.message}`);
 }

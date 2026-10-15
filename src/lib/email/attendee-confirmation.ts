@@ -1,11 +1,8 @@
 import QRCode from "qrcode";
-import { Resend } from "resend";
 import type { Event } from "@/lib/events";
 import { getTemplate, applyVariables } from "@/lib/message-templates";
-import { getFromAddress } from "@/lib/email/config";
+import { sendAppEmail } from "@/lib/email/send";
 import { buildEventApexUrl } from "@/lib/event-url";
-
-const REPLY_TO = "kontakt@eventro.pl";
 
 export async function sendAttendeeConfirmationEmail(params: {
   to: string;
@@ -26,9 +23,6 @@ export async function sendAttendeeConfirmationEmail(params: {
     templateType = "registration_confirmed",
   } = params;
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("RESEND_API_KEY is not configured");
-
   const accessUrl = `${buildEventApexUrl(event.slug, origin)}/a/${qrCodeToken}`;
   const [qrPngBuffer, checkInQrPngBuffer] = await Promise.all([
     QRCode.toBuffer(accessUrl, { type: "png", width: 400 }),
@@ -42,10 +36,7 @@ export async function sendAttendeeConfirmationEmail(params: {
   const subject = applyVariables(template.subject ?? "", vars);
   const html = applyVariables(template.body, vars);
 
-  const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
-    from: getFromAddress(),
-    replyTo: REPLY_TO,
+  await sendAppEmail({
     to,
     subject,
     html,
@@ -56,8 +47,6 @@ export async function sendAttendeeConfirmationEmail(params: {
         : []),
     ],
   });
-
-  if (error) throw new Error(`Resend error: ${error.message}`);
 }
 
 export async function sendAttendeePendingApprovalEmail(params: {
@@ -67,24 +56,16 @@ export async function sendAttendeePendingApprovalEmail(params: {
 }) {
   const { to, firstName, event } = params;
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("RESEND_API_KEY is not configured");
-
   const template = await getTemplate(event.id, "registration_pending");
   const vars = { imię: firstName, nazwa_eventu: event.name, "link_dostępu": "" };
   const subject = applyVariables(template.subject ?? "", vars);
   const html = applyVariables(template.body, vars);
 
-  const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
-    from: getFromAddress(),
-    replyTo: REPLY_TO,
+  await sendAppEmail({
     to,
     subject,
     html,
   });
-
-  if (error) throw new Error(`Resend error: ${error.message}`);
 }
 
 export async function sendAttendeeRejectedEmail(params: {
@@ -94,22 +75,14 @@ export async function sendAttendeeRejectedEmail(params: {
 }) {
   const { to, firstName, event } = params;
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("RESEND_API_KEY is not configured");
-
   const template = await getTemplate(event.id, "registration_rejected");
   const vars = { imię: firstName, nazwa_eventu: event.name, "link_dostępu": "" };
   const subject = applyVariables(template.subject ?? "", vars);
   const html = applyVariables(template.body, vars);
 
-  const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
-    from: getFromAddress(),
-    replyTo: REPLY_TO,
+  await sendAppEmail({
     to,
     subject,
     html,
   });
-
-  if (error) throw new Error(`Resend error: ${error.message}`);
 }

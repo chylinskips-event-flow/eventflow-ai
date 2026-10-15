@@ -1,8 +1,5 @@
-import { Resend } from "resend";
 import { BRAND_NAME } from "@/lib/brand";
-import { getFromAddress } from "@/lib/email/config";
-
-const REPLY_TO = "kontakt@eventro.pl";
+import { sendAppEmail } from "@/lib/email/send";
 
 function escapeHtml(value: string): string {
   return value
@@ -20,9 +17,6 @@ export async function sendPartnerInviteEmail(params: {
   eventName: string;
   inviteUrl: string;
 }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("RESEND_API_KEY is not configured");
-
   const partner = escapeHtml(params.partnerName);
   const event = escapeHtml(params.eventName);
   const url = escapeHtml(params.inviteUrl);
@@ -35,12 +29,9 @@ export async function sendPartnerInviteEmail(params: {
   <p style="font-size: 12px; color: #999; word-break: break-all;">${url}</p>
 </div>`;
 
-  const { error } = await new Resend(apiKey).emails.send({
-    from: getFromAddress(),
-    replyTo: REPLY_TO,
+  await sendAppEmail({
     to: params.to,
     subject: `Zaproszenie do panelu partnera — ${params.eventName}`,
     html,
   });
-  if (error) throw new Error(`Resend error: ${error.message}`);
 }
