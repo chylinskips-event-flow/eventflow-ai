@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   PARTNER_LEADS_CONSENT,
   csvSafe,
+  leadConsentFor,
+  normalizePrompt,
   leadsToCsvRows,
   partnerLeadsEnabled,
   validateAnswers,
@@ -27,7 +29,31 @@ describe("partnerLeadsEnabled — flaga i bramka prawna", () => {
   });
   it("treść zgody nie jest jeszcze zatwierdzona prawnie", () => {
     expect(PARTNER_LEADS_CONSENT.legalApproved).toBe(false);
-    expect(PARTNER_LEADS_CONSENT.text("Acme", "Expo")).toContain("Acme");
+    expect(PARTNER_LEADS_CONSENT.withQuestions.text("Acme", "Expo")).toContain("Acme");
+  });
+});
+
+describe("leadConsentFor — wariant treści zgody", () => {
+  it("z pytaniami: wspomina odpowiedzi", () => {
+    const c = leadConsentFor(true, "Acme", "Expo");
+    expect(c.version).toBe(PARTNER_LEADS_CONSENT.withQuestions.version);
+    expect(c.text).toContain("odpowiedzi");
+  });
+  it("bez pytań: osobna wersja, bez frazy o odpowiedziach", () => {
+    const c = leadConsentFor(false, "Acme", "Expo");
+    expect(c.version).toBe(PARTNER_LEADS_CONSENT.contactOnly.version);
+    expect(c.version).not.toBe(PARTNER_LEADS_CONSENT.withQuestions.version);
+    expect(c.text).not.toMatch(/odpowiedzi|pytania/);
+    expect(c.text).toContain("Acme");
+  });
+});
+
+describe("normalizePrompt — wykrywanie duplikatów", () => {
+  it("ignoruje wielkość liter, spacje i końcowy znak zapytania", () => {
+    expect(normalizePrompt("  Kiedy  planujesz wdrożenie? ")).toBe(normalizePrompt("kiedy planujesz wdrożenie"));
+  });
+  it("różne pytania pozostają różne", () => {
+    expect(normalizePrompt("Kiedy?")).not.toBe(normalizePrompt("Gdzie?"));
   });
 });
 

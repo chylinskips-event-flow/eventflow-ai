@@ -5,12 +5,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const ctx = { leadsV2: false, quest: null as null | Record<string, unknown> };
 const ops: { table: string; op: string; payload?: unknown }[] = [];
-const completeQuest = vi.fn(async (_p: { leadConsent: boolean; consentTextVersion: string | null }) => ({
-  ok: true as const,
-  pointsAwarded: 10,
-  newLevel: "explorer",
-  levelUp: false,
-}));
+type QuestParams = { leadConsent: boolean; consentTextVersion: string | null };
+const completeQuest = vi.fn<(p: QuestParams) => Promise<{ ok: true; pointsAwarded: number; newLevel: string; levelUp: boolean }>>(
+  async () => ({ ok: true, pointsAwarded: 10, newLevel: "explorer", levelUp: false }),
+);
 
 vi.mock("@/lib/attendee-session", () => ({ getCurrentAttendee: async () => ({ id: "att1", level: "explorer" }) }));
 vi.mock("@/lib/partners", () => ({

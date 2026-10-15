@@ -3,22 +3,52 @@
 
 // ── Bramka prawna ──────────────────────────────────────────────────────────
 /**
- * Treść zgody pokazywana uczestnikowi. Zmiana treści = nowa wersja (stare zgody zachowują
- * swoją wersję i pełny tekst w bazie). `legalApproved` przestawia się na true WYŁĄCZNIE po
- * akceptacji treści przez prawnika — do tego czasu funkcja nie włączy się na produkcji,
- * nawet z PARTNER_LEADS_ENABLED=true.
+ * Treści zgody pokazywane uczestnikowi — dwa warianty: z pytaniami partnera albo sam kontakt
+ * (partner bez zaakceptowanych pytań). Każdy ma własną wersję; zgoda w bazie zapisuje wersję
+ * i pełny tekst, który uczestnik zobaczył. Zmiana treści = nowa wersja.
+ *
+ * `legalApproved` obejmuje OBA warianty i przestawia się na true WYŁĄCZNIE po akceptacji
+ * obu treści przez prawnika — do tego czasu funkcja nie włączy się na produkcji, nawet
+ * z PARTNER_LEADS_ENABLED=true.
  */
 export const PARTNER_LEADS_CONSENT = {
-  version: "draft-2026-10",
   legalApproved: false,
-  text: (partnerName: string, eventName: string) =>
-    `Wyrażam zgodę na przekazanie firmie ${partnerName}, partnerowi wydarzenia ${eventName}, ` +
-    `moich danych kontaktowych (imię, nazwisko, adres e-mail, firma, stanowisko) oraz odpowiedzi ` +
-    `na powyższe pytania, w celu skontaktowania się ze mną w sprawie jej oferty. ` +
-    `${partnerName} staje się odrębnym administratorem tych danych. Zgoda jest dobrowolna — ` +
-    `jej brak nie wpływa na udział w wydarzeniu ani na punkty. Możesz ją wycofać w każdej chwili ` +
-    `w swoim profilu uczestnika; wycofanie nie wpływa na zgodność z prawem przetwarzania przed wycofaniem.`,
+  withQuestions: {
+    version: "draft-2026-10",
+    text: (partnerName: string, eventName: string) =>
+      `Wyrażam zgodę na przekazanie firmie ${partnerName}, partnerowi wydarzenia ${eventName}, ` +
+      `moich danych kontaktowych (imię, nazwisko, adres e-mail, firma, stanowisko) oraz odpowiedzi ` +
+      `na powyższe pytania, w celu skontaktowania się ze mną w sprawie jej oferty. ` +
+      `${partnerName} staje się odrębnym administratorem tych danych. Zgoda jest dobrowolna — ` +
+      `jej brak nie wpływa na udział w wydarzeniu ani na punkty. Możesz ją wycofać w każdej chwili ` +
+      `w swoim profilu uczestnika; wycofanie nie wpływa na zgodność z prawem przetwarzania przed wycofaniem.`,
+  },
+  contactOnly: {
+    version: "draft-2026-10-contact",
+    text: (partnerName: string, eventName: string) =>
+      `Wyrażam zgodę na przekazanie firmie ${partnerName}, partnerowi wydarzenia ${eventName}, ` +
+      `moich danych kontaktowych (imię, nazwisko, adres e-mail, firma, stanowisko) w celu ` +
+      `skontaktowania się ze mną w sprawie jej oferty. ` +
+      `${partnerName} staje się odrębnym administratorem tych danych. Zgoda jest dobrowolna — ` +
+      `jej brak nie wpływa na udział w wydarzeniu ani na punkty. Możesz ją wycofać w każdej chwili ` +
+      `w swoim profilu uczestnika; wycofanie nie wpływa na zgodność z prawem przetwarzania przed wycofaniem.`,
+  },
 } as const;
+
+/** Wariant zgody dla stoiska: z pytaniami, gdy partner ma choć jedno zaakceptowane pytanie. */
+export function leadConsentFor(
+  hasQuestions: boolean,
+  partnerName: string,
+  eventName: string,
+): { version: string; text: string } {
+  const variant = hasQuestions ? PARTNER_LEADS_CONSENT.withQuestions : PARTNER_LEADS_CONSENT.contactOnly;
+  return { version: variant.version, text: variant.text(partnerName, eventName) };
+}
+
+/** Porównanie pytań do wykrywania duplikatów: bez wielkości liter, nadmiarowych spacji i końcowej interpunkcji. */
+export function normalizePrompt(prompt: string): string {
+  return prompt.trim().toLowerCase().replace(/\s+/g, " ").replace(/[\s?!.]+$/u, "");
+}
 
 type FlagEnv = { PARTNER_LEADS_ENABLED?: string; VERCEL_ENV?: string };
 

@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useId, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Download, Eye, Trash2 } from "lucide-react";
+import { Download, Eye, Pencil, Trash2 } from "lucide-react";
 import type { PartnerQuestion } from "@/lib/partner-leads";
 import {
   MAX_QUESTIONS_PER_PARTNER,
@@ -20,25 +20,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import type { PartnerActionState } from "./actions";
-import { addPartnerQuestion, deletePartnerQuestion, loadPartnerLeads } from "./leads-actions";
+import { addPartnerQuestion, deletePartnerQuestion, loadPartnerLeads, resubmitPartnerQuestion } from "./leads-actions";
 
 const idle: PartnerActionState = { status: "idle" };
 
 // ── Pytania przy stoisku ───────────────────────────────────────────────────
 
 export function PartnerQuestionsCard({ partnerId, questions }: { partnerId: string; questions: PartnerQuestion[] }) {
-  const [kind, setKind] = useState<QuestionKind>("text");
-  const [formKey, setFormKey] = useState(0);
-  const [state, formAction, isPending] = useActionState(async (prev: PartnerActionState, fd: FormData) => {
-    const res = await addPartnerQuestion(partnerId, prev, fd);
-    if (res.status === "success") {
-      setFormKey((k) => k + 1);
-      setKind("text");
-    }
-    return res;
-  }, idle);
   const full = questions.filter((q) => q.status !== "rejected").length >= MAX_QUESTIONS_PER_PARTNER;
 
   return (
@@ -48,14 +37,14 @@ export function PartnerQuestionsCard({ partnerId, questions }: { partnerId: stri
         <CardDescription>
           Do {MAX_QUESTIONS_PER_PARTNER} aktywnych, krótkich pytań dla odwiedzających stoisko (np. o potrzeby lub termin zakupu).
           Uczestnik odpowiada dobrowolnie i tylko z osobną zgodą na przekazanie danych. Pytania pojawią się po
-          akceptacji organizatora.
+          akceptacji organizatora. Bez pytań uczestnik może zostawić sam kontakt.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {questions.length > 0 && (
           <ul className="flex flex-col gap-2">
             {questions.map((q) => (
-              <QuestionRow key={q.id} partnerId={partnerId} question={q} />
+              <QuestionRow key={q.id} partnerId={partnerId} question={q} canResubmit={!full} />
             ))}
           </ul>
         )}
@@ -63,50 +52,143 @@ export function PartnerQuestionsCard({ partnerId, questions }: { partnerId: stri
         {full ? (
           <p className="text-sm text-muted-foreground">Osiągnięto limit aktywnych pytań — usuń jedno, aby dodać nowe.</p>
         ) : (
-          <form key={formKey} action={formAction} className="flex flex-col gap-3 rounded-lg border p-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="q-prompt">Pytanie</Label>
-              <Input id="q-prompt" name="prompt" required maxLength={QUESTION_PROMPT_MAX_LENGTH} placeholder="Np. Kiedy planujesz wdrożenie?" />
-            </div>
-            <fieldset className="flex flex-col gap-2">
-              <legend className="mb-2 text-sm font-medium">Rodzaj odpowiedzi</legend>
-              <div className="flex flex-wrap gap-2">
-                {(Object.keys(QUESTION_KIND_LABELS) as QuestionKind[]).map((k) => (
-                  <label
-                    key={k}
-                    className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5"
-                  >
-                    <input type="radio" name="kind" value={k} checked={kind === k} onChange={() => setKind(k)} className="accent-primary" />
-                    {QUESTION_KIND_LABELS[k]}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            {kind === "single_choice" && (
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="q-options">Odpowiedzi do wyboru</Label>
-                <Textarea id="q-options" name="options" rows={4} placeholder={"W tym kwartale\nW tym roku\nJeszcze nie wiem"} />
-                <p className="text-xs text-muted-foreground">Każda w osobnej linii, od 2 do {QUESTION_OPTIONS_MAX}.</p>
-              </div>
-            )}
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="submit" disabled={isPending}>
-                {isPending ? "Wysyłanie…" : "Wyślij do akceptacji"}
-              </Button>
-              {state.status !== "idle" && state.message && (
-                <p className={cn("text-sm", state.status === "error" ? "text-destructive" : "text-muted-foreground")}>{state.message}</p>
-              )}
-            </div>
-          </form>
+          <QuestionForm
+            submitLabel="Wyślij do akceptacji"
+            action={(prev, fd) => addPartnerQuestion(partnerId, prev, fd)}
+          />
         )}
       </CardContent>
     </Card>
   );
 }
 
-function QuestionRow({ partnerId, question }: { partnerId: string; question: PartnerQuestion }) {
+/**
+ * Formularz pytania (nowe albo poprawa odrzuconego). Po udanym zapisie pola są czyszczone
+ * (nowy klucz formularza). Przycisk zablokowany na czas zapisu, a dodatkowy ref odcina
+ * szybkie podwójne kliknięcie, zanim React zdąży ustawić stan „pending”.
+ */
+function QuestionForm({
+  initial,
+  submitLabel,
+  action,
+  onDone,
+  onCancel,
+}: {
+  initial?: Pick<PartnerQuestion, "kind" | "prompt" | "options">;
+  submitLabel: string;
+  action: (prev: PartnerActionState, fd: FormData) => Promise<PartnerActionState>;
+  onDone?: () => void;
+  onCancel?: () => void;
+}) {
+  const [kind, setKind] = useState<QuestionKind>(initial?.kind ?? "text");
+  const [formKey, setFormKey] = useState(0);
+  const busy = useRef(false);
+  const [state, formAction, isPending] = useActionState(async (prev: PartnerActionState, fd: FormData) => {
+    try {
+      const res = await action(prev, fd);
+      if (res.status === "success") {
+        setFormKey((k) => k + 1);
+        setKind(initial?.kind ?? "text");
+        if (res.message) toast.success(res.message);
+        onDone?.();
+      }
+      return res;
+    } finally {
+      busy.current = false;
+    }
+  }, idle);
+  const id = useId();
+
+  return (
+    <form
+      key={formKey}
+      action={formAction}
+      onSubmit={(e) => {
+        if (busy.current) {
+          e.preventDefault();
+          return;
+        }
+        busy.current = true;
+      }}
+      className="flex flex-col gap-3 rounded-lg border p-4"
+    >
+      <div className="flex flex-col gap-2">
+        <Label htmlFor={`${id}-prompt`}>Pytanie</Label>
+        <Input
+          id={`${id}-prompt`}
+          name="prompt"
+          required
+          maxLength={QUESTION_PROMPT_MAX_LENGTH}
+          defaultValue={initial?.prompt}
+          placeholder="Np. Kiedy planujesz wdrożenie?"
+          disabled={isPending}
+        />
+      </div>
+      <fieldset className="flex flex-col gap-2" disabled={isPending}>
+        <legend className="mb-2 text-sm font-medium">Rodzaj odpowiedzi</legend>
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(QUESTION_KIND_LABELS) as QuestionKind[]).map((k) => (
+            <label
+              key={k}
+              className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+            >
+              <input type="radio" name="kind" value={k} checked={kind === k} onChange={() => setKind(k)} className="accent-primary" />
+              {QUESTION_KIND_LABELS[k]}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      {kind === "single_choice" && (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={`${id}-options`}>Odpowiedzi do wyboru</Label>
+          <Textarea
+            id={`${id}-options`}
+            name="options"
+            rows={4}
+            defaultValue={initial?.options.map((o) => o.label).join("\n")}
+            placeholder={"W tym kwartale\nW tym roku\nJeszcze nie wiem"}
+            disabled={isPending}
+          />
+          <p className="text-xs text-muted-foreground">Każda w osobnej linii, od 2 do {QUESTION_OPTIONS_MAX}.</p>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "Wysyłanie…" : submitLabel}
+        </Button>
+        {onCancel && (
+          <Button type="button" variant="ghost" disabled={isPending} onClick={onCancel}>
+            Anuluj
+          </Button>
+        )}
+        {state.status === "error" && state.message && <p className="text-sm text-destructive">{state.message}</p>}
+      </div>
+    </form>
+  );
+}
+
+function QuestionRow({ partnerId, question, canResubmit }: { partnerId: string; question: PartnerQuestion; canResubmit: boolean }) {
   const [isPending, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
   const s = QUESTION_STATUS[question.status];
+
+  if (editing) {
+    return (
+      <li className="flex flex-col gap-2">
+        {question.review_note && (
+          <p className="text-xs text-muted-foreground">Uwaga organizatora: {question.review_note}</p>
+        )}
+        <QuestionForm
+          initial={question}
+          submitLabel="Wyślij ponownie do akceptacji"
+          action={(prev, fd) => resubmitPartnerQuestion(partnerId, question.id, prev, fd)}
+          onDone={() => setEditing(false)}
+          onCancel={() => setEditing(false)}
+        />
+      </li>
+    );
+  }
+
   return (
     <li className="flex items-start gap-3 rounded-lg border p-3">
       <div className="min-w-0 flex-1">
@@ -118,6 +200,18 @@ function QuestionRow({ partnerId, question }: { partnerId: string; question: Par
         <Badge variant={s.variant} className="mt-1">{s.label}</Badge>
         {question.status === "rejected" && question.review_note && (
           <p className="mt-1 text-xs text-muted-foreground">Uwaga organizatora: {question.review_note}</p>
+        )}
+        {question.status === "rejected" && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-2"
+            disabled={!canResubmit}
+            title={canResubmit ? undefined : "Limit aktywnych pytań — usuń jedno, aby wysłać to ponownie."}
+            onClick={() => setEditing(true)}
+          >
+            <Pencil /> Popraw i wyślij ponownie
+          </Button>
         )}
       </div>
       <Button

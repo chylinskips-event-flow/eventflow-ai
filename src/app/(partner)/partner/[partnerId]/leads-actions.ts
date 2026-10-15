@@ -9,7 +9,7 @@ import {
   isPartnerLeadsEnabled,
   logLeadAudit,
 } from "@/lib/partner-leads";
-import { MAX_QUESTIONS_PER_PARTNER, PARTNER_DELETED_NOTE, validateQuestionInput, type PartnerLead } from "@/lib/partner-leads-core";
+import { MAX_QUESTIONS_PER_PARTNER, PARTNER_DELETED_NOTE, normalizePrompt, validateQuestionInput, type PartnerLead } from "@/lib/partner-leads-core";
 import type { PartnerActionState } from "./actions";
 
 // #10 Faza B — akcje partnera: pytania przy stoisku (do akceptacji organizatora) i leady.
@@ -23,6 +23,14 @@ function revalidate(partnerId: string, eventId: string) {
   revalidatePath(`/partner/${partnerId}`);
   revalidatePath(`/admin/events/${eventId}/partners`);
   revalidatePath(`/admin/events/${eventId}/partners/${partnerId}`);
+}
+
+const DUPLICATE = "Takie pytanie już jest na liście.";
+
+/** Aktywne (oczekujące lub zaakceptowane) pytanie o tej samej treści — ochrona przed duplikatem. */
+function hasDuplicate(existing: { id: string; prompt: string; status: string }[], prompt: string, exceptId?: string) {
+  const norm = normalizePrompt(prompt);
+  return existing.some((q) => q.id !== exceptId && q.status !== "rejected" && normalizePrompt(q.prompt) === norm);
 }
 
 export async function addPartnerQuestion(
@@ -42,6 +50,7 @@ export async function addPartnerQuestion(
   if (existing.filter((q) => q.status !== "rejected").length >= MAX_QUESTIONS_PER_PARTNER) {
     return { status: "error", message: `Możesz mieć najwyżej ${MAX_QUESTIONS_PER_PARTNER} pytania. Usuń jedno, aby dodać nowe.` };
   }
+  if (hasDuplicate(existing, parsed.value.prompt)) return { status: "error", message: DUPLICATE };
 
   const { data, error } = await createAdminClient()
     .from("partner_questions")
@@ -67,6 +76,63 @@ export async function addPartnerQuestion(
   });
   revalidate(partnerId, ctx.event.id);
   return { status: "success", message: "Pytanie wysłane do akceptacji organizatora." };
+}
+
+/**
+ * Poprawa odrzuconego pytania i ponowne wysłanie do akceptacji (zamiast tworzenia nowego).
+ * Tylko dla statusu rejected; po zapisie status pending, uwaga organizatora czyszczona.
+ */
+export async function resubmitPartnerQuestion(
+  partnerId: string,
+  questionId: string,
+  _prev: PartnerActionState,
+  formData: FormData,
+): Promise<PartnerActionState> {
+  if (!isPartnerLeadsEnabled()) return { status: "error", message: DISABLED };
+  const ctx = await getPartnerContext(partnerId);
+  if (!ctx) return { status: "error", message: NO_ACCESS };
+  if (!UUID.test(questionId)) return { status: "error", message: "Pytanie nie istnieje." };
+
+  const parsed = validateQuestionInput((k) => formData.get(k));
+  if (!parsed.ok) return { status: "error", message: parsed.error };
+
+  const existing = await getPartnerQuestions(partnerId);
+  const current = existing.find((q) => q.id === questionId);
+  if (!current || current.status !== "rejected") {
+    return { status: "error", message: "Poprawiać można tylko odrzucone pytanie — odśwież stronę." };
+  }
+  if (existing.filter((q) => q.status !== "rejected").length >= MAX_QUESTIONS_PER_PARTNER) {
+    return { status: "error", message: `Masz już ${MAX_QUESTIONS_PER_PARTNER} aktywne pytania. Usuń jedno, aby wysłać to ponownie.` };
+  }
+  if (hasDuplicate(existing, parsed.value.prompt, questionId)) return { status: "error", message: DUPLICATE };
+
+  const { data, error } = await createAdminClient()
+    .from("partner_questions")
+    .update({
+      kind: parsed.value.kind,
+      prompt: parsed.value.prompt,
+      options: parsed.value.options,
+      status: "pending",
+      review_note: null,
+      reviewed_at: null,
+    })
+    .eq("id", questionId)
+    .eq("partner_id", partnerId)
+    .eq("status", "rejected")
+    .select("id");
+  if (error) return { status: "error", message: "Nie udało się zapisać pytania." };
+  if (!data?.length) return { status: "error", message: "Pytanie zmieniło się w międzyczasie — odśwież stronę." };
+
+  await logLeadAudit({
+    eventId: ctx.event.id,
+    partnerId,
+    actorType: "partner",
+    actorUserId: ctx.user.id,
+    action: "question_submitted",
+    metadata: { question_id: questionId, prompt: parsed.value.prompt, resubmitted: true },
+  });
+  revalidate(partnerId, ctx.event.id);
+  return { status: "success", message: "Poprawione pytanie wysłane do akceptacji." };
 }
 
 export async function deletePartnerQuestion(partnerId: string, questionId: string): Promise<PartnerActionState> {

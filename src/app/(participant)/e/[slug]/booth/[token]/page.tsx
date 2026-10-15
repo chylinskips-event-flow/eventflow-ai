@@ -9,7 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getActiveConsent, getPartnerQuestions, isPartnerLeadsEnabled } from "@/lib/partner-leads";
-import { PARTNER_LEADS_CONSENT } from "@/lib/partner-leads-core";
+import { leadConsentFor } from "@/lib/partner-leads-core";
 import { BoothClient, type BoothQuestForClient } from "./booth-client";
 import { PartnerLeadCard } from "./partner-lead-card";
 
@@ -59,7 +59,8 @@ export default async function BoothPage({
     return <Notice href={eventRoot} message="Nie znaleziono stoiska." />;
   }
 
-  // #10 Faza B: pytania sponsora + osobna zgoda — tylko za flagą i przy zaakceptowanych pytaniach.
+  // #10 Faza B: osobna zgoda na przekazanie danych partnerowi — zawsze przy włączonej fladze;
+  // z pytaniami, gdy partner ma zaakceptowane, inaczej sama zgoda na kontakt.
   const leadsV2 = isPartnerLeadsEnabled();
   let leadCard: React.ReactNode = null;
   if (leadsV2) {
@@ -67,18 +68,18 @@ export default async function BoothPage({
       getPartnerQuestions(partner.id, { approvedOnly: true }),
       getActiveConsent(partner.id, attendee.id),
     ]);
-    if (questions.length > 0) {
-      leadCard = (
-        <PartnerLeadCard
-          slug={slug}
-          partnerToken={token}
-          partnerName={partner.name}
-          questions={questions.map(({ id, kind, prompt, options }) => ({ id, kind, prompt, options }))}
-          consentText={PARTNER_LEADS_CONSENT.text(partner.name, event.name)}
-          activeConsentId={consent?.id ?? null}
-        />
-      );
-    }
+    const leadConsent = leadConsentFor(questions.length > 0, partner.name, event.name);
+    leadCard = (
+      <PartnerLeadCard
+        slug={slug}
+        partnerToken={token}
+        partnerName={partner.name}
+        questions={questions.map(({ id, kind, prompt, options }) => ({ id, kind, prompt, options }))}
+        consentText={leadConsent.text}
+        consentVersion={leadConsent.version}
+        activeConsentId={consent?.id ?? null}
+      />
+    );
   }
 
   // Gdy gamification wyłączona — brak questa, BoothClient obsługuje prosty check-in

@@ -12,10 +12,11 @@ import {
   logLeadAudit,
   withdrawConsent,
 } from "@/lib/partner-leads";
-import { PARTNER_LEADS_CONSENT, validateAnswers } from "@/lib/partner-leads-core";
+import { leadConsentFor, validateAnswers } from "@/lib/partner-leads-core";
 
 // #10 Faza B — akcje uczestnika. Tożsamość = sesja uczestnika eventu (cookie), partner po
 // tokenie stoiska. Odpowiedzi zapisujemy WYŁĄCZNIE razem z wyraźną, osobną zgodą.
+// Bez zaakceptowanych pytań: sama zgoda na kontakt (osobny wariant treści).
 
 export type PartnerLeadState =
   | { status: "idle" }
@@ -45,7 +46,12 @@ export async function submitPartnerLead(
   }
 
   const questions = await getPartnerQuestions(partner.id, { approvedOnly: true });
-  if (questions.length === 0) return { status: "error", message: "Partner nie ma aktywnych pytań." };
+  const consent = leadConsentFor(questions.length > 0, partner.name, event.name);
+  // Uczestnik musiał widzieć DOKŁADNIE tę treść zgody. Gdy pytania zmieniły się po
+  // otwarciu strony (np. organizator zaakceptował pierwsze), wersja z formularza nie pasuje.
+  if (formData.get("consent_version") !== consent.version) {
+    return { status: "error", message: "Formularz się zmienił — odśwież stronę i spróbuj ponownie." };
+  }
   const parsed = validateAnswers(questions, (k) => formData.get(k));
   if (!parsed.ok) return { status: "error", message: parsed.error };
 
@@ -53,18 +59,18 @@ export async function submitPartnerLead(
   if (existing) return { status: "success", consentId: existing.id };
 
   const admin = createAdminClient();
-  const { data: consent, error } = await admin
+  const { data: row, error } = await admin
     .from("partner_lead_consents")
     .insert({
       partner_id: partner.id,
       event_id: event.id,
       attendee_id: attendee.id,
-      consent_version: PARTNER_LEADS_CONSENT.version,
-      consent_text: PARTNER_LEADS_CONSENT.text(partner.name, event.name),
+      consent_version: consent.version,
+      consent_text: consent.text,
     })
     .select("id")
     .single();
-  if (error || !consent) {
+  if (error || !row) {
     // Równoległe wysłanie → unikalny indeks aktywnej zgody.
     if (error?.code === "23505") {
       const again = await getActiveConsent(partner.id, attendee.id);
@@ -77,7 +83,7 @@ export async function submitPartnerLead(
   if (parsed.answers.length > 0) {
     const { error: answersError } = await admin.from("partner_question_answers").insert(
       parsed.answers.map((a) => ({
-        consent_id: consent.id,
+        consent_id: row.id,
         question_id: a.questionId,
         partner_id: partner.id,
         attendee_id: attendee.id,
@@ -88,7 +94,7 @@ export async function submitPartnerLead(
     if (answersError) {
       // Bez odpowiedzi zgoda traci sens dla uczestnika — wycofujemy ją i zgłaszamy błąd.
       console.error("[partner-leads] answers insert failed", JSON.stringify({ code: answersError.code, message: answersError.message }));
-      await admin.from("partner_lead_consents").delete().eq("id", consent.id);
+      await admin.from("partner_lead_consents").delete().eq("id", row.id);
       return { status: "error", message: "Nie udało się zapisać odpowiedzi. Spróbuj ponownie." };
     }
   }
@@ -99,9 +105,9 @@ export async function submitPartnerLead(
     actorType: "attendee",
     attendeeId: attendee.id,
     action: "consent_given",
-    metadata: { consent_version: PARTNER_LEADS_CONSENT.version, answers: parsed.answers.length },
+    metadata: { consent_version: consent.version, answers: parsed.answers.length },
   });
-  return { status: "success", consentId: consent.id as string };
+  return { status: "success", consentId: row.id as string };
 }
 
 /** Wycofanie zgody (stoisko albo profil). Działa także przy wyłączonej fladze — prawo uczestnika. */
