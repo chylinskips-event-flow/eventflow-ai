@@ -18,6 +18,8 @@ import { NetworkingToggle } from "./networking-toggle";
 import { ProfileForm } from "./profile-form";
 import { AvatarUpload } from "./avatar-upload";
 import { DeleteAccount } from "./delete-account";
+import { PartnerConsents } from "./partner-consents";
+import { getAttendeeConsents } from "@/lib/partner-leads";
 
 export default async function ProfilePage({
   params,
@@ -32,7 +34,10 @@ export default async function ProfilePage({
     redirect(buildEventInternalPath(slug, "", origin) || "/");
   }
 
-  const event = await getEventBySlugForRegistration(slug);
+  const [event, partnerConsents] = await Promise.all([
+    getEventBySlugForRegistration(slug),
+    getAttendeeConsents(attendee.id),
+  ]);
 
   const fullName = [attendee.first_name, attendee.last_name]
     .filter(Boolean)
@@ -163,6 +168,17 @@ export default async function ProfilePage({
           />
         </CardContent>
       </Card>
+
+      {partnerConsents.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Zgody dla partnerów</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PartnerConsents slug={slug} consents={partnerConsents} timezone={event?.timezone ?? null} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-destructive/30">
         <CardHeader>

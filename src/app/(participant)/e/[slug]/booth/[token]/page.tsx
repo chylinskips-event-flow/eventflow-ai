@@ -8,7 +8,10 @@ import { getPartnerByTokenAndEventSlug } from "@/lib/partners";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { getActiveConsent, getPartnerQuestions, isPartnerLeadsEnabled } from "@/lib/partner-leads";
+import { PARTNER_LEADS_CONSENT } from "@/lib/partner-leads-core";
 import { BoothClient, type BoothQuestForClient } from "./booth-client";
+import { PartnerLeadCard } from "./partner-lead-card";
 
 const COOLDOWN_MS = 10 * 60 * 1000;
 
@@ -56,16 +59,40 @@ export default async function BoothPage({
     return <Notice href={eventRoot} message="Nie znaleziono stoiska." />;
   }
 
+  // #10 Faza B: pytania sponsora + osobna zgoda — tylko za flagą i przy zaakceptowanych pytaniach.
+  let leadCard: React.ReactNode = null;
+  if (isPartnerLeadsEnabled()) {
+    const [questions, consent] = await Promise.all([
+      getPartnerQuestions(partner.id, { approvedOnly: true }),
+      getActiveConsent(partner.id, attendee.id),
+    ]);
+    if (questions.length > 0) {
+      leadCard = (
+        <PartnerLeadCard
+          slug={slug}
+          partnerToken={token}
+          partnerName={partner.name}
+          questions={questions.map(({ id, kind, prompt, options }) => ({ id, kind, prompt, options }))}
+          consentText={PARTNER_LEADS_CONSENT.text(partner.name, event.name)}
+          activeConsentId={consent?.id ?? null}
+        />
+      );
+    }
+  }
+
   // Gdy gamification wyłączona — brak questa, BoothClient obsługuje prosty check-in
   if (!event.gamification_enabled) {
     return (
-      <BoothClient
-        slug={slug}
-        partnerToken={token}
-        partner={partner}
-        quest={null}
-        initialAttemptsUsed={0}
-      />
+      <>
+        <BoothClient
+          slug={slug}
+          partnerToken={token}
+          partner={partner}
+          quest={null}
+          initialAttemptsUsed={0}
+        />
+        {leadCard}
+      </>
     );
   }
 
@@ -118,31 +145,34 @@ export default async function BoothPage({
   // Ekran "już zaliczone" — renderowany bez klienta
   if (alreadyCompleted) {
     return (
-      <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
-        <Card>
-          <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-3xl dark:bg-green-900/40">
-              ✓
-            </div>
-            <div className="flex flex-col gap-1">
-              <p className="text-xl font-semibold">Stoisko już odwiedzone</p>
-              {completedPoints !== null && completedPoints > 0 && (
-                <p className="text-3xl font-bold text-primary">
-                  +{completedPoints} pkt
-                </p>
-              )}
-              {completedLevel && (
-                <p className="text-sm text-muted-foreground">
-                  Twój poziom: {completedLevel}
-                </p>
-              )}
-            </div>
-            <Button asChild variant="outline">
-              <Link href={eventRoot}>Wróć do wydarzenia</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </main>
+      <>
+        <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
+          <Card>
+            <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-3xl dark:bg-green-900/40">
+                ✓
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xl font-semibold">Stoisko już odwiedzone</p>
+                {completedPoints !== null && completedPoints > 0 && (
+                  <p className="text-3xl font-bold text-primary">
+                    +{completedPoints} pkt
+                  </p>
+                )}
+                {completedLevel && (
+                  <p className="text-sm text-muted-foreground">
+                    Twój poziom: {completedLevel}
+                  </p>
+                )}
+              </div>
+              <Button asChild variant="outline">
+                <Link href={eventRoot}>Wróć do wydarzenia</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+        {leadCard}
+      </>
     );
   }
 
@@ -177,12 +207,15 @@ export default async function BoothPage({
   }
 
   return (
-    <BoothClient
-      slug={slug}
-      partnerToken={token}
-      partner={partner}
-      quest={questForClient}
-      initialAttemptsUsed={attemptsUsed}
-    />
+    <>
+      <BoothClient
+        slug={slug}
+        partnerToken={token}
+        partner={partner}
+        quest={questForClient}
+        initialAttemptsUsed={attemptsUsed}
+      />
+      {leadCard}
+    </>
   );
 }

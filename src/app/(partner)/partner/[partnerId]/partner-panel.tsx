@@ -27,6 +27,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { signOutPartner } from "../actions";
+import type { PartnerQuestion } from "@/lib/partner-leads";
+import { PartnerLeadsCard, PartnerQuestionsCard } from "./leads-panel";
 import {
   deletePartnerMaterial,
   savePartnerContact,
@@ -49,6 +51,7 @@ export function PartnerPanel({
   materials,
   contact,
   publicUrl,
+  leadsFeature,
 }: {
   partnerId: string;
   userEmail: string;
@@ -61,6 +64,8 @@ export function PartnerPanel({
   materials: PartnerMaterial[];
   contact: PartnerContact | null;
   publicUrl: string | null;
+  /** #10 Faza B — tylko przy włączonej fladze PARTNER_LEADS_ENABLED. */
+  leadsFeature: { questions: PartnerQuestion[]; leadCount: number; timezone: string | null } | null;
 }) {
   return (
     <div className="flex flex-col">
@@ -109,6 +114,12 @@ export function PartnerPanel({
         <StatusBanner draft={draft} publicUrl={publicUrl} />
         <ProfileForm partnerId={partnerId} published={published} draft={draft} />
         <MaterialsCard partnerId={partnerId} materials={materials} />
+        {leadsFeature && (
+          <>
+            <PartnerQuestionsCard partnerId={partnerId} questions={leadsFeature.questions} />
+            <PartnerLeadsCard partnerId={partnerId} leadCount={leadsFeature.leadCount} timezone={leadsFeature.timezone} />
+          </>
+        )}
         <ContactForm partnerId={partnerId} contact={contact} />
       </main>
     </div>

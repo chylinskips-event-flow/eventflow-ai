@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { getOwnEvent } from "@/lib/events";
 import { featureGate } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+import { isPartnerLeadsEnabled, logLeadAudit } from "@/lib/partner-leads";
 import { getOrigin } from "@/lib/request-origin";
 import { sendPartnerInviteEmail } from "@/lib/email/partner-invite";
 import { INVITE_TTL_DAYS, REVIEW_NOTE_MAX_LENGTH, normalizeEmail } from "@/lib/partner-portal-core";
@@ -214,4 +216,44 @@ export async function reviewPartnerMaterial(
 
   revalidate(eventId, partnerId);
   return { status: "success" };
+}
+
+// ── #10 Faza B: pytania przy stoisku ───────────────────────────────────────
+
+export async function reviewPartnerQuestion(
+  eventId: string,
+  partnerId: string,
+  questionId: string,
+  decision: "approved" | "rejected",
+  note?: string,
+): Promise<PortalAdminState> {
+  if (!isPartnerLeadsEnabled()) return { status: "error", message: "Ta funkcja jest niedostępna." };
+  const ctx = await organizerContext(eventId, partnerId);
+  if ("error" in ctx) return { status: "error", message: ctx.error };
+  if (!UUID.test(questionId) || (decision !== "approved" && decision !== "rejected")) {
+    return { status: "error", message: "Pytanie nie istnieje." };
+  }
+  const reviewNote = decision === "rejected" ? (note ?? "").trim().slice(0, REVIEW_NOTE_MAX_LENGTH) || null : null;
+
+  const { data, error } = await createAdminClient()
+    .from("partner_questions")
+    .update({ status: decision, review_note: reviewNote, reviewed_at: new Date().toISOString() })
+    .eq("id", questionId)
+    .eq("partner_id", partnerId)
+    .select("id, prompt");
+  if (error) return { status: "error", message: "Nie udało się zapisać decyzji." };
+  if (!data?.length) return { status: "error", message: "Pytanie nie istnieje." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  await logLeadAudit({
+    eventId,
+    partnerId,
+    actorType: "organizer",
+    actorUserId: user?.id ?? null,
+    action: decision === "approved" ? "question_approved" : "question_rejected",
+    metadata: { question_id: questionId, prompt: data[0].prompt, ...(reviewNote ? { note: reviewNote } : {}) },
+  });
+  revalidate(eventId, partnerId);
+  return { status: "success", message: decision === "approved" ? "Pytanie zaakceptowane — pojawi się przy stoisku." : "Pytanie odrzucone." };
 }

@@ -18,7 +18,9 @@ import { getOrigin } from "@/lib/request-origin";
 import { getCurrentTimestamp } from "@/lib/format";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
 import { Badge } from "@/components/ui/badge";
+import { getLeadAudit, getPartnerLeadCount, getPartnerQuestions, isPartnerLeadsEnabled } from "@/lib/partner-leads";
 import { PartnerPortalAdmin } from "./partner-portal-admin";
+import { PartnerLeadsAdmin } from "./partner-leads-admin";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -36,11 +38,15 @@ export default async function PartnerPortalAdminPage({
   const partner = await getPartnerById(eventId, partnerId);
   if (!partner) notFound();
 
-  const [access, draft, materials, contact] = await Promise.all([
+  const leadsEnabled = isPartnerLeadsEnabled();
+  const [access, draft, materials, contact, questions, leadCount, audit] = await Promise.all([
     getPartnerAccessList(partnerId),
     getProfileDraft(partnerId),
     getPartnerMaterials(partnerId),
     getPartnerContact(partnerId),
+    leadsEnabled ? getPartnerQuestions(partnerId) : Promise.resolve([]),
+    leadsEnabled ? getPartnerLeadCount(partnerId) : Promise.resolve(0),
+    leadsEnabled ? getLeadAudit(partnerId) : Promise.resolve([]),
   ]);
   const origin = getOrigin(await headers());
   const now = getCurrentTimestamp();
@@ -88,6 +94,16 @@ export default async function PartnerPortalAdminPage({
         contact={contact}
         timezone={event.timezone}
       />
+      {leadsEnabled && (
+        <PartnerLeadsAdmin
+          eventId={eventId}
+          partnerId={partnerId}
+          questions={questions}
+          leadCount={leadCount}
+          audit={audit}
+          timezone={event.timezone}
+        />
+      )}
     </main>
   );
 }
