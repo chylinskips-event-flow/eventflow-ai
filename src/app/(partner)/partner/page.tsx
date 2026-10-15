@@ -1,12 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Building2, ChevronRight } from "lucide-react";
-import { claimPendingInvites, getAuthUser, getMyPartnerMemberships } from "@/lib/partner-portal";
+import {
+  claimPendingInvites,
+  getAuthUser,
+  getMyPartnerMemberships,
+  getPartnerAccountStatus,
+} from "@/lib/partner-portal";
 import { formatDate } from "@/lib/format";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { signOutPartner } from "./actions";
+import { PartnerAccessRevoked } from "./access-revoked";
 
 export default async function PartnerHomePage() {
   const user = await getAuthUser();
@@ -16,6 +22,9 @@ export default async function PartnerHomePage() {
   await claimPendingInvites(user);
   const memberships = await getMyPartnerMemberships(user.id);
   if (memberships.length === 1) redirect(`/partner/${memberships[0].partner.id}`);
+  if (memberships.length === 0 && (await getPartnerAccountStatus(user)) === "revoked") {
+    return <PartnerAccessRevoked email={user.email} />;
+  }
 
   return (
     <main className="mx-auto flex w-full max-w-xl flex-col gap-6 p-6">

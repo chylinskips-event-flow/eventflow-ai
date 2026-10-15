@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getAuthUser, getInviteByToken } from "@/lib/partner-portal";
+import { getAuthUser, getInviteByToken, getPartnerAccountStatus } from "@/lib/partner-portal";
 import { maskEmail } from "@/lib/partner-portal-core";
 import { getCurrentTimestamp } from "@/lib/format";
 import { Logo } from "@/components/logo";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { signOutPartner } from "../../actions";
 import { InviteLoginButton } from "./invite-login-button";
+import { PartnerAccessRevoked } from "../../access-revoked";
 
 export default async function PartnerInvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -25,6 +26,11 @@ export default async function PartnerInvitePage({ params }: { params: Promise<{ 
       </Card>
     </main>
   );
+
+  // Stary link po unieważnieniu, z aktywną sesją: jasny komunikat zamiast ogólnego „nieaktualne”.
+  if (!invite && user && (await getPartnerAccountStatus(user)) === "revoked") {
+    return <PartnerAccessRevoked email={user.email} />;
+  }
 
   if (!invite) {
     return shell(

@@ -5,6 +5,7 @@ import {
   maskEmail,
   normalizeEmail,
   normalizeUrl,
+  partnerAccountStatus,
   parseSocialLinks,
   safeFileName,
   validateMaterialFile,
@@ -93,5 +94,36 @@ describe("pliki", () => {
     expect(validateMaterialFile({ type: "application/x-msdownload", size: 100, name: "a.exe" })).toMatchObject({ ok: false });
     expect(validateMaterialFile({ type: "application/pdf", size: 6 * 1024 * 1024, name: "a.pdf" })).toMatchObject({ ok: false });
     expect(validateMaterialFile(null)).toMatchObject({ ok: false });
+  });
+});
+
+describe("partnerAccountStatus", () => {
+  const now = Date.parse("2026-10-15T12:00:00Z");
+  const future = "2026-10-20T00:00:00Z";
+  const past = "2026-10-01T00:00:00Z";
+  const row = (o: Partial<{ revoked_at: string | null; user_id: string | null; invite_expires_at: string }>) => ({
+    revoked_at: null,
+    user_id: null,
+    invite_expires_at: future,
+    ...o,
+  });
+
+  it("brak wierszy → none (zwykły organizator)", () => {
+    expect(partnerAccountStatus([], now)).toBe("none");
+  });
+  it("aktywny dostęp lub ważne zaproszenie → active", () => {
+    expect(partnerAccountStatus([row({ user_id: "u" })], now)).toBe("active");
+    expect(partnerAccountStatus([row({})], now)).toBe("active");
+  });
+  it("wszystko unieważnione → revoked", () => {
+    expect(partnerAccountStatus([row({ user_id: "u", revoked_at: past })], now)).toBe("revoked");
+  });
+  it("jeden aktywny wygrywa z unieważnionym", () => {
+    expect(
+      partnerAccountStatus([row({ user_id: "u", revoked_at: past }), row({ user_id: "u" })], now),
+    ).toBe("active");
+  });
+  it("tylko wygasłe zaproszenie → expired", () => {
+    expect(partnerAccountStatus([row({ invite_expires_at: past })], now)).toBe("expired");
   });
 });

@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getPartnerAccountStatus } from "@/lib/partner-portal";
 
 export type OnboardingState = {
   status: "idle" | "error";
@@ -41,6 +42,10 @@ export async function createOrganization(
 
   if (!user) {
     redirect("/login");
+  }
+
+  if ((await getPartnerAccountStatus({ id: user.id, email: user.email ?? "" })) !== "none") {
+    redirect("/partner");
   }
 
   const { data: existing } = await supabase

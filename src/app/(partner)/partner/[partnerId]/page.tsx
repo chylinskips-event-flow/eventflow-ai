@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import {
   getAuthUser,
   getPartnerContact,
@@ -19,7 +19,8 @@ export default async function PartnerPanelPage({ params }: { params: Promise<{ p
   const ctx = await getPartnerContext(partnerId);
   if (!ctx) {
     if (!(await getAuthUser())) redirect("/partner/login");
-    notFound();
+    // /partner rozstrzyga: inny panel, „dostęp cofnięty” albo brak dostępu.
+    redirect("/partner");
   }
 
   const [draft, materials, contact] = await Promise.all([

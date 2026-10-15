@@ -58,6 +58,24 @@ export function accessStatus(
   return new Date(row.invite_expires_at).getTime() > now ? "invited" : "expired";
 }
 
+/**
+ * Stan konta partnera dla zalogowanego użytkownika (wiersze partner_access po user_id lub e-mailu).
+ * active — aktywny dostęp albo ważne zaproszenie do przyjęcia; revoked — był partnerem, ale każdy
+ * dostęp unieważniono; expired — tylko wygasłe, nieprzyjęte zaproszenia; none — nigdy partnerem.
+ */
+export type PartnerAccountStatus = "active" | "revoked" | "expired" | "none";
+
+export function partnerAccountStatus(
+  rows: { revoked_at: string | null; user_id: string | null; invite_expires_at: string }[],
+  now: number,
+): PartnerAccountStatus {
+  if (rows.length === 0) return "none";
+  const states = rows.map((r) => accessStatus(r, now));
+  if (states.some((s) => s === "active" || s === "invited")) return "active";
+  if (states.some((s) => s === "revoked")) return "revoked";
+  return "expired";
+}
+
 /** Skrót na liście partnerów: aktywne konto > ważne zaproszenie > brak dostępu. */
 export type PortalAccessSummary = "active" | "invited" | "none";
 

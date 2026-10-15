@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hasFeature } from "@/lib/entitlements";
 import type { Partner } from "@/lib/partners";
-import { parseSocialLinks, type PortalAccessSummary, type ProfileFields, type SocialLinks } from "@/lib/partner-portal-core";
+import { parseSocialLinks, partnerAccountStatus, type PartnerAccountStatus, type PortalAccessSummary, type ProfileFields, type SocialLinks } from "@/lib/partner-portal-core";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -339,6 +339,31 @@ export async function claimPendingInvites(user: { id: string; email: string }): 
     return 0;
   }
   return data?.length ?? 0;
+}
+
+/**
+ * Czy zalogowany użytkownik jest (lub był) partnerem — po przypisanym koncie albo po adresie
+ * z zaproszenia. Konto partnera nie trafia do onboardingu organizatora.
+ */
+export async function getPartnerAccountStatus(user: { id: string; email: string }): Promise<PartnerAccountStatus> {
+  const admin = createAdminClient();
+  const columns = "id, user_id, revoked_at, invite_expires_at";
+  const [byUser, byEmail] = await Promise.all([
+    admin.from("partner_access").select(columns).eq("user_id", user.id),
+    user.email
+      ? admin.from("partner_access").select(columns).eq("email", user.email.toLowerCase())
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  for (const r of [byUser, byEmail]) {
+    if (r.error) console.error("[partner-portal] account status read failed", JSON.stringify({ code: r.error.code, message: r.error.message }));
+  }
+  const rows = new Map<string, { user_id: string | null; revoked_at: string | null; invite_expires_at: string }>();
+  for (const r of [...(byUser.data ?? []), ...(byEmail.data ?? [])] as { id: string; user_id: string | null; revoked_at: string | null; invite_expires_at: string }[]) {
+    // Zaproszenie na mój adres przyjęte przez INNE konto nie czyni mnie partnerem.
+    if (r.user_id && r.user_id !== user.id) continue;
+    rows.set(r.id, r);
+  }
+  return partnerAccountStatus([...rows.values()], Date.now());
 }
 
 /** Czy adres ma dostęp (aktywny albo ważne zaproszenie) — warunek wysłania linku logowania. */
