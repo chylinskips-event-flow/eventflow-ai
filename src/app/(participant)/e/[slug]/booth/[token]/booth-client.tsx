@@ -31,12 +31,15 @@ export function BoothClient({
   partner,
   quest,
   initialAttemptsUsed,
+  legacyLeadConsent,
 }: {
   slug: string;
   partnerToken: string;
   partner: Pick<Partner, "id" | "name" | "logo_url" | "description" | "tier" | "booth_location">;
   quest: BoothQuestForClient;
   initialAttemptsUsed: number;
+  /** Stary checkbox zgody leadowej — tylko przy wyłączonej Fazie B (PARTNER_LEADS_ENABLED). */
+  legacyLeadConsent: boolean;
 }) {
   const boundAction = submitBoothVisit.bind(null, slug, partnerToken);
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
@@ -176,15 +179,18 @@ export function BoothClient({
           </Card>
         )}
 
-        {/* Zgoda leadowa */}
-        <div className="flex items-start gap-3 rounded-md border p-3">
-          <Checkbox id="lead_consent" name="lead_consent" disabled={isPending} />
-          <Label htmlFor="lead_consent" className="cursor-pointer text-sm font-normal leading-relaxed">
-            Wyrażam zgodę na przekazanie moich danych kontaktowych (imię, nazwisko,
-            firma, email) partnerowi <strong>{partner.name}</strong> w celach
-            marketingowych i handlowych.
-          </Label>
-        </div>
+        {/* Zgoda leadowa (stary mechanizm) — przy Fazie B zastępuje ją osobna zgoda
+            w karcie „Pytania od {partner}”, a odwiedziny nie przekazują danych partnerowi. */}
+        {legacyLeadConsent && (
+          <div className="flex items-start gap-3 rounded-md border p-3">
+            <Checkbox id="lead_consent" name="lead_consent" disabled={isPending} />
+            <Label htmlFor="lead_consent" className="cursor-pointer text-sm font-normal leading-relaxed">
+              Wyrażam zgodę na przekazanie moich danych kontaktowych (imię, nazwisko,
+              firma, email) partnerowi <strong>{partner.name}</strong> w celach
+              marketingowych i handlowych.
+            </Label>
+          </div>
+        )}
 
         {/* Błędy i stany */}
         {state.status === "wrong_answer" && (

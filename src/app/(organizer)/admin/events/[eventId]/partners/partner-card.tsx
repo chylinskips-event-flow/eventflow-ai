@@ -75,6 +75,8 @@ export function PartnerCard({
   partner,
   checkinCount,
   leadCount,
+  legacyLeadCount,
+  leadsV2,
   pendingReviews,
   portalAccess,
 }: {
@@ -82,6 +84,9 @@ export function PartnerCard({
   partner: Partner;
   checkinCount: number;
   leadCount: number;
+  /** Faza B włączona: leady ze starego checkboxa (archiwum) — tylko eksport w menu „⋯”. */
+  legacyLeadCount: number;
+  leadsV2: boolean;
   pendingReviews: number;
   portalAccess: PortalAccessSummary;
 }) {
@@ -203,14 +208,17 @@ export function PartnerCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              {leadCount > 0 && (
+              {/* Stary eksport (zgody z check-inu). Przy Fazie B nowe leady pobiera partner
+                  w swoim panelu; tu zostaje archiwum, jeśli istnieje. */}
+              {(leadsV2 ? legacyLeadCount : leadCount) > 0 && (
                 <>
                   <DropdownMenuItem asChild>
                     <a
                       href={`/admin/events/${eventId}/partners/${partner.id}/leads.csv`}
                       download
                     >
-                      <Download /> Leady CSV
+                      <Download />
+                      {leadsV2 ? `Leady CSV — archiwum (${legacyLeadCount})` : "Leady CSV"}
                     </a>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />

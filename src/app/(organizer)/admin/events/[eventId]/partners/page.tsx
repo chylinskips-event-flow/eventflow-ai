@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getOwnEvent } from "@/lib/events";
 import { getEventPartners, getPartnerStats } from "@/lib/partners";
 import { getPendingReviewCounts, getPortalAccessSummary } from "@/lib/partner-portal";
-import { getPendingQuestionCounts, isPartnerLeadsEnabled } from "@/lib/partner-leads";
+import { getActiveLeadCounts, getPendingQuestionCounts, isPartnerLeadsEnabled } from "@/lib/partner-leads";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PartnerFormDialog } from "./partner-form-dialog";
@@ -20,12 +20,15 @@ export default async function EventPartnersPage({
     notFound();
   }
 
-  const [partners, partnerStats, pendingReviews, portalAccess, pendingQuestions] = await Promise.all([
+  const leadsV2 = isPartnerLeadsEnabled();
+  const empty = Promise.resolve({} as Record<string, number>);
+  const [partners, partnerStats, pendingReviews, portalAccess, pendingQuestions, activeLeads] = await Promise.all([
     getEventPartners(eventId),
     getPartnerStats(eventId),
     getPendingReviewCounts(eventId),
     getPortalAccessSummary(eventId),
-    isPartnerLeadsEnabled() ? getPendingQuestionCounts(eventId) : Promise.resolve({} as Record<string, number>),
+    leadsV2 ? getPendingQuestionCounts(eventId) : empty,
+    leadsV2 ? getActiveLeadCounts(eventId) : empty,
   ]);
 
   return (
@@ -54,7 +57,11 @@ export default async function EventPartnersPage({
               eventId={eventId}
               partner={partner}
               checkinCount={partnerStats[partner.id]?.checkins ?? 0}
-              leadCount={partnerStats[partner.id]?.leads ?? 0}
+              // Faza B: leady = aktywne zgody z karty „Pytania od {partner}”. Zgody ze starego
+              // checkboxa przy check-inie zostają jako archiwum (osobny eksport).
+              leadCount={leadsV2 ? (activeLeads[partner.id] ?? 0) : (partnerStats[partner.id]?.leads ?? 0)}
+              legacyLeadCount={leadsV2 ? (partnerStats[partner.id]?.leads ?? 0) : 0}
+              leadsV2={leadsV2}
               pendingReviews={(pendingReviews[partner.id] ?? 0) + (pendingQuestions[partner.id] ?? 0)}
               portalAccess={portalAccess[partner.id] ?? "none"}
             />

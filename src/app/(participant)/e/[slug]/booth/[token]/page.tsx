@@ -60,8 +60,9 @@ export default async function BoothPage({
   }
 
   // #10 Faza B: pytania sponsora + osobna zgoda — tylko za flagą i przy zaakceptowanych pytaniach.
+  const leadsV2 = isPartnerLeadsEnabled();
   let leadCard: React.ReactNode = null;
-  if (isPartnerLeadsEnabled()) {
+  if (leadsV2) {
     const [questions, consent] = await Promise.all([
       getPartnerQuestions(partner.id, { approvedOnly: true }),
       getActiveConsent(partner.id, attendee.id),
@@ -90,6 +91,7 @@ export default async function BoothPage({
           partner={partner}
           quest={null}
           initialAttemptsUsed={0}
+          legacyLeadConsent={!leadsV2}
         />
         {leadCard}
       </>
@@ -214,6 +216,7 @@ export default async function BoothPage({
         partner={partner}
         quest={questForClient}
         initialAttemptsUsed={attemptsUsed}
+        legacyLeadConsent={!leadsV2}
       />
       {leadCard}
     </>

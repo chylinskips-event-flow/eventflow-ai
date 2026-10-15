@@ -284,3 +284,16 @@ export async function getPartnerLeadCount(partnerId: string): Promise<number> {
   logError("lead count failed", error);
   return count ?? 0;
 }
+
+/** Aktywne (niewycofane) zgody Fazy B per partner — licznik leadów na liście partnerów. */
+export async function getActiveLeadCounts(eventId: string): Promise<Record<string, number>> {
+  const { data, error } = await createAdminClient()
+    .from("partner_lead_consents")
+    .select("partner_id")
+    .eq("event_id", eventId)
+    .is("withdrawn_at", null);
+  logError("lead counts read failed", error);
+  const counts: Record<string, number> = {};
+  for (const r of (data ?? []) as { partner_id: string }[]) counts[r.partner_id] = (counts[r.partner_id] ?? 0) + 1;
+  return counts;
+}
