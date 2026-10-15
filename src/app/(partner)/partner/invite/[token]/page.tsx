@@ -68,6 +68,9 @@ export default async function PartnerInvitePage({ params }: { params: Promise<{ 
           Jesteś zalogowany(-a) jako {user.email}, a zaproszenie jest dla {maskEmail(access.email)}.
           Wyloguj się i otwórz link ponownie.
         </p>
+        <p className="rounded-md bg-muted px-3 py-2 text-muted-foreground">
+          Podpowiedź: otwórz link w oknie prywatnym lub wyloguj się.
+        </p>
         <form action={signOutPartner}>
           <Button type="submit" variant="outline">Wyloguj</Button>
         </form>
