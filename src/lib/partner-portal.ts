@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hasFeature } from "@/lib/entitlements";
 import type { Partner } from "@/lib/partners";
-import { parseSocialLinks, type ProfileFields, type SocialLinks } from "@/lib/partner-portal-core";
+import { parseSocialLinks, type PortalAccessSummary, type ProfileFields, type SocialLinks } from "@/lib/partner-portal-core";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -280,6 +280,25 @@ export async function getPendingReviewCounts(eventId: string): Promise<Record<st
     counts[r.partner_id] = (counts[r.partner_id] ?? 0) + 1;
   }
   return counts;
+}
+
+/** Stan dostępu do panelu per partner: aktywne konto > ważne zaproszenie > brak. */
+export async function getPortalAccessSummary(eventId: string): Promise<Record<string, PortalAccessSummary>> {
+  const { data, error } = await createAdminClient()
+    .from("partner_access")
+    .select("partner_id, user_id, invite_expires_at")
+    .eq("event_id", eventId)
+    .is("revoked_at", null);
+  if (error) console.error("[partner-portal] access summary read failed", JSON.stringify({ code: error.code, message: error.message }));
+  const now = Date.now();
+  const summary: Record<string, PortalAccessSummary> = {};
+  for (const r of (data ?? []) as { partner_id: string; user_id: string | null; invite_expires_at: string }[]) {
+    if (r.user_id) summary[r.partner_id] = "active";
+    else if (summary[r.partner_id] !== "active" && new Date(r.invite_expires_at).getTime() > now) {
+      summary[r.partner_id] = "invited";
+    }
+  }
+  return summary;
 }
 
 /** Podpisany URL do pliku materiału (prywatny bucket) — po autoryzacji w wywołującym. */

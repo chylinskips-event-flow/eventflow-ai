@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getOwnEvent } from "@/lib/events";
 import { getEventPartners, getPartnerStats } from "@/lib/partners";
-import { getPendingReviewCounts } from "@/lib/partner-portal";
+import { getPendingReviewCounts, getPortalAccessSummary } from "@/lib/partner-portal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PartnerFormDialog } from "./partner-form-dialog";
@@ -19,10 +19,11 @@ export default async function EventPartnersPage({
     notFound();
   }
 
-  const [partners, partnerStats, pendingReviews] = await Promise.all([
+  const [partners, partnerStats, pendingReviews, portalAccess] = await Promise.all([
     getEventPartners(eventId),
     getPartnerStats(eventId),
     getPendingReviewCounts(eventId),
+    getPortalAccessSummary(eventId),
   ]);
 
   return (
@@ -53,6 +54,7 @@ export default async function EventPartnersPage({
               checkinCount={partnerStats[partner.id]?.checkins ?? 0}
               leadCount={partnerStats[partner.id]?.leads ?? 0}
               pendingReviews={pendingReviews[partner.id] ?? 0}
+              portalAccess={portalAccess[partner.id] ?? "none"}
             />
           ))}
         </div>

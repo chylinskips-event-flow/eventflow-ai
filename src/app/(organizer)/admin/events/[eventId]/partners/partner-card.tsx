@@ -2,9 +2,21 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { MapPin, QrCode, Building2, Download, UserCog } from "lucide-react";
+import {
+  AlertCircle,
+  Building2,
+  Download,
+  MapPin,
+  MoreHorizontal,
+  Pencil,
+  QrCode,
+  Trash2,
+  UserCog,
+} from "lucide-react";
 import { deletePartner } from "./actions";
 import type { Partner } from "@/lib/partners";
+import type { PortalAccessSummary } from "@/lib/partner-portal-core";
+import { pluralizePl } from "@/lib/format";
 import { partnerTierLabel } from "@/lib/partner-options";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,8 +30,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const TIER_BADGE_CLASSES: Record<string, string> = {
   gold: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
@@ -29,18 +47,43 @@ const TIER_BADGE_CLASSES: Record<string, string> = {
   partner: "bg-muted text-muted-foreground",
 };
 
+type PortalStatus =
+  | { kind: "pending"; count: number }
+  | { kind: PortalAccessSummary };
+
+const STATUS_BADGE: Record<
+  PortalAccessSummary,
+  { label: string; variant: "success" | "indigo" | "secondary" }
+> = {
+  active: { label: "Aktywny", variant: "success" },
+  invited: { label: "Zaproszony", variant: "indigo" },
+  none: { label: "Brak dostępu", variant: "secondary" },
+};
+
+// Oczekujące akceptacje mają pierwszeństwo — to jedyny stan wymagający akcji organizatora.
+function portalStatus(
+  pendingReviews: number,
+  access: PortalAccessSummary,
+): PortalStatus {
+  return pendingReviews > 0
+    ? { kind: "pending", count: pendingReviews }
+    : { kind: access };
+}
+
 export function PartnerCard({
   eventId,
   partner,
   checkinCount,
   leadCount,
   pendingReviews,
+  portalAccess,
 }: {
   eventId: string;
   partner: Partner;
   checkinCount: number;
   leadCount: number;
   pendingReviews: number;
+  portalAccess: PortalAccessSummary;
 }) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
@@ -60,10 +103,13 @@ export function PartnerCard({
     });
   }
 
+  const status = portalStatus(pendingReviews, portalAccess);
+  const panelHref = `/admin/events/${eventId}/partners/${partner.id}`;
+
   return (
     <Card>
-      <CardContent className="flex flex-wrap items-center gap-4 py-4">
-        <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
+      <CardContent className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-3 py-4">
+        <div className="col-start-1 row-start-1 flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
           {partner.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element -- logo w Storage; next/image wymaga konfiguracji domen
             <img
@@ -72,70 +118,117 @@ export function PartnerCard({
               className="size-full object-contain"
             />
           ) : (
-            <Building2 className="size-6 text-muted-foreground" />
+            <Building2 className="size-5 text-muted-foreground" />
           )}
         </div>
-        <div className="flex flex-1 flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">{partner.name}</span>
+
+        <div className="col-start-2 row-start-1 flex min-w-0 flex-col gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate font-medium" title={partner.name}>
+              {partner.name}
+            </span>
             {tierLabel && (
               <Badge className={TIER_BADGE_CLASSES[partner.tier ?? ""]}>
                 {tierLabel}
               </Badge>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge variant="outline" className="font-normal text-muted-foreground">
+              {checkinCount} {pluralizePl(checkinCount, ["wizyta", "wizyty", "wizyt"])}
+            </Badge>
+            <Badge variant="outline" className="font-normal text-muted-foreground">
+              {leadCount} {pluralizePl(leadCount, ["lead", "leady", "leadów"])}
+            </Badge>
             {partner.booth_location && (
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="size-3.5" /> {partner.booth_location}
-              </span>
+              <Badge
+                variant="outline"
+                className="max-w-full font-normal text-muted-foreground"
+              >
+                <MapPin />
+                <span className="truncate">{partner.booth_location}</span>
+              </Badge>
             )}
-            <span>
-              {checkinCount}{" "}
-              {checkinCount === 1 ? "wizyta u partnera" : "wizyty u partnerów"}
-            </span>
-            <span>
-              {leadCount}{" "}
-              {leadCount === 1 ? "lead" : "leadów"}
-            </span>
+          </div>
+          <div>
+            {status.kind === "pending" ? (
+              <Badge asChild variant="warning">
+                <Link href={panelHref} className="hover:underline">
+                  <AlertCircle /> Do akceptacji ({status.count})
+                </Link>
+              </Badge>
+            ) : (
+              <Badge variant={STATUS_BADGE[status.kind].variant}>
+                {STATUS_BADGE[status.kind].label}
+              </Badge>
+            )}
           </div>
         </div>
-        <Button asChild variant={pendingReviews > 0 ? "default" : "outline"} size="sm">
-          <Link href={`/admin/events/${eventId}/partners/${partner.id}`}>
-            <UserCog className="size-4" /> Panel partnera
-            {pendingReviews > 0 && (
-              <span className="rounded-full bg-background/20 px-1.5 text-xs tabular-nums">{pendingReviews}</span>
-            )}
-          </Link>
-        </Button>
-        <Button asChild variant="outline" size="sm">
-          <a
-            href={`/admin/events/${eventId}/partners/${partner.id}/booth-qr`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <QrCode className="size-4" /> QR stoiska
-          </a>
-        </Button>
-        {leadCount > 0 && (
+
+        <div className="col-span-2 col-start-2 row-start-2 flex flex-wrap items-center gap-1">
           <Button asChild variant="outline" size="sm">
+            <Link href={panelHref}>
+              <UserCog /> Panel partnera
+            </Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm">
             <a
-              href={`/admin/events/${eventId}/partners/${partner.id}/leads.csv`}
-              download
+              href={`/admin/events/${eventId}/partners/${partner.id}/booth-qr`}
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              <Download className="size-4" /> Leady CSV
+              <QrCode /> QR stoiska
             </a>
           </Button>
-        )}
-        <PartnerFormDialog
-          eventId={eventId}
-          partner={partner}
-          trigger={
-            <Button variant="outline" size="sm">
-              Edytuj
-            </Button>
-          }
-        />
+          <PartnerFormDialog
+            eventId={eventId}
+            partner={partner}
+            trigger={
+              <Button variant="ghost" size="sm">
+                <Pencil /> Edytuj
+              </Button>
+            }
+          />
+        </div>
+
+        <div className="col-start-3 row-start-1">
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Więcej akcji: ${partner.name}`}
+              >
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {leadCount > 0 && (
+                <>
+                  <DropdownMenuItem asChild>
+                    <a
+                      href={`/admin/events/${eventId}/partners/${partner.id}/leads.csv`}
+                      download
+                    >
+                      <Download /> Leady CSV
+                    </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => {
+                  setDeleteError(null);
+                  setIsDeleteOpen(true);
+                }}
+              >
+                <Trash2 /> Usuń
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
         <AlertDialog
           open={isDeleteOpen}
           onOpenChange={(open) => {
@@ -143,11 +236,6 @@ export function PartnerCard({
             setIsDeleteOpen(open);
           }}
         >
-          <AlertDialogTrigger asChild>
-            <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10">
-              Usuń
-            </Button>
-          </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Usunąć partnera?</AlertDialogTitle>

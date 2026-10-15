@@ -58,6 +58,9 @@ export function accessStatus(
   return new Date(row.invite_expires_at).getTime() > now ? "invited" : "expired";
 }
 
+/** Skrót na liście partnerów: aktywne konto > ważne zaproszenie > brak dostępu. */
+export type PortalAccessSummary = "active" | "invited" | "none";
+
 export const ACCESS_STATUS_LABELS: Record<AccessStatus, string> = {
   active: "Aktywny",
   invited: "Zaproszony",
