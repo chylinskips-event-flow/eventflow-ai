@@ -113,12 +113,16 @@ function QuestFormContent({
     ? updateQuest.bind(null, eventId, quest.id)
     : createQuest.bind(null, eventId);
 
-  const [state, formAction, isPending] = useActionState(action, initialState);
-
-  if (state.status === "success") {
-    onClose();
-    return null;
-  }
+  // Zamknięcie po sukcesie w samej akcji, nie w renderze: wcześniejszy `return null` przed
+  // kolejnymi hookami łamał kolejność hooków („This page couldn't load” po dodaniu questa).
+  const [state, formAction, isPending] = useActionState(
+    async (prev: QuestFormState, fd: FormData) => {
+      const res = await action(prev, fd);
+      if (res.status === "success") onClose();
+      return res;
+    },
+    initialState,
+  );
 
   const [type, setType] = useState(quest?.type ?? "booth_visit");
   const [partnerId, setPartnerId] = useState(quest?.partner_id ?? NO_PARTNER);

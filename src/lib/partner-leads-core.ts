@@ -196,6 +196,16 @@ export function leadsToCsvRows(leads: PartnerLead[]): { columns: string[]; rows:
   return { columns: [...base, ...prompts], rows };
 }
 
+/**
+ * CSV dla polskiego Excela: BOM UTF-8 (polskie znaki) i średnik jako separator (Excel z
+ * ustawieniami PL dzieli kolumny po średniku). Pola ze średnikiem, przecinkiem, cudzysłowem
+ * albo nową linią są cytowane, cudzysłowy podwajane.
+ */
+export function toExcelCsv(fields: string[], data: string[][]): string {
+  const cell = (v: string) => (/[;,"\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  return "﻿" + [fields, ...data].map((r) => r.map(cell).join(";")).join("\r\n");
+}
+
 /** Komórki zaczynające się od = + - @ (i tab/CR) Excel traktuje jak formułę — neutralizujemy. */
 export function csvSafe(value: string): string {
   return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;

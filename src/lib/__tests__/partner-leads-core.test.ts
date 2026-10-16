@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   PARTNER_LEADS_CONSENT,
   csvSafe,
+  toExcelCsv,
   leadConsentFor,
   normalizePrompt,
   leadsToCsvRows,
@@ -119,5 +120,10 @@ describe("eksport CSV", () => {
   it("csvSafe neutralizuje formuły", () => {
     expect(csvSafe("=HYPERLINK()")).toBe("'=HYPERLINK()");
     expect(csvSafe("Acme")).toBe("Acme");
+  });
+  it("toExcelCsv: BOM, średnik, cytowanie", () => {
+    const csv = toExcelCsv(["imię", "firma"], [["Łukasz", "Acme, Inc."], ["Ann", "say \"hi\"; ok"]]);
+    expect(csv.startsWith("﻿")).toBe(true);
+    expect(csv.slice(1).split("\r\n")).toEqual(["imię;firma", "Łukasz;\"Acme, Inc.\"", "Ann;\"say \"\"hi\"\"; ok\""]);
   });
 });

@@ -58,8 +58,8 @@ export function BoothClient({
               ✓
             </div>
             <div className="flex flex-col gap-1">
-              <p className="text-xl font-semibold">Stoisko odwiedzone!</p>
-              {state.pointsAwarded > 0 && (
+              <p className="text-xl font-semibold">{quest ? "Stoisko odwiedzone!" : "Wizyta zapisana"}</p>
+              {quest && state.pointsAwarded > 0 && (
                 <p className="text-3xl font-bold text-primary">
                   +{state.pointsAwarded} pkt
                 </p>
