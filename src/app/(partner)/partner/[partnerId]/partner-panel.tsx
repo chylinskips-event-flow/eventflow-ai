@@ -27,6 +27,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { signOutPartner } from "../actions";
+import type { PartnerQuestion } from "@/lib/partner-leads";
+import { PartnerLeadsCard, PartnerQuestionsCard } from "./leads-panel";
 import { BOOTH_ERROR_HINT_PARTNER, BOOTH_ERROR_TITLE, BoothLoadError } from "@/components/booth-load-error";
 import { BoothRequestCard } from "./booth-request-card";
 import { NextSteps, ProgressLine, TabBar, panelId, tabId } from "./panel-tabs";
@@ -64,7 +66,7 @@ export function PartnerPanel({
   panelState,
   tabs,
   initialTab,
-  leads,
+  leadsFeature,
 }: {
   partnerId: string;
   userEmail: string;
@@ -84,8 +86,11 @@ export function PartnerPanel({
   tabs: TabInfo[];
   /** Zakładka z `?tab=` (resolveTab: nieznana → domyślna). */
   initialTab: TabKey;
-  /** Treść zakładki „Leady” (Faza B) — zakładka widoczna tylko z panelState.leadsEnabled. */
-  leads?: React.ReactNode;
+  /**
+   * #10 Faza B — dane zakładki „Leady” (pytania przy stoisku, kontakty ze stoiska); tylko przy
+   * włączonej funkcji (PARTNER_LEADS_ENABLED + bramka prawna). null = brak zakładki.
+   */
+  leadsFeature: { questions: PartnerQuestion[]; leadCount: number; timezone: string | null } | null;
 }) {
   const [active, setActive] = useState<TabKey>(initialTab);
   const dirty = useRef(false);
@@ -190,7 +195,12 @@ export function PartnerPanel({
             ) : (
               <BoothLoadError title={BOOTH_ERROR_TITLE} hint={BOOTH_ERROR_HINT_PARTNER} />
             ))}
-          {active === "leady" && leads}
+          {active === "leady" && leadsFeature && (
+            <>
+              <PartnerQuestionsCard partnerId={partnerId} questions={leadsFeature.questions} />
+              <PartnerLeadsCard partnerId={partnerId} leadCount={leadsFeature.leadCount} timezone={leadsFeature.timezone} />
+            </>
+          )}
           {active === "kontakt" && <ContactForm partnerId={partnerId} contact={contact} />}
         </div>
       </main>

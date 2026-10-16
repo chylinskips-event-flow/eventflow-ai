@@ -94,7 +94,9 @@ export async function GET(
     };
   });
 
+  // Średnik: polski Excel dzieli kolumny po średniku (przecinek ląduje w jednej kolumnie).
   const csv = Papa.unparse(csvData, {
+    delimiter: ";",
     columns: [
       "first_name",
       "last_name",

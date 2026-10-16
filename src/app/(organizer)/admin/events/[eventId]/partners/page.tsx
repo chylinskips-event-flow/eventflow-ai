@@ -4,6 +4,7 @@ import { Truck } from "lucide-react";
 import { getOwnEvent } from "@/lib/events";
 import { getEventPartners, getPartnerStats } from "@/lib/partners";
 import { getPendingReviewCounts, getPortalAccessSummary } from "@/lib/partner-portal";
+import { getActiveLeadCounts, getPendingQuestionCounts, isPartnerLeadsEnabled } from "@/lib/partner-leads";
 import { getBoothRequestStatuses, loadBoothData } from "@/lib/booth-requests";
 import { BOOTH_ERROR_HINT_ORGANIZER, BoothLoadError } from "@/components/booth-load-error";
 import { Button } from "@/components/ui/button";
@@ -23,12 +24,16 @@ export default async function EventPartnersPage({
     notFound();
   }
 
-  const [partners, partnerStats, pendingReviews, portalAccess, boothStatuses] = await Promise.all([
+  const leadsV2 = isPartnerLeadsEnabled();
+  const empty = Promise.resolve({} as Record<string, number>);
+  const [partners, partnerStats, pendingReviews, portalAccess, boothStatuses, pendingQuestions, activeLeads] = await Promise.all([
     getEventPartners(eventId),
     getPartnerStats(eventId),
     getPendingReviewCounts(eventId),
     getPortalAccessSummary(eventId),
     loadBoothData(() => getBoothRequestStatuses(eventId)),
+    leadsV2 ? getPendingQuestionCounts(eventId) : empty,
+    leadsV2 ? getActiveLeadCounts(eventId) : empty,
   ]);
 
   return (
@@ -68,8 +73,12 @@ export default async function EventPartnersPage({
               eventId={eventId}
               partner={partner}
               checkinCount={partnerStats[partner.id]?.checkins ?? 0}
-              leadCount={partnerStats[partner.id]?.leads ?? 0}
-              pendingReviews={pendingReviews[partner.id] ?? 0}
+              // Faza B: leady = aktywne zgody z karty „Pytania od {partner}”. Zgody ze starego
+              // checkboxa przy check-inie zostają jako archiwum (osobny eksport).
+              leadCount={leadsV2 ? (activeLeads[partner.id] ?? 0) : (partnerStats[partner.id]?.leads ?? 0)}
+              legacyLeadCount={leadsV2 ? (partnerStats[partner.id]?.leads ?? 0) : 0}
+              leadsV2={leadsV2}
+              pendingReviews={(pendingReviews[partner.id] ?? 0) + (pendingQuestions[partner.id] ?? 0)}
               portalAccess={portalAccess[partner.id] ?? "none"}
               boothStatus={boothStatuses.ok ? (boothStatuses.value[partner.id] ?? { kind: "none" }) : null}
             />

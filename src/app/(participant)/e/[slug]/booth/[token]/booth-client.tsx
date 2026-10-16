@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { submitBoothVisit, type BoothActionState } from "./actions";
+import { visitResultView } from "@/lib/booth-visit";
 import type { Partner } from "@/lib/partners";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,12 +32,15 @@ export function BoothClient({
   partner,
   quest,
   initialAttemptsUsed,
+  legacyLeadConsent,
 }: {
   slug: string;
   partnerToken: string;
   partner: Pick<Partner, "id" | "name" | "logo_url" | "description" | "tier" | "booth_location">;
   quest: BoothQuestForClient;
   initialAttemptsUsed: number;
+  /** Stary checkbox zgody leadowej — tylko przy wyłączonej Fazie B (PARTNER_LEADS_ENABLED). */
+  legacyLeadConsent: boolean;
 }) {
   const boundAction = submitBoothVisit.bind(null, slug, partnerToken);
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
@@ -47,6 +51,7 @@ export function BoothClient({
     state.status === "no_attempts" || attemptsUsed >= 2;
 
   if (state.status === "success") {
+    const view = visitResultView({ hasQuest: !!quest, pointsAwarded: state.pointsAwarded, levelUp: state.levelUp });
     return (
       <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
         <Card>
@@ -55,13 +60,13 @@ export function BoothClient({
               ✓
             </div>
             <div className="flex flex-col gap-1">
-              <p className="text-xl font-semibold">Stoisko odwiedzone!</p>
-              {state.pointsAwarded > 0 && (
+              <p className="text-xl font-semibold">{view.title}</p>
+              {view.points !== null && (
                 <p className="text-3xl font-bold text-primary">
-                  +{state.pointsAwarded} pkt
+                  +{view.points} pkt
                 </p>
               )}
-              {state.levelUp && (
+              {view.showLevelUp && (
                 <p className="text-sm font-medium text-green-600 dark:text-green-400">
                   Nowy poziom: {LEVEL_LABELS[state.newLevel] ?? state.newLevel}!
                 </p>
@@ -176,15 +181,18 @@ export function BoothClient({
           </Card>
         )}
 
-        {/* Zgoda leadowa */}
-        <div className="flex items-start gap-3 rounded-md border p-3">
-          <Checkbox id="lead_consent" name="lead_consent" disabled={isPending} />
-          <Label htmlFor="lead_consent" className="cursor-pointer text-sm font-normal leading-relaxed">
-            Wyrażam zgodę na przekazanie moich danych kontaktowych (imię, nazwisko,
-            firma, email) partnerowi <strong>{partner.name}</strong> w celach
-            marketingowych i handlowych.
-          </Label>
-        </div>
+        {/* Zgoda leadowa (stary mechanizm) — przy Fazie B zastępuje ją osobna zgoda
+            w karcie „Pytania od {partner}”, a odwiedziny nie przekazują danych partnerowi. */}
+        {legacyLeadConsent && (
+          <div className="flex items-start gap-3 rounded-md border p-3">
+            <Checkbox id="lead_consent" name="lead_consent" disabled={isPending} />
+            <Label htmlFor="lead_consent" className="cursor-pointer text-sm font-normal leading-relaxed">
+              Wyrażam zgodę na przekazanie moich danych kontaktowych (imię, nazwisko,
+              firma, email) partnerowi <strong>{partner.name}</strong> w celach
+              marketingowych i handlowych.
+            </Label>
+          </div>
+        )}
 
         {/* Błędy i stany */}
         {state.status === "wrong_answer" && (

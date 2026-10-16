@@ -22,7 +22,7 @@ const state = (over: Partial<PanelState> = {}): PanelState => ({
   profile: { draftStatus: null, hasLogo: true, hasDescription: true },
   materials: ["approved"],
   booth: booth({ hasRequest: true }),
-  leadsEnabled: false,
+  leads: null,
   contact: { hasContact: true },
   ...over,
 });
@@ -35,7 +35,7 @@ describe("widoczność zakładek", () => {
     expect(keys(state())).toEqual(["przeglad", "wizytowka", "materialy", "stoisko", "kontakt"]);
   });
   it("„Leady” tylko z włączoną flagą", () => {
-    expect(keys(state({ leadsEnabled: true }))).toEqual(["przeglad", "wizytowka", "materialy", "stoisko", "leady", "kontakt"]);
+    expect(keys(state({ leads: { pendingQuestions: 0, approvedQuestions: 0 } }))).toEqual(["przeglad", "wizytowka", "materialy", "stoisko", "leady", "kontakt"]);
   });
   it("„Stoisko” ukryte, gdy sekcja niedostępna", () => {
     expect(keys(state({ booth: null }))).not.toContain("stoisko");
@@ -86,7 +86,7 @@ describe("znaczniki ✓ / ● / ⏳", () => {
 describe("pasek postępu", () => {
   it("liczy tylko widoczne zakładki z zadaniem (bez „Co dalej?” i „Leady”)", () => {
     expect(computeProgress(computeTabs(state()))).toEqual({ done: 4, total: 4 });
-    expect(computeProgress(computeTabs(state({ leadsEnabled: true })))).toEqual({ done: 4, total: 4 });
+    expect(computeProgress(computeTabs(state({ leads: { pendingQuestions: 0, approvedQuestions: 0 } })))).toEqual({ done: 4, total: 4 });
     expect(computeProgress(computeTabs(state({ booth: null, contact: { hasContact: false } })))).toEqual({ done: 2, total: 3 });
   });
 });

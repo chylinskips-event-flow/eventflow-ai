@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { getPartnerByTokenAndEventSlug } from "@/lib/partners";
 import { completeQuest } from "@/lib/gamification";
+import { isPartnerLeadsEnabled } from "@/lib/partner-leads";
 
 const COOLDOWN_MS = 10 * 60 * 1000; // 10 minut
 const CONSENT_TEXT_VERSION = "v1-2026-09";
@@ -42,7 +43,10 @@ export async function submitBoothVisit(
     .eq("is_active", true)
     .maybeSingle();
 
-  const leadConsent = formData.get("lead_consent") === "on";
+  // Przy włączonej Fazie B (PARTNER_LEADS_ENABLED) lead powstaje WYŁĄCZNIE z osobnej zgody
+  // w karcie „Pytania od {partner}” — stary checkbox jest ignorowany także po stronie serwera
+  // (np. ręcznie dopisane pole w formularzu). Odwiedziny i punkty działają bez zmian.
+  const leadConsent = !isPartnerLeadsEnabled() && formData.get("lead_consent") === "on";
 
   // Brak questa → prosty check-in bez punktów
   if (!quest) {

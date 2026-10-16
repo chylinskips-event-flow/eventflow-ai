@@ -40,9 +40,15 @@ export default async function PartnerHomePage() {
       </div>
       {memberships.length === 0 ? (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Ten adres nie ma aktywnego dostępu do żadnego panelu partnera. Jeśli dostałeś(-aś)
-            zaproszenie, mogło wygasnąć albo zostać unieważnione — poproś organizatora o nowe.
+          <CardContent className="flex flex-col items-center gap-4 py-10 text-center text-sm text-muted-foreground">
+            <p>
+              Ten adres nie ma aktywnego dostępu do żadnego panelu partnera. Jeśli dostałeś(-aś)
+              zaproszenie, mogło wygasnąć albo zostać unieważnione — poproś organizatora o nowe.
+            </p>
+            {/* Organizator zalogowany tym samym kontem trafia tu z /partner — droga do swojego panelu. */}
+            <Button asChild variant="outline" size="sm">
+              <Link href="/admin">Przejdź do panelu organizatora</Link>
+            </Button>
           </CardContent>
         </Card>
       ) : (

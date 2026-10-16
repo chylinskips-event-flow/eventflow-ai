@@ -21,7 +21,9 @@ import { BOOTH_ERROR_HINT_ORGANIZER, BOOTH_ERROR_TITLE, BoothLoadError } from "@
 import { inPackagePendingIds, includedFor, isOverPackage, requestTimesLabel, vehicleLabel } from "@/lib/booth-requests-core";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
 import { Badge } from "@/components/ui/badge";
+import { getLeadAudit, getPartnerLeadCount, getPartnerQuestions, isPartnerLeadsEnabled } from "@/lib/partner-leads";
 import { PartnerPortalAdmin } from "./partner-portal-admin";
+import { PartnerLeadsAdmin } from "./partner-leads-admin";
 import { BoothRequestAdmin, type AdminBoothRequestView } from "./booth-request-admin";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -40,13 +42,17 @@ export default async function PartnerPortalAdminPage({
   const partner = await getPartnerById(eventId, partnerId);
   if (!partner) notFound();
 
-  const [access, draft, materials, contact, boothData] = await Promise.all([
+  const leadsEnabled = isPartnerLeadsEnabled();
+  const [access, draft, materials, contact, boothData, questions, leadCount, audit] = await Promise.all([
     getPartnerAccessList(partnerId),
     getProfileDraft(partnerId),
     getPartnerMaterials(partnerId),
     getPartnerContact(partnerId),
     // Błąd odczytu logistyki (np. brak migracji) → widoczny komunikat zamiast „Brak wniosku”.
     loadBoothData(() => Promise.all([getBoothRequest(partnerId), getCatalog(eventId)])),
+    leadsEnabled ? getPartnerQuestions(partnerId) : Promise.resolve([]),
+    leadsEnabled ? getPartnerLeadCount(partnerId) : Promise.resolve(0),
+    leadsEnabled ? getLeadAudit(partnerId) : Promise.resolve([]),
   ]);
   const tz = event.timezone;
   const [boothRequest, catalog] = boothData.ok ? boothData.value : [null, []];
@@ -113,6 +119,16 @@ export default async function PartnerPortalAdminPage({
         contact={contact}
         timezone={event.timezone}
       />
+      {leadsEnabled && (
+        <PartnerLeadsAdmin
+          eventId={eventId}
+          partnerId={partnerId}
+          questions={questions}
+          leadCount={leadCount}
+          audit={audit}
+          timezone={event.timezone}
+        />
+      )}
 
       {boothData.ok ? (
         <BoothRequestAdmin

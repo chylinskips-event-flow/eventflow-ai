@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +41,12 @@ export function PartnerLoginForm({ defaultEmail }: { defaultEmail?: string }) {
           )}
         </CardContent>
       </Card>
+      <p className="text-sm text-muted-foreground">
+        Jesteś organizatorem?{" "}
+        <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+          Zaloguj się tutaj
+        </Link>
+      </p>
     </main>
   );
 }

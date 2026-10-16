@@ -11,6 +11,7 @@ import {
 } from "@/lib/partner-portal";
 import { partnerTierLabel } from "@/lib/partner-options";
 import { getOrigin } from "@/lib/request-origin";
+import { getPartnerLeadCount, getPartnerQuestions, isPartnerLeadsEnabled } from "@/lib/partner-leads";
 import { formatDate, formatDateTime, getCurrentTimestamp } from "@/lib/format";
 import {
   ensureDefaultCatalog,
@@ -39,7 +40,10 @@ export default async function PartnerPanelPage({
     redirect("/partner");
   }
 
-  const [draft, materials, contact, , boothData] = await Promise.all([
+  // Faza B: flaga PARTNER_LEADS_ENABLED + bramka prawna (na produkcji legalApproved) — wyłączona
+  // = brak zakładki „Leady” i żadnych odczytów leadowych, panel jak bez Fazy B.
+  const leadsEnabled = isPartnerLeadsEnabled();
+  const [draft, materials, contact, , boothData, questions, leadCount] = await Promise.all([
     getProfileDraft(partnerId),
     getPartnerMaterials(partnerId),
     getPartnerContact(partnerId),
@@ -49,6 +53,8 @@ export default async function PartnerPanelPage({
       await ensureDefaultCatalog(ctx.event.id);
       return Promise.all([getLogisticsSettings(ctx.event.id), getCatalog(ctx.event.id), getBoothRequest(partnerId)]);
     }),
+    leadsEnabled ? getPartnerQuestions(partnerId) : Promise.resolve([]),
+    leadsEnabled ? getPartnerLeadCount(partnerId) : Promise.resolve(0),
   ]);
   const tz = ctx.event.timezone;
   const isPublic = ctx.event.status === "published" || ctx.event.status === "live";
@@ -109,8 +115,13 @@ export default async function PartnerPanelPage({
           deadlineLabel: booth.deadlineLabel,
         }
       : { loadError: true, hasRequest: false, pendingItems: 0, timesNeedFix: false, locked: false, deadlineLabel: null },
-    // Faza B (pytania i kontakty ze stoiska) dołoży tu swoją flagę i treść zakładki „Leady”.
-    leadsEnabled: false,
+    // Faza B (pytania i kontakty ze stoiska): zakładka „Leady” tylko przy włączonej funkcji.
+    leads: leadsEnabled
+      ? {
+          pendingQuestions: questions.filter((q) => q.status === "pending").length,
+          approvedQuestions: questions.filter((q) => q.status === "approved").length,
+        }
+      : null,
     contact: { hasContact: !!(contact?.contact_name?.trim() || contact?.contact_email?.trim() || contact?.contact_phone?.trim()) },
   };
   const tabs = computeTabs(panelState);
@@ -132,6 +143,7 @@ export default async function PartnerPanelPage({
       panelState={panelState}
       tabs={tabs}
       initialTab={resolveTab(tab, tabs)}
+      leadsFeature={leadsEnabled ? { questions, leadCount, timezone: ctx.event.timezone } : null}
     />
   );
 }

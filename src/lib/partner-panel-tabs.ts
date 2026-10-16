@@ -37,10 +37,23 @@ export type PanelState = {
     locked: boolean;
     deadlineLabel: string | null;
   };
-  /** Faza B (pytania i kontakty ze stoiska) — zakładka „Leady” tylko, gdy panel dostał jej treść. */
-  leadsEnabled: boolean;
+  /**
+   * Faza B (pytania i kontakty ze stoiska). null = funkcja wyłączona (flaga / bramka prawna) —
+   * zakładki „Leady” nie ma, panel wygląda jak bez Fazy B. Liczby pytań do znacznika.
+   */
+  leads: null | { pendingQuestions: number; approvedQuestions: number };
   contact: { hasContact: boolean };
 };
+
+/**
+ * „Leady” są opcjonalne (pytania nie są obowiązkowe): ⏳ gdy pytanie czeka na organizatora,
+ * ✓ gdy jest zaakceptowane, bez znacznika w pozostałych przypadkach (nie liczy się do postępu).
+ */
+function leadsStatus(l: NonNullable<PanelState["leads"]>): TabStatus {
+  if (l.pendingQuestions > 0) return "waiting";
+  if (l.approvedQuestions > 0) return "done";
+  return null;
+}
 
 export type TabInfo = { key: TabKey; label: string; status: TabStatus };
 
@@ -74,7 +87,7 @@ export function computeTabs(s: PanelState): TabInfo[] {
     { key: "materialy", label: TAB_LABELS.materialy, status: materialsStatus(s.materials) },
   ];
   if (s.booth) tabs.push({ key: "stoisko", label: TAB_LABELS.stoisko, status: boothStatus(s.booth) });
-  if (s.leadsEnabled) tabs.push({ key: "leady", label: TAB_LABELS.leady, status: null });
+  if (s.leads) tabs.push({ key: "leady", label: TAB_LABELS.leady, status: leadsStatus(s.leads) });
   tabs.push({ key: "kontakt", label: TAB_LABELS.kontakt, status: s.contact.hasContact ? "done" : "todo" });
   return tabs;
 }
@@ -85,7 +98,7 @@ export function resolveTab(raw: unknown, visible: Pick<TabInfo, "key">[]): TabKe
   return typeof value === "string" && visible.some((t) => t.key === value) ? (value as TabKey) : DEFAULT_TAB;
 }
 
-/** „Uzupełnione X z Y” — tylko widoczne zakładki z zadaniem (bez „Co dalej?” i „Leady”). */
+/** „Uzupełnione X z Y” — tylko widoczne zakładki z zadaniem (bez „Co dalej?” i opcjonalnych „Leady”). */
 export function computeProgress(tabs: TabInfo[]): { done: number; total: number } {
   const counted = tabs.filter((t) => t.key !== "przeglad" && t.key !== "leady");
   return { done: counted.filter((t) => t.status === "done").length, total: counted.length };

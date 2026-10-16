@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { signInWithMagicLink, type MagicLinkState } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,7 @@ export function LoginForm() {
   );
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Logowanie organizatora</CardTitle>
@@ -57,6 +58,12 @@ export function LoginForm() {
           )}
         </CardContent>
       </Card>
+      <p className="text-sm text-muted-foreground">
+        Jesteś partnerem wydarzenia?{" "}
+        <Link href="/partner/login" className="font-medium text-primary underline-offset-4 hover:underline">
+          Zaloguj się do panelu partnera
+        </Link>
+      </p>
     </main>
   );
 }
