@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { partnersWithoutBoothQuest, visitResultView } from "@/lib/booth-visit";
+import { alreadyVisitedPointsLabel, partnersWithoutBoothQuest, visitResultView } from "@/lib/booth-visit";
 import { PARTNER_LEADS_CONSENT, leadCardState } from "@/lib/partner-leads-core";
 
 describe("komunikat po wizycie przy stoisku", () => {
@@ -84,5 +84,16 @@ describe("karta zgody przy stoisku — zawsze widoczna przy włączonej fladze",
     const card = leadCardState({ ...base, enabled: true, questions: [] })!;
     expect(card.consent.text).toBe(PARTNER_LEADS_CONSENT.contactOnly.text("Acme", "Expo"));
     expect(card.consent.version).toMatch(/draft-2026-10/);
+  });
+});
+
+describe("powtórna wizyta stoiska", () => {
+  it("punkty z wcześniejszej wizyty bez plusa: „Punkty zaliczone: 20”", () => {
+    expect(alreadyVisitedPointsLabel(20)).toBe("Punkty zaliczone: 20");
+    expect(alreadyVisitedPointsLabel(20)).not.toMatch(/\+/);
+  });
+  it("brak punktów → bez linii z punktami", () => {
+    expect(alreadyVisitedPointsLabel(0)).toBeNull();
+    expect(alreadyVisitedPointsLabel(null)).toBeNull();
   });
 });

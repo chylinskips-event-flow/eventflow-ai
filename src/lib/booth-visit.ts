@@ -8,6 +8,14 @@ export type VisitResultView = {
 };
 
 /**
+ * Powtórna wizyta (quest już zaliczony wcześniej): punkty nie są naliczane teraz, więc bez
+ * plusa — „Punkty zaliczone: X”. Brak punktów → bez linii z punktami.
+ */
+export function alreadyVisitedPointsLabel(completedPoints: number | null): string | null {
+  return completedPoints !== null && completedPoints > 0 ? `Punkty zaliczone: ${completedPoints}` : null;
+}
+
+/**
  * Partnerzy bez aktywnego questa stoiskowego (strona stoiska bierze aktywny quest z partner_id) —
  * ich uczestnicy po skanie QR widzą tylko „Wizyta zapisana”, bez punktów.
  */

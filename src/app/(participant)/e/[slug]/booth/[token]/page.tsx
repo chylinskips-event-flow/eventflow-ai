@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getActiveConsent, getPartnerQuestions, isPartnerLeadsEnabled } from "@/lib/partner-leads";
 import { leadCardState } from "@/lib/partner-leads-core";
+import { alreadyVisitedPointsLabel } from "@/lib/booth-visit";
 import { BoothClient, type BoothQuestForClient } from "./booth-client";
 import { PartnerLeadCard } from "./partner-lead-card";
 
@@ -165,10 +166,9 @@ export default async function BoothPage({
               </div>
               <div className="flex flex-col gap-1">
                 <p className="text-xl font-semibold">Stoisko już odwiedzone</p>
-                {completedPoints !== null && completedPoints > 0 && (
-                  <p className="text-3xl font-bold text-primary">
-                    +{completedPoints} pkt
-                  </p>
+                {/* Punkty z wcześniejszej wizyty — bez plusa, żeby nie sugerować nowych. */}
+                {alreadyVisitedPointsLabel(completedPoints) && (
+                  <p className="text-lg font-semibold text-primary">{alreadyVisitedPointsLabel(completedPoints)}</p>
                 )}
                 {completedLevel && (
                   <p className="text-sm text-muted-foreground">
