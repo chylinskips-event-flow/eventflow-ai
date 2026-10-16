@@ -1,6 +1,6 @@
 import { BRAND_NAME } from "@/lib/brand";
 import { sendAppEmail } from "@/lib/email/send";
-import { ITEM_STATUS, OTHER_NEEDS_LABEL, windowLabel, type RequestItem, type TimeWindow } from "@/lib/booth-requests-core";
+import { ITEM_STATUS, OTHER_NEEDS_LABEL, effectiveStatus, windowLabel, type RequestItem, type TimeWindow } from "@/lib/booth-requests-core";
 
 // #10 Faza A2 — powiadomienia o zapotrzebowaniu na stoisko. Wysyłka przez sendAppEmail
 // (nadawca z RESEND_FROM). Wywołujący łapie błąd — wysyłka nie blokuje zapisu.
@@ -22,9 +22,9 @@ function itemLine(i: RequestItem, withDecision: boolean): string {
   const qty = i.label === OTHER_NEEDS_LABEL && !i.catalog_item_id ? "" : ` — ${i.qty} ${escapeHtml(i.unit)}`;
   const note = i.note ? `<br><span style="color:#666;">${escapeHtml(i.note)}</span>` : "";
   if (!withDecision) return `<li>${name}${qty}${note}</li>`;
-  const changed = i.status === "changed" ? ` (zatwierdzono: ${i.approved_qty ?? 0} ${escapeHtml(i.unit)})` : "";
+  const changed = effectiveStatus(i) === "changed" ? ` (zatwierdzono: ${i.approved_qty ?? 0} ${escapeHtml(i.unit)})` : "";
   const decision = i.decision_note ? `<br><em>Uwaga organizatora: ${escapeHtml(i.decision_note)}</em>` : "";
-  return `<li><strong>${ITEM_STATUS[i.status].label}</strong>: ${name}${qty}${changed}${note}${decision}</li>`;
+  return `<li><strong>${ITEM_STATUS[effectiveStatus(i)].label}</strong>: ${name}${qty}${changed}${note}${decision}</li>`;
 }
 
 /** Do organizatora: partner wysłał (lub zmienił) wniosek — lista pozycji do akceptacji. */

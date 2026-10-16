@@ -3,11 +3,12 @@
 import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Check, CheckCheck, PackageCheck, Truck, X } from "lucide-react";
+import { Check, CheckCheck, PackageCheck, Pencil, Truck, X } from "lucide-react";
 import {
   DECISION_NOTE_MAX_LENGTH,
-  ITEM_QTY_MAX,
   ITEM_STATUS,
+  approvedQty,
+  effectiveStatus,
   OTHER_NEEDS_LABEL,
   requestStatus,
   requestStatusLabel,
@@ -148,96 +149,127 @@ function Info({ label, value, icon }: { label: string; value: string | null; ico
   );
 }
 
+type RowMode = "view" | "decide" | "change";
+
+/**
+ * Pozycja wniosku. Oczekująca: od razu przyciski decyzji. Rozstrzygnięta: decyzja, zatwierdzona
+ * ilość i uwaga + „Zmień decyzję”. Każdy przycisk ma własny `key` — bez tego React przy zmianie
+ * trybu używał tego samego <button> i klik „Zatwierdź inną ilość” (type=button) zamieniał go
+ * w trakcie zdarzenia w „Zapisz” (type=submit), co od razu wysyłało formularz.
+ */
 function ItemRow({ eventId, partnerId, item }: { eventId: string; partnerId: string; item: AdminRequestItem }) {
-  const [mode, setMode] = useState<"idle" | "change">("idle");
+  const [mode, setMode] = useState<RowMode>(item.status === "pending" ? "decide" : "view");
   const [state, formAction, isPending] = useActionState(async (prev: BoothDecisionState, fd: FormData) => {
     const decision = (fd.get("decision") as BoothDecision | null) ?? "approve";
     const res = await decideBoothItem(eventId, partnerId, item.id, decision, prev, fd);
     if (res.status === "success" && res.message) toast.success(res.message);
     return res;
   }, idle);
-  const s = ITEM_STATUS[item.status];
+  const status = effectiveStatus(item);
+  const s = ITEM_STATUS[status];
   const isOther = !item.catalog_item_id && item.label === OTHER_NEEDS_LABEL;
+  const decided = item.status !== "pending";
 
   return (
     <li className="flex flex-col gap-2 rounded-lg border p-3 text-sm">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-medium">
-            {item.label}
-            {!isOther && (
-              <span className="font-normal text-muted-foreground">
-                {" "}— {item.qty} {item.unit}
-              </span>
-            )}
-          </p>
-          {item.note && <p className="whitespace-pre-line break-words text-muted-foreground">{item.note}</p>}
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            <Badge variant={s.variant}>{s.label}</Badge>
-            {item.status === "changed" && (
-              <Badge variant="outline" className="font-normal">
-                Zatwierdzono: {item.approved_qty ?? 0} {item.unit}
-              </Badge>
-            )}
-            {item.included !== null && (
-              <Badge variant="outline" className="font-normal text-muted-foreground">
-                W pakiecie: {item.included}
-              </Badge>
-            )}
-            {item.over && <Badge variant="warning">Ponad pakiet</Badge>}
-          </div>
-          {item.decision_note && <p className="mt-1 text-xs text-muted-foreground">Twoja uwaga: {item.decision_note}</p>}
+      <div className="min-w-0">
+        <p className="font-medium">
+          {item.label}
+          {!isOther && (
+            <span className="font-normal text-muted-foreground">
+              {" "}— wnioskowano {item.qty} {item.unit}
+            </span>
+          )}
+        </p>
+        {item.note && <p className="whitespace-pre-line break-words text-muted-foreground">{item.note}</p>}
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {!decided && <Badge variant={s.variant}>{s.label}</Badge>}
+          {item.included !== null && (
+            <Badge variant="outline" className="font-normal text-muted-foreground">
+              W pakiecie: {item.included}
+            </Badge>
+          )}
+          {item.over && <Badge variant="warning">Ponad pakiet</Badge>}
         </div>
       </div>
 
-      <form action={formAction} className="flex flex-col gap-2">
-        <Input
-          name="decision_note"
-          maxLength={DECISION_NOTE_MAX_LENGTH}
-          defaultValue={item.decision_note ?? ""}
-          placeholder="Uwaga dla partnera (opcjonalnie)"
-          aria-label={`Uwaga dla partnera: ${item.label}`}
-          disabled={isPending}
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          {mode === "change" ? (
-            <>
-              <Input
-                name="approved_qty"
-                type="number"
-                min={0}
-                max={ITEM_QTY_MAX}
-                defaultValue={item.approved_qty ?? item.qty}
-                className="w-20"
-                aria-label="Zatwierdzona ilość"
-                disabled={isPending}
-                autoFocus
-              />
-              <Button type="submit" size="sm" disabled={isPending} name="decision" value="change">
-                {isPending ? "Zapisywanie…" : "Zapisz ilość"}
-              </Button>
-              <Button type="button" size="sm" variant="ghost" disabled={isPending} onClick={() => setMode("idle")}>
-                Anuluj
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button type="submit" size="sm" variant="outline" disabled={isPending} name="decision" value="approve">
-                <Check /> Zatwierdź
-              </Button>
-              {!isOther && (
-                <Button type="button" size="sm" variant="outline" disabled={isPending} onClick={() => setMode("change")}>
-                  <CheckCheck /> Zatwierdź inną ilość
-                </Button>
+      {mode === "view" ? (
+        <div className="flex flex-wrap items-start justify-between gap-2 rounded-md bg-muted/40 p-2">
+          <div className="flex flex-col gap-1">
+            <p className="flex flex-wrap items-center gap-2">
+              <Badge variant={s.variant}>{s.label}</Badge>
+              {!isOther && status !== "rejected" && (
+                <span>
+                  Zatwierdzona ilość: <strong>{approvedQty(item)}</strong> {item.unit}
+                </span>
               )}
-              <Button type="submit" size="sm" variant="ghost" disabled={isPending} name="decision" value="reject">
-                <X /> Odrzuć
-              </Button>
-            </>
-          )}
-          {state.status === "error" && state.message && <p className="text-destructive">{state.message}</p>}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Uwaga dla partnera: {item.decision_note ? item.decision_note : "—"}
+            </p>
+          </div>
+          <Button key="edit" type="button" size="sm" variant="ghost" onClick={() => setMode("decide")}>
+            <Pencil /> Zmień decyzję
+          </Button>
         </div>
-      </form>
+      ) : (
+        <form action={formAction} className="flex flex-col gap-2">
+          <Input
+            name="decision_note"
+            maxLength={DECISION_NOTE_MAX_LENGTH}
+            defaultValue={item.decision_note ?? ""}
+            placeholder="Uwaga dla partnera (opcjonalnie)"
+            aria-label={`Uwaga dla partnera: ${item.label}`}
+            disabled={isPending}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            {mode === "change" ? (
+              <>
+                <Input
+                  key="qty"
+                  name="approved_qty"
+                  type="number"
+                  min={1}
+                  max={item.qty}
+                  defaultValue={item.approved_qty ?? item.qty}
+                  placeholder={String(item.qty)}
+                  className="w-20"
+                  aria-label={`Zatwierdzona ilość (wnioskowano ${item.qty})`}
+                  disabled={isPending}
+                  autoFocus
+                />
+                <span className="text-xs text-muted-foreground">z {item.qty} {item.unit}</span>
+                <Button key="save-qty" type="submit" size="sm" disabled={isPending} name="decision" value="change">
+                  {isPending ? "Zapisywanie…" : "Zapisz"}
+                </Button>
+                <Button key="cancel-qty" type="button" size="sm" variant="ghost" disabled={isPending} onClick={() => setMode("decide")}>
+                  Anuluj
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button key="approve" type="submit" size="sm" variant="outline" disabled={isPending} name="decision" value="approve">
+                  <Check /> Zatwierdź
+                </Button>
+                {!isOther && item.qty > 1 && (
+                  <Button key="open-qty" type="button" size="sm" variant="outline" disabled={isPending} onClick={() => setMode("change")}>
+                    <CheckCheck /> Zatwierdź inną ilość
+                  </Button>
+                )}
+                <Button key="reject" type="submit" size="sm" variant="ghost" disabled={isPending} name="decision" value="reject">
+                  <X /> Odrzuć
+                </Button>
+                {decided && (
+                  <Button key="cancel-edit" type="button" size="sm" variant="ghost" disabled={isPending} onClick={() => setMode("view")}>
+                    Anuluj
+                  </Button>
+                )}
+              </>
+            )}
+            {state.status === "error" && state.message && <p className="text-destructive">{state.message}</p>}
+          </div>
+        </form>
+      )}
     </li>
   );
 }

@@ -13,6 +13,7 @@ import {
   TIME_NOTE_MAX_LENGTH,
   VEHICLE_NOTE_MAX_LENGTH,
   VEHICLE_TYPES,
+  effectiveStatus,
   isOverPackage,
   requestStatus,
   requestStatusLabel,
@@ -308,11 +309,12 @@ function CatalogRow({ item, requested }: { item: BoothCatalogView; requested: Re
 }
 
 function Decision({ item }: { item: RequestItem }) {
-  const s = ITEM_STATUS[item.status];
+  const status = effectiveStatus(item);
+  const s = ITEM_STATUS[status];
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs">
       <Badge variant={s.variant}>{s.label}</Badge>
-      {item.status === "changed" && (
+      {status === "changed" && (
         <span>
           Zatwierdzono: {item.approved_qty ?? 0} {item.unit} (zgłoszono {item.qty})
         </span>

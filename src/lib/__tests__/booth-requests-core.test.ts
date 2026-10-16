@@ -3,6 +3,8 @@ import {
   OTHER_NEEDS_LABEL,
   aggregateTotals,
   approvedQty,
+  effectiveStatus,
+  parseApprovedQty,
   inPackagePendingIds,
   includedFor,
   isAfterDeadline,
@@ -231,8 +233,21 @@ describe("status i decyzje", () => {
     expect(requestStatusLabel(requestStatus([item(), item({ status: "approved" })]))).toBe("Do akceptacji (1)");
     expect(requestStatus([item({ status: "approved" })])).toEqual({ kind: "approved" });
     expect(requestStatus([item({ status: "rejected" })])).toEqual({ kind: "rejected" });
-    expect(requestStatus([item({ status: "changed" })])).toEqual({ kind: "partial" });
+    expect(requestStatus([item({ status: "changed", qty: 4, approved_qty: 2 })])).toEqual({ kind: "partial" });
+    // „Inna ilość” równa wnioskowanej to zwykłe zatwierdzenie (dane sprzed poprawki).
+    expect(requestStatus([item({ status: "changed", qty: 4, approved_qty: 4 })])).toEqual({ kind: "approved" });
+    expect(effectiveStatus(item({ status: "changed", qty: 4, approved_qty: 4 }))).toBe("approved");
+    expect(effectiveStatus(item({ status: "changed", qty: 4, approved_qty: 3 }))).toBe("changed");
     expect(requestStatus([item({ status: "approved" }), item({ status: "rejected" })])).toEqual({ kind: "partial" });
+  });
+
+  it("parseApprovedQty: od 1 do wnioskowanej, 0 → „Odrzuć”", () => {
+    expect(parseApprovedQty("3", 4)).toEqual({ ok: true, value: 3 });
+    expect(parseApprovedQty("4", 4)).toEqual({ ok: true, value: 4 });
+    expect(parseApprovedQty("0", 4)).toMatchObject({ ok: false, error: expect.stringMatching(/Odrzuć/) });
+    expect(parseApprovedQty("5", 4)).toMatchObject({ ok: false, error: expect.stringMatching(/większa niż wnioskowana/) });
+    expect(parseApprovedQty("", 4).ok).toBe(false);
+    expect(parseApprovedQty(null, 4).ok).toBe(false);
   });
 
   it("approvedQty", () => {

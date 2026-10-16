@@ -7,7 +7,7 @@ import { featureGate } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrigin } from "@/lib/request-origin";
 import { BOOTH_LOAD_ERROR, getBoothRequest, getCatalog, getPartnerRecipientEmails, loadBoothData } from "@/lib/booth-requests";
-import { DECISION_NOTE_MAX_LENGTH, ITEM_QTY_MAX, inPackagePendingIds } from "@/lib/booth-requests-core";
+import { DECISION_NOTE_MAX_LENGTH, inPackagePendingIds, parseApprovedQty } from "@/lib/booth-requests-core";
 import { sendBoothDecisionEmail } from "@/lib/email/booth-request";
 
 // #10 Faza A2 — decyzje organizatora w sprawie zapotrzebowania partnera na stoisko.
@@ -83,26 +83,41 @@ export async function decideBoothItem(
     return { status: "error", message: `Uwaga może mieć najwyżej ${DECISION_NOTE_MAX_LENGTH} znaków.` };
   }
 
+  const admin = createAdminClient();
+  let status: "approved" | "changed" | "rejected" = decision === "approve" ? "approved" : "rejected";
   let approvedQty: number | null = null;
+  let requestedQty: number | null = null;
   if (decision === "change") {
-    const raw = formData.get("approved_qty");
-    const value = typeof raw === "string" ? raw.trim() : "";
-    if (!/^\d+$/.test(value) || Number(value) > ITEM_QTY_MAX) {
-      return { status: "error", message: `Podaj zatwierdzoną ilość (0–${ITEM_QTY_MAX}).` };
+    const { data: current } = await admin
+      .from("partner_booth_request_items")
+      .select("qty")
+      .eq("id", itemId)
+      .eq("partner_id", partnerId)
+      .eq("event_id", eventId)
+      .maybeSingle();
+    if (!current) return { status: "error", message: "Pozycja nie istnieje — odśwież stronę." };
+    requestedQty = current.qty as number;
+    const parsed = parseApprovedQty(formData.get("approved_qty"), requestedQty);
+    if (!parsed.ok) return { status: "error", message: parsed.error };
+    // Ilość równa wnioskowanej to zwykłe zatwierdzenie, nie „inna ilość”.
+    if (parsed.value === requestedQty) status = "approved";
+    else {
+      status = "changed";
+      approvedQty = parsed.value;
     }
-    approvedQty = Number(value);
   }
 
-  const status = decision === "approve" ? "approved" : decision === "change" ? "changed" : "rejected";
-  const { data, error } = await createAdminClient()
+  let update = admin
     .from("partner_booth_request_items")
     .update({ status, approved_qty: approvedQty, decision_note: note || null, reviewed_at: new Date().toISOString() })
     .eq("id", itemId)
     .eq("partner_id", partnerId)
-    .eq("event_id", eventId)
-    .select("id");
+    .eq("event_id", eventId);
+  // Partner mógł w międzyczasie zmienić ilość — decyzja dotyczy tej, którą widział organizator.
+  if (requestedQty !== null) update = update.eq("qty", requestedQty);
+  const { data, error } = await update.select("id");
   if (error) return { status: "error", message: "Nie udało się zapisać decyzji." };
-  if (!data?.length) return { status: "error", message: "Pozycja nie istnieje — odśwież stronę." };
+  if (!data?.length) return { status: "error", message: "Pozycja zmieniła się w międzyczasie — odśwież stronę." };
 
   revalidate(eventId, partnerId);
   // Odczyt po zapisie decyzji nie może jej „cofnąć” w UI — błąd = brak maila.

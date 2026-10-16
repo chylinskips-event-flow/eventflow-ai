@@ -1,7 +1,7 @@
 import { getOwnEvent } from "@/lib/events";
 import { featureGate } from "@/lib/entitlements";
 import { getLogisticsData, loadBoothData } from "@/lib/booth-requests";
-import { ITEM_STATUS, approvedQty, requestTimesLabel, vehicleTypeLabel } from "@/lib/booth-requests-core";
+import { ITEM_STATUS, approvedQty, effectiveStatus, requestTimesLabel, vehicleTypeLabel } from "@/lib/booth-requests-core";
 import { partnerTierLabel } from "@/lib/partner-options";
 import { toExcelCsv } from "@/lib/csv";
 
@@ -81,7 +81,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
               i.catalog_item_id ? i.unit : "",
               i.catalog_item_id ? i.qty : "",
               i.catalog_item_id ? approvedQty(i) : "",
-              ITEM_STATUS[i.status].label,
+              ITEM_STATUS[effectiveStatus(i)].label,
               i.note ?? "",
               i.decision_note ?? "",
               ...shared,

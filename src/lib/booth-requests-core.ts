@@ -471,16 +471,25 @@ export type RequestStatus =
   | { kind: "rejected" };
 
 /**
- * Status wniosku (badge na karcie partnera): oczekujące mają pierwszeństwo; wszystkie
- * zatwierdzone bez zmian → „Zatwierdzone”; wszystkie odrzucone → „Odrzucone”;
- * mieszanka albo zatwierdzona inna ilość → „Częściowo zatwierdzone”.
+ * Status pozycji do wyświetlenia: „inna ilość” równa wnioskowanej to zwykłe „Zatwierdzone”
+ * (np. dane zapisane przed poprawką, w której klik od razu zatwierdzał wnioskowaną ilość).
  */
-export function requestStatus(items: Pick<RequestItem, "status">[] | null): RequestStatus {
+export function effectiveStatus(i: Pick<RequestItem, "status" | "qty" | "approved_qty">): ItemStatus {
+  return i.status === "changed" && i.approved_qty === i.qty ? "approved" : i.status;
+}
+
+/**
+ * Status wniosku (badge na karcie partnera): oczekujące mają pierwszeństwo; wszystkie
+ * zatwierdzone (w wnioskowanej ilości) → „Zatwierdzone”; wszystkie odrzucone → „Odrzucone”;
+ * część odrzucona albo zatwierdzona w innej ilości → „Częściowo zatwierdzone”.
+ */
+export function requestStatus(items: Pick<RequestItem, "status" | "qty" | "approved_qty">[] | null): RequestStatus {
   if (!items || items.length === 0) return { kind: "none" };
-  const pending = items.filter((i) => i.status === "pending").length;
+  const statuses = items.map(effectiveStatus);
+  const pending = statuses.filter((s) => s === "pending").length;
   if (pending > 0) return { kind: "pending", count: pending };
-  if (items.every((i) => i.status === "approved")) return { kind: "approved" };
-  if (items.every((i) => i.status === "rejected")) return { kind: "rejected" };
+  if (statuses.every((s) => s === "approved")) return { kind: "approved" };
+  if (statuses.every((s) => s === "rejected")) return { kind: "rejected" };
   return { kind: "partial" };
 }
 
@@ -497,6 +506,19 @@ export function requestStatusLabel(s: RequestStatus): string {
     case "rejected":
       return "Odrzucone";
   }
+}
+
+/** „Zatwierdź inną ilość”: od 1 do wnioskowanej; 0 = „Odrzuć”. */
+export function parseApprovedQty(
+  raw: unknown,
+  requested: number,
+): { ok: true; value: number } | { ok: false; error: string } {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (!/^\d+$/.test(value)) return { ok: false, error: `Podaj zatwierdzoną ilość (1–${requested}).` };
+  const n = Number(value);
+  if (n === 0) return { ok: false, error: "Ilość 0 — użyj „Odrzuć”." };
+  if (n > requested) return { ok: false, error: `Zatwierdzona ilość nie może być większa niż wnioskowana (${requested}).` };
+  return { ok: true, value: n };
 }
 
 /** Ilość zatwierdzona (0 dla oczekujących i odrzuconych). */
