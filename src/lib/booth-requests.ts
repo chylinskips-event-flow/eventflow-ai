@@ -6,6 +6,8 @@ import {
   DEFAULT_BOOTH_CATALOG,
   EMPTY_SETTINGS,
   parseIncludedByTier,
+  parseSlotStep,
+  parseWindows,
   type BoothRequest,
   type CatalogItem,
   type LogisticsSettings,
@@ -19,10 +21,10 @@ function logError(what: string, error: { code?: string; message: string } | null
   if (error) console.error(`[booth-requests] ${what}`, JSON.stringify({ code: error.code, message: error.message }));
 }
 
-const SETTINGS_COLUMNS = "request_deadline, setup_from, setup_to, teardown_from, teardown_to";
+const SETTINGS_COLUMNS = "request_deadline, setup_windows, teardown_windows, slot_step_minutes, require_vehicle_plate";
 const CATALOG_COLUMNS = "id, name, unit, description, active, sort_order, included_by_tier";
 const REQUEST_COLUMNS =
-  "id, partner_id, crew_count, setup_start, setup_end, teardown_start, teardown_end, vehicle, vehicle_note, submitted_at, late_change_at";
+  "id, partner_id, crew_count, setup_start, setup_end, teardown_start, teardown_end, setup_note, teardown_note, vehicle, vehicle_note, vehicle_plate, vehicle_type, submitted_at, late_change_at, times_need_fix";
 const ITEM_COLUMNS =
   "id, request_id, catalog_item_id, label, unit, qty, note, status, approved_qty, decision_note, reviewed_at, created_at";
 
@@ -33,7 +35,14 @@ export async function getLogisticsSettings(eventId: string): Promise<LogisticsSe
     .eq("event_id", eventId)
     .maybeSingle();
   logError("settings read failed", error);
-  return (data as LogisticsSettings | null) ?? EMPTY_SETTINGS;
+  if (!data) return EMPTY_SETTINGS;
+  return {
+    request_deadline: data.request_deadline as string | null,
+    setup_windows: parseWindows(data.setup_windows),
+    teardown_windows: parseWindows(data.teardown_windows),
+    slot_step_minutes: parseSlotStep(data.slot_step_minutes),
+    require_vehicle_plate: data.require_vehicle_plate === true,
+  };
 }
 
 /**

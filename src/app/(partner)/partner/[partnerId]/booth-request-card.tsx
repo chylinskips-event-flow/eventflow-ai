@@ -2,26 +2,35 @@
 
 import { useActionState, useState } from "react";
 import { toast } from "sonner";
-import { Lock, Truck, X } from "lucide-react";
+import { AlertTriangle, Lock, Truck } from "lucide-react";
 import {
   CREW_MAX,
   ITEM_NOTE_MAX_LENGTH,
   ITEM_QTY_MAX,
   ITEM_STATUS,
   OTHER_NEEDS_MAX_LENGTH,
+  PLATE_MAX_LENGTH,
+  TIME_NOTE_MAX_LENGTH,
   VEHICLE_NOTE_MAX_LENGTH,
+  VEHICLE_TYPES,
   isOverPackage,
   requestStatus,
   requestStatusLabel,
+  slotFits,
+  slotTimes,
+  toMinutes,
+  windowLabel,
   type RequestItem,
+  type TimeSlot,
+  type TimeWindow,
 } from "@/lib/booth-requests-core";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { submitBoothRequest } from "./booth-actions";
 import type { PartnerActionState } from "./actions";
@@ -38,18 +47,21 @@ export type BoothCatalogView = {
   included: number | null;
 };
 
-/** Daty już sformatowane / przeliczone na pola datetime-local w strefie eventu (po stronie serwera). */
+/** Godziny przeliczone na dzień + godziny w strefie eventu (po stronie serwera). */
 export type BoothRequestView = {
   items: RequestItem[];
   crew_count: number | null;
-  setup_start: string;
-  setup_end: string;
-  teardown_start: string;
-  teardown_end: string;
+  setup: TimeSlot | null;
+  teardown: TimeSlot | null;
+  setup_note: string | null;
+  teardown_note: string | null;
   vehicle: boolean;
   vehicle_note: string | null;
+  vehicle_plate: string | null;
+  vehicle_type: string | null;
   submittedAt: string | null;
   lateChange: boolean;
+  timesNeedFix: boolean;
 };
 
 export function BoothRequestCard({
@@ -58,8 +70,10 @@ export function BoothRequestCard({
   request,
   deadlineLabel,
   locked,
-  setupRange,
-  teardownRange,
+  setupWindows,
+  teardownWindows,
+  slotStep,
+  requirePlate,
 }: {
   partnerId: string;
   catalog: BoothCatalogView[];
@@ -67,8 +81,10 @@ export function BoothRequestCard({
   deadlineLabel: string | null;
   /** Po terminie składania — formularz tylko do odczytu, zmiany przez „Poproś o zmianę”. */
   locked: boolean;
-  setupRange: string | null;
-  teardownRange: string | null;
+  setupWindows: TimeWindow[];
+  teardownWindows: TimeWindow[];
+  slotStep: number;
+  requirePlate: boolean;
 }) {
   const [changeMode, setChangeMode] = useState(false);
   const [formKey, setFormKey] = useState(0);
@@ -104,6 +120,15 @@ export function BoothRequestCard({
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {request?.timesNeedFix && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-400 bg-amber-50 p-3 text-sm dark:bg-amber-950/30">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+            <p>
+              <strong>Do poprawy:</strong> organizator zmienił godziny montażu/demontażu i Twój wybór jest poza nimi.
+              Wybierz godziny ponownie i wyślij wniosek.
+            </p>
+          </div>
+        )}
         {locked && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3 text-sm">
             <p className="flex items-center gap-2">
@@ -159,19 +184,29 @@ export function BoothRequestCard({
                   defaultValue={request?.crew_count ?? ""}
                 />
               </div>
-              <TimeRange
+              <SlotPicker
+                kind="setup"
                 label="Montaż"
-                hint={setupRange}
-                names={["setup_start", "setup_end"]}
-                initial={[request?.setup_start ?? "", request?.setup_end ?? ""]}
+                windows={setupWindows}
+                step={slotStep}
+                initial={request?.setup ?? null}
+                initialNote={request?.setup_note ?? ""}
               />
-              <TimeRange
+              <SlotPicker
+                kind="teardown"
                 label="Demontaż"
-                hint={teardownRange}
-                names={["teardown_start", "teardown_end"]}
-                initial={[request?.teardown_start ?? "", request?.teardown_end ?? ""]}
+                windows={teardownWindows}
+                step={slotStep}
+                initial={request?.teardown ?? null}
+                initialNote={request?.teardown_note ?? ""}
               />
-              <VehicleField initial={request?.vehicle ?? false} note={request?.vehicle_note ?? ""} />
+              <VehicleField
+                initial={request?.vehicle ?? false}
+                note={request?.vehicle_note ?? ""}
+                plate={request?.vehicle_plate ?? ""}
+                type={request?.vehicle_type ?? ""}
+                requirePlate={requirePlate}
+              />
             </div>
           </fieldset>
 
@@ -287,51 +322,154 @@ function Decision({ item }: { item: RequestItem }) {
   );
 }
 
-function TimeField({ id, name, initial }: { id: string; name: string; initial: string }) {
-  const [value, setValue] = useState(initial);
+const NONE = "__none__";
+
+/**
+ * Wybór godzin etapu. Z oknami organizatora: okno (dzień + zakres) i godziny z listy co `step`
+ * minut — poza oknem nie da się wybrać. Bez okien: tylko orientacyjny opis.
+ */
+function SlotPicker({
+  kind,
+  label,
+  windows,
+  step,
+  initial,
+  initialNote,
+}: {
+  kind: "setup" | "teardown";
+  label: string;
+  windows: TimeWindow[];
+  step: number;
+  initial: TimeSlot | null;
+  initialNote: string;
+}) {
+  const startIndex = initial ? windows.findIndex((w) => slotFits(initial, [w], step)) : -1;
+  const [windowIndex, setWindowIndex] = useState(startIndex >= 0 ? String(startIndex) : NONE);
+  const [from, setFrom] = useState(startIndex >= 0 && initial ? initial.from : NONE);
+  const [to, setTo] = useState(startIndex >= 0 && initial ? initial.to : NONE);
+
+  if (windows.length === 0) {
+    return (
+      <div className="flex flex-col gap-2">
+        <Label htmlFor={`${kind}_note`}>{label} — orientacyjnie</Label>
+        <Input
+          id={`${kind}_note`}
+          name={`${kind}_note`}
+          maxLength={TIME_NOTE_MAX_LENGTH}
+          defaultValue={initialNote}
+          placeholder="Np. dzień przed wydarzeniem, ok. 16:00–18:00"
+        />
+        <p className="text-xs text-muted-foreground">Organizator nie ustawił zakresu — podaj orientacyjne godziny.</p>
+      </div>
+    );
+  }
+
+  const w = windowIndex === NONE ? null : windows[Number(windowIndex)];
+  const times = w ? slotTimes(w, step) : [];
+  const starts = times.slice(0, -1);
+  const ends = from === NONE ? [] : times.filter((t) => toMinutes(t) > toMinutes(from));
+  const chosen = w && from !== NONE && to !== NONE;
+
   return (
-    <div className="flex items-center gap-1">
-      <DateTimePicker id={id} name={name} value={value} onChange={setValue} />
-      {value && (
-        <Button type="button" size="icon-sm" variant="ghost" aria-label="Wyczyść" onClick={() => setValue("")}>
-          <X />
-        </Button>
+    <div className="flex flex-col gap-2">
+      <p className="text-sm font-medium">{label}</p>
+      {initial && startIndex < 0 && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          Poprzedni wybór ({windowLabel(initial)}) jest poza godzinami organizatora — wybierz ponownie.
+        </p>
+      )}
+      <input type="hidden" name={`${kind}_date`} value={chosen ? w.date : ""} />
+      <input type="hidden" name={`${kind}_from`} value={chosen ? from : ""} />
+      <input type="hidden" name={`${kind}_to`} value={chosen ? to : ""} />
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-col gap-1">
+          <Label htmlFor={`${kind}-window`} className="text-xs text-muted-foreground">Dzień i zakres</Label>
+          <Select
+            value={windowIndex}
+            onValueChange={(v) => {
+              setWindowIndex(v);
+              setFrom(NONE);
+              setTo(NONE);
+            }}
+          >
+            <SelectTrigger id={`${kind}-window`} className="w-64">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>— nie wybrano —</SelectItem>
+              {windows.map((win, i) => (
+                <SelectItem key={i} value={String(i)}>
+                  {windowLabel(win)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {w && (
+          <>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor={`${kind}-from`} className="text-xs text-muted-foreground">Od</Label>
+              <Select
+                value={from}
+                onValueChange={(v) => {
+                  setFrom(v);
+                  if (to !== NONE && toMinutes(to) <= toMinutes(v)) setTo(NONE);
+                }}
+              >
+                <SelectTrigger id={`${kind}-from`} className="w-24">
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>—</SelectItem>
+                  {starts.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor={`${kind}-to`} className="text-xs text-muted-foreground">Do</Label>
+              <Select value={to} onValueChange={setTo} disabled={from === NONE}>
+                <SelectTrigger id={`${kind}-to`} className="w-24">
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>—</SelectItem>
+                  {ends.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        )}
+      </div>
+      {w && (from === NONE) !== (to === NONE) && (
+        <p className="text-xs text-muted-foreground">Wybierz godzinę rozpoczęcia i zakończenia.</p>
       )}
     </div>
   );
 }
 
-function TimeRange({
-  label,
-  hint,
-  names,
+function VehicleField({
   initial,
+  note,
+  plate,
+  type,
+  requirePlate,
 }: {
-  label: string;
-  hint: string | null;
-  names: [string, string];
-  initial: [string, string];
+  initial: boolean;
+  note: string;
+  plate: string;
+  type: string;
+  requirePlate: boolean;
 }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <p className="text-sm font-medium">{label}</p>
-      {hint && <p className="text-xs text-muted-foreground">Możliwy w godzinach: {hint}</p>}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex flex-col gap-1">
-          <Label htmlFor={names[0]} className="text-xs text-muted-foreground">Od</Label>
-          <TimeField id={names[0]} name={names[0]} initial={initial[0]} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label htmlFor={names[1]} className="text-xs text-muted-foreground">Do</Label>
-          <TimeField id={names[1]} name={names[1]} initial={initial[1]} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function VehicleField({ initial, note }: { initial: boolean; note: string }) {
   const [vehicle, setVehicle] = useState(initial);
+  const [vehicleType, setVehicleType] = useState(type || NONE);
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
@@ -341,13 +479,50 @@ function VehicleField({ initial, note }: { initial: boolean; note: string }) {
         </Label>
       </div>
       {vehicle && (
-        <Input
-          name="vehicle_note"
-          maxLength={VEHICLE_NOTE_MAX_LENGTH}
-          defaultValue={note}
-          placeholder="Np. bus 3,5 t, rozładunek ok. 30 min, potrzebny wózek"
-          aria-label="Uwaga o rozładunku"
-        />
+        <div className="flex flex-col gap-3 pl-6">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="vehicle_plate" className="text-xs text-muted-foreground">
+                Numer rejestracyjny{requirePlate ? " *" : " (opcjonalnie)"}
+              </Label>
+              <Input
+                id="vehicle_plate"
+                name="vehicle_plate"
+                required={requirePlate}
+                maxLength={PLATE_MAX_LENGTH}
+                defaultValue={plate}
+                placeholder="WX 12345"
+                autoComplete="off"
+                className="w-40 uppercase"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="vehicle_type" className="text-xs text-muted-foreground">Typ pojazdu (opcjonalnie)</Label>
+              <input type="hidden" name="vehicle_type" value={vehicleType === NONE ? "" : vehicleType} />
+              <Select value={vehicleType} onValueChange={setVehicleType}>
+                <SelectTrigger id="vehicle_type" className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>— nie podano —</SelectItem>
+                  {VEHICLE_TYPES.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <Input
+            name="vehicle_note"
+            maxLength={VEHICLE_NOTE_MAX_LENGTH}
+            defaultValue={note}
+            placeholder="Np. bus 3,5 t, rozładunek ok. 30 min, potrzebny wózek"
+            aria-label="Uwaga o rozładunku"
+          />
+          <p className="text-xs text-muted-foreground">Numer rejestracyjny widzi tylko organizator (np. dla ochrony przy wjeździe).</p>
+        </div>
       )}
     </div>
   );

@@ -1,7 +1,7 @@
 import { getOwnEvent } from "@/lib/events";
 import { featureGate } from "@/lib/entitlements";
 import { getLogisticsData } from "@/lib/booth-requests";
-import { ITEM_STATUS, approvedQty, logisticsRangeLabel } from "@/lib/booth-requests-core";
+import { ITEM_STATUS, approvedQty, requestTimesLabel, vehicleTypeLabel } from "@/lib/booth-requests-core";
 import { partnerTierLabel } from "@/lib/partner-options";
 import { toExcelCsv } from "@/lib/csv";
 
@@ -49,14 +49,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
             "Montaż",
             "Demontaż",
             "Rozładunek",
+            "Typ pojazdu",
+            "Nr rejestracyjny",
+            "Uwaga o rozładunku",
+            "Godziny do poprawy",
           ],
           booths.flatMap((b) => {
             const r = b.request;
             const shared = [
               r.crew_count !== null ? String(r.crew_count) : "",
-              logisticsRangeLabel(r.setup_start, r.setup_end, tz) ?? "",
-              logisticsRangeLabel(r.teardown_start, r.teardown_end, tz) ?? "",
-              r.vehicle ? `Tak${r.vehicle_note ? ` — ${r.vehicle_note}` : ""}` : "Nie",
+              requestTimesLabel(r.setup_start, r.setup_end, r.setup_note, tz) ?? "",
+              requestTimesLabel(r.teardown_start, r.teardown_end, r.teardown_note, tz) ?? "",
+              r.vehicle ? "Tak" : "Nie",
+              r.vehicle ? (vehicleTypeLabel(r.vehicle_type) ?? "") : "",
+              r.vehicle ? (r.vehicle_plate ?? "") : "",
+              r.vehicle ? (r.vehicle_note ?? "") : "",
+              r.times_need_fix ? "Tak" : "",
             ];
             const head = [b.partnerName, partnerTierLabel(b.tier) ?? "", b.boothLocation ?? ""];
             if (r.items.length === 0) return [[...head, "", "", "", "", "", "", "", ...shared]];

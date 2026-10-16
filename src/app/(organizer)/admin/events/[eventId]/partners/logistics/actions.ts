@@ -1,17 +1,24 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { getOwnEvent } from "@/lib/events";
 import { featureGate } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { parseDateTimeLocal } from "@/lib/format";
-import { getCatalog } from "@/lib/booth-requests";
+import { parseDateTimeLocal, pluralizePl } from "@/lib/format";
+import { getCatalog, getEventBoothRequests, getPartnerRecipientEmails } from "@/lib/booth-requests";
 import {
   MAX_CATALOG_ITEMS,
+  SLOT_STEPS,
+  parseSlotStep,
+  readWindows,
+  slotWithinWindows,
+  toLocalSlot,
   validateCatalogInput,
-  validateSettings,
   type LogisticsSettings,
 } from "@/lib/booth-requests-core";
+import { sendBoothTimesNeedFixEmail } from "@/lib/email/booth-request";
+import { getOrigin } from "@/lib/request-origin";
 
 // #10 Faza A2 — ustawienia logistyki i katalog pozycji (organizator). Autoryzacja:
 // właściciel eventu (getOwnEvent, RLS) + partner_portal w planie.
@@ -42,34 +49,88 @@ export async function saveLogisticsSettings(
   const ctx = await organizerEvent(eventId);
   if ("error" in ctx) return { status: "error", message: ctx.error };
 
-  let invalid = false;
-  const when = (k: keyof LogisticsSettings) => {
-    const v = formData.get(k);
-    if (typeof v !== "string" || !v.trim()) return null;
-    if (!DATETIME.test(v.trim())) {
-      invalid = true;
-      return null;
-    }
-    return parseDateTimeLocal(v.trim(), ctx.event.timezone);
-  };
+  const deadlineRaw = formData.get("request_deadline");
+  const deadline = typeof deadlineRaw === "string" ? deadlineRaw.trim() : "";
+  if (deadline && !DATETIME.test(deadline)) return { status: "error", message: "Niepoprawny termin składania." };
+  const getAll = (k: string) => formData.getAll(k);
+  const setup = readWindows(getAll, "setup", "Montaż");
+  if (!setup.ok) return { status: "error", message: setup.error };
+  const teardown = readWindows(getAll, "teardown", "Demontaż");
+  if (!teardown.ok) return { status: "error", message: teardown.error };
+  const stepRaw = Number(formData.get("slot_step_minutes"));
+  if (!(SLOT_STEPS as readonly number[]).includes(stepRaw)) return { status: "error", message: "Wybierz krok godzin." };
+
   const settings: LogisticsSettings = {
-    request_deadline: when("request_deadline"),
-    setup_from: when("setup_from"),
-    setup_to: when("setup_to"),
-    teardown_from: when("teardown_from"),
-    teardown_to: when("teardown_to"),
+    request_deadline: deadline ? parseDateTimeLocal(deadline, ctx.event.timezone) : null,
+    setup_windows: setup.value,
+    teardown_windows: teardown.value,
+    slot_step_minutes: parseSlotStep(stepRaw),
+    require_vehicle_plate: formData.get("require_vehicle_plate") === "on",
   };
-  if (invalid) return { status: "error", message: "Niepoprawna data lub godzina." };
-  const error = validateSettings(settings);
-  if (error) return { status: "error", message: error };
 
   const { error: dbError } = await createAdminClient()
     .from("booth_logistics_settings")
     .upsert({ event_id: eventId, ...settings }, { onConflict: "event_id" });
   if (dbError) return { status: "error", message: "Nie udało się zapisać ustawień." };
 
+  const flagged = await flagRequestsOutsideWindows(ctx.event, settings);
   revalidate(eventId);
-  return { status: "success", message: "Ustawienia zapisane." };
+  return {
+    status: "success",
+    message:
+      flagged > 0
+        ? `Ustawienia zapisane. ${flagged} ${pluralizePl(flagged, ["wniosek ma", "wnioski mają", "wniosków ma"])} godziny poza nowymi oknami — oznaczone „do poprawy”, partnerzy dostali e-mail.`
+        : "Ustawienia zapisane.",
+  };
+}
+
+/**
+ * Po zmianie okien: wnioski z godzinami poza oknem → „do poprawy” (+ e-mail do partnera przy
+ * nowym oznaczeniu); mieszczące się → flaga zdjęta. Bez okna dla danego etapu brak ograniczeń.
+ * Zwraca liczbę nowo oznaczonych wniosków. Błąd wysyłki nie cofa zapisu.
+ */
+async function flagRequestsOutsideWindows(
+  event: { id: string; name: string; timezone: string | null },
+  settings: LogisticsSettings,
+): Promise<number> {
+  const outside = (start: string | null, end: string | null, windows: LogisticsSettings["setup_windows"]) => {
+    if (windows.length === 0 || (!start && !end)) return false;
+    const slot = toLocalSlot(start, end, event.timezone);
+    return !slot || !slotWithinWindows(slot, windows);
+  };
+  const admin = createAdminClient();
+  const requests = await getEventBoothRequests(event.id);
+  const origin = getOrigin(await headers());
+  let flagged = 0;
+  for (const r of requests) {
+    const needFix =
+      outside(r.setup_start, r.setup_end, settings.setup_windows) ||
+      outside(r.teardown_start, r.teardown_end, settings.teardown_windows);
+    if (needFix === r.times_need_fix) continue;
+    const { error } = await admin
+      .from("partner_booth_requests")
+      .update({ times_need_fix: needFix })
+      .eq("id", r.id)
+      .eq("event_id", event.id);
+    if (error || !needFix) continue;
+    flagged += 1;
+    const { data: partner } = await admin.from("partners").select("name").eq("id", r.partner_id).maybeSingle();
+    const recipients = await getPartnerRecipientEmails(r.partner_id);
+    const results = await Promise.allSettled(
+      recipients.map((to) =>
+        sendBoothTimesNeedFixEmail({
+          to,
+          partnerName: (partner?.name as string | undefined) ?? "",
+          eventName: event.name,
+          setupWindows: settings.setup_windows,
+          teardownWindows: settings.teardown_windows,
+          panelUrl: `${origin}/partner/${r.partner_id}`,
+        }),
+      ),
+    );
+    for (const f of results) if (f.status === "rejected") console.error("[booth-requests] need-fix email failed", f.reason instanceof Error ? f.reason.message : f.reason);
+  }
+  return flagged;
 }
 
 export async function saveCatalogItem(

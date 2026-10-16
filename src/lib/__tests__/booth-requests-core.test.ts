@@ -7,7 +7,17 @@ import {
   includedFor,
   isAfterDeadline,
   isOverPackage,
+  normalizePlate,
   parseIncludedByTier,
+  parseSlotStep,
+  parseWindows,
+  readWindows,
+  requestTimesLabel,
+  slotFits,
+  slotTimes,
+  slotWithinWindows,
+  toLocalSlot,
+  vehicleLabel,
   parseRequestItems,
   planRequestItems,
   requestStatus,
@@ -85,21 +95,40 @@ describe("wniosek partnera", () => {
     expect(parseRequestItems(getter({ qty_c1: "1000" }), catalog).ok).toBe(false);
   });
 
-  it("validateRequestInfo: kolejność i zakres organizatora", () => {
+  it("validateRequestInfo: limity pól i wymóg numeru rejestracyjnego", () => {
     const info = {
       crew_count: 3,
-      setup_start: "2026-11-01T08:00:00Z",
-      setup_end: "2026-11-01T10:00:00Z",
+      setup_start: null,
+      setup_end: null,
       teardown_start: null,
       teardown_end: null,
-      vehicle: false,
+      setup_note: null,
+      teardown_note: null,
+      vehicle: true,
       vehicle_note: null,
+      vehicle_plate: null,
+      vehicle_type: null,
     };
     expect(validateRequestInfo(info, EMPTY_SETTINGS)).toBeNull();
-    expect(validateRequestInfo({ ...info, setup_end: "2026-11-01T07:00:00Z" }, EMPTY_SETTINGS)).toMatch(/przed końcem/);
-    const settings = { ...EMPTY_SETTINGS, setup_from: "2026-11-01T09:00:00Z", setup_to: "2026-11-01T12:00:00Z" };
-    expect(validateRequestInfo(info, settings)).toMatch(/spoza zakresu/);
+    expect(validateRequestInfo(info, { ...EMPTY_SETTINGS, require_vehicle_plate: true })).toMatch(/numer rejestracyjny/);
+    expect(validateRequestInfo({ ...info, vehicle_plate: "WX 12345" }, { ...EMPTY_SETTINGS, require_vehicle_plate: true })).toBeNull();
+    expect(validateRequestInfo({ ...info, vehicle: false }, { ...EMPTY_SETTINGS, require_vehicle_plate: true })).toBeNull();
     expect(validateRequestInfo({ ...info, crew_count: 9999 }, EMPTY_SETTINGS)).toMatch(/osób obsługi/);
+    expect(validateRequestInfo({ ...info, setup_note: "x".repeat(201) }, EMPTY_SETTINGS)).toMatch(/opis godzin/);
+  });
+
+  it("normalizePlate", () => {
+    expect(normalizePlate("  wx   12345 ")).toBe("WX 12345");
+    expect(normalizePlate("")).toBeNull();
+    expect(normalizePlate("WX-1234<script>")).toBe("invalid");
+    expect(normalizePlate("A".repeat(16))).toBe("invalid");
+  });
+
+  it("vehicleLabel", () => {
+    expect(vehicleLabel({ vehicle: false, vehicle_type: "van", vehicle_plate: "X", vehicle_note: null })).toBe("Nie");
+    expect(vehicleLabel({ vehicle: true, vehicle_type: "van", vehicle_plate: "WX 1", vehicle_note: "30 min" })).toBe(
+      "Tak — dostawczy, WX 1 — 30 min",
+    );
   });
 
   it("planRequestItems: tylko zmienione pozycje wracają do akceptacji", () => {
@@ -135,6 +164,64 @@ describe("wniosek partnera", () => {
     expect(isAfterDeadline(null, now)).toBe(false);
     expect(isAfterDeadline("2026-10-16T11:00:00Z", now)).toBe(true);
     expect(isAfterDeadline("2026-10-17T00:00:00Z", now)).toBe(false);
+  });
+});
+
+describe("okna montażu / demontażu", () => {
+  const win = { date: "2026-11-17", from: "14:00", to: "20:00" };
+
+  it("readWindows: pomija puste wiersze, odrzuca niepełne i odwrócone, sortuje", () => {
+    const fd = (rows: [string, string, string][]) => (k: string) =>
+      rows.map((r) => (k.endsWith("_date") ? r[0] : k.endsWith("_from") ? r[1] : r[2]));
+    expect(
+      readWindows(fd([["2026-11-18", "08:00", "10:00"], ["", "", ""], ["2026-11-17", "14:00", "20:00"]]), "setup", "Montaż"),
+    ).toEqual({ ok: true, value: [win, { date: "2026-11-18", from: "08:00", to: "10:00" }] });
+    expect(readWindows(fd([["2026-11-17", "14:00", ""]]), "setup", "Montaż").ok).toBe(false);
+    expect(readWindows(fd([["2026-11-17", "20:00", "14:00"]]), "setup", "Montaż").ok).toBe(false);
+  });
+
+  it("parseWindows / parseSlotStep odrzucają śmieci", () => {
+    expect(parseWindows([win, { date: "x", from: "1", to: "2" }, null])).toEqual([win]);
+    expect(parseWindows("[]")).toEqual([]);
+    expect(parseSlotStep(15)).toBe(15);
+    expect(parseSlotStep(7)).toBe(30);
+  });
+
+  it("slotTimes: co krok od początku okna, zawsze z końcem", () => {
+    expect(slotTimes({ from: "14:00", to: "15:30" }, 30)).toEqual(["14:00", "14:30", "15:00", "15:30"]);
+    expect(slotTimes({ from: "14:10", to: "15:00" }, 30)).toEqual(["14:10", "14:40", "15:00"]);
+  });
+
+  it("slotFits: okno 14:00–20:00, wybór 16:00–18:00 tak, poza oknem / poza krokiem nie", () => {
+    expect(slotFits({ date: "2026-11-17", from: "16:00", to: "18:00" }, [win], 30)).toBe(true);
+    expect(slotFits({ date: "2026-11-17", from: "13:30", to: "15:00" }, [win], 30)).toBe(false);
+    expect(slotFits({ date: "2026-11-17", from: "19:00", to: "21:00" }, [win], 30)).toBe(false);
+    expect(slotFits({ date: "2026-11-18", from: "16:00", to: "18:00" }, [win], 30)).toBe(false);
+    expect(slotFits({ date: "2026-11-17", from: "16:10", to: "18:00" }, [win], 30)).toBe(false);
+    expect(slotFits({ date: "2026-11-17", from: "18:00", to: "16:00" }, [win], 30)).toBe(false);
+    expect(slotFits({ date: "2026-11-17", from: "16:15", to: "18:00" }, [win], 15)).toBe(true);
+  });
+
+  it("slotWithinWindows: do oznaczania „do poprawy” (bez kroku)", () => {
+    expect(slotWithinWindows({ date: "2026-11-17", from: "16:10", to: "18:00" }, [win])).toBe(true);
+    expect(slotWithinWindows({ date: "2026-11-17", from: "13:00", to: "18:00" }, [win])).toBe(false);
+  });
+
+  it("toLocalSlot: timestamptz → dzień i godziny w strefie wydarzenia", () => {
+    // 17.11 w Warszawie to UTC+1.
+    expect(toLocalSlot("2026-11-17T15:00:00Z", "2026-11-17T17:00:00Z", "Europe/Warsaw")).toEqual({
+      date: "2026-11-17",
+      from: "16:00",
+      to: "18:00",
+    });
+    expect(toLocalSlot("2026-11-17T22:00:00Z", "2026-11-18T01:00:00Z", "Europe/Warsaw")).toBeNull();
+    expect(toLocalSlot(null, null, "Europe/Warsaw")).toBeNull();
+  });
+
+  it("requestTimesLabel: wybór z okna albo opis orientacyjny", () => {
+    expect(requestTimesLabel("2026-11-17T15:00:00Z", "2026-11-17T17:00:00Z", null, "Europe/Warsaw")).toMatch(/16:00–18:00$/);
+    expect(requestTimesLabel(null, null, "ok. 16", "Europe/Warsaw")).toBe("orientacyjnie: ok. 16");
+    expect(requestTimesLabel(null, null, null, "Europe/Warsaw")).toBeNull();
   });
 });
 

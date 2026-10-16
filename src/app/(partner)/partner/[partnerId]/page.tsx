@@ -11,9 +11,9 @@ import {
 } from "@/lib/partner-portal";
 import { partnerTierLabel } from "@/lib/partner-options";
 import { getOrigin } from "@/lib/request-origin";
-import { formatDate, formatDateTime, getCurrentTimestamp, toDateTimeLocalValue } from "@/lib/format";
+import { formatDate, formatDateTime, getCurrentTimestamp } from "@/lib/format";
 import { ensureDefaultCatalog, getBoothRequest, getCatalog, getLogisticsSettings } from "@/lib/booth-requests";
-import { includedFor, isAfterDeadline, logisticsRangeLabel } from "@/lib/booth-requests-core";
+import { includedFor, isAfterDeadline, toLocalSlot } from "@/lib/booth-requests-core";
 import type { BoothRequestView } from "./booth-request-card";
 import { PartnerPanel } from "./partner-panel";
 
@@ -37,20 +37,21 @@ export default async function PartnerPanelPage({ params }: { params: Promise<{ p
     getBoothRequest(partnerId),
   ]);
   const tz = ctx.event.timezone;
-  const local = (v: string | null) => toDateTimeLocalValue(v, tz);
   const boothRequest: BoothRequestView | null = request && {
     items: request.items,
     crew_count: request.crew_count,
-    setup_start: local(request.setup_start),
-    setup_end: local(request.setup_end),
-    teardown_start: local(request.teardown_start),
-    teardown_end: local(request.teardown_end),
+    setup: toLocalSlot(request.setup_start, request.setup_end, tz),
+    teardown: toLocalSlot(request.teardown_start, request.teardown_end, tz),
+    setup_note: request.setup_note,
+    teardown_note: request.teardown_note,
     vehicle: request.vehicle,
     vehicle_note: request.vehicle_note,
+    vehicle_plate: request.vehicle_plate,
+    vehicle_type: request.vehicle_type,
     submittedAt: formatDateTime(request.submitted_at, tz),
     lateChange: !!request.late_change_at,
+    timesNeedFix: request.times_need_fix,
   };
-  const range = (from: string | null, to: string | null) => logisticsRangeLabel(from, to, tz);
   const isPublic = ctx.event.status === "published" || ctx.event.status === "live";
   const origin = getOrigin(await headers());
 
@@ -79,8 +80,10 @@ export default async function PartnerPanelPage({ params }: { params: Promise<{ p
         request: boothRequest,
         deadlineLabel: formatDateTime(settings.request_deadline, tz),
         locked: isAfterDeadline(settings.request_deadline, getCurrentTimestamp()),
-        setupRange: range(settings.setup_from, settings.setup_to),
-        teardownRange: range(settings.teardown_from, settings.teardown_to),
+        setupWindows: settings.setup_windows,
+        teardownWindows: settings.teardown_windows,
+        slotStep: settings.slot_step_minutes,
+        requirePlate: settings.require_vehicle_plate,
       }}
     />
   );

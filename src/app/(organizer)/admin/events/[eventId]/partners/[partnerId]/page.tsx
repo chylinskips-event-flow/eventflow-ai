@@ -17,7 +17,7 @@ import { partnerTierLabel } from "@/lib/partner-options";
 import { getOrigin } from "@/lib/request-origin";
 import { formatDateTime, getCurrentTimestamp } from "@/lib/format";
 import { getBoothRequest, getCatalog } from "@/lib/booth-requests";
-import { inPackagePendingIds, includedFor, isOverPackage, logisticsRangeLabel } from "@/lib/booth-requests-core";
+import { inPackagePendingIds, includedFor, isOverPackage, requestTimesLabel, vehicleLabel } from "@/lib/booth-requests-core";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
 import { Badge } from "@/components/ui/badge";
 import { PartnerPortalAdmin } from "./partner-portal-admin";
@@ -56,10 +56,11 @@ export default async function PartnerPortalAdminPage({
       return { ...i, included, over: isOverPackage(i.qty, included) };
     }),
     crewCount: boothRequest.crew_count,
-    setup: logisticsRangeLabel(boothRequest.setup_start, boothRequest.setup_end, tz),
-    teardown: logisticsRangeLabel(boothRequest.teardown_start, boothRequest.teardown_end, tz),
+    setup: requestTimesLabel(boothRequest.setup_start, boothRequest.setup_end, boothRequest.setup_note, tz),
+    teardown: requestTimesLabel(boothRequest.teardown_start, boothRequest.teardown_end, boothRequest.teardown_note, tz),
     vehicle: boothRequest.vehicle,
-    vehicleNote: boothRequest.vehicle_note,
+    vehicleLabel: vehicleLabel(boothRequest),
+    timesNeedFix: boothRequest.times_need_fix,
     submittedAt: formatDateTime(boothRequest.submitted_at, tz),
     lateChange: !!boothRequest.late_change_at,
   };

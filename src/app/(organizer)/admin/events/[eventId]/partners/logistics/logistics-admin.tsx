@@ -8,8 +8,12 @@ import {
   CATALOG_NAME_MAX_LENGTH,
   CATALOG_UNIT_MAX_LENGTH,
   ITEM_QTY_MAX,
+  MAX_WINDOWS,
+  SLOT_STEPS,
   TIER_KEYS,
   type CatalogItem,
+  type SlotStep,
+  type TimeWindow,
 } from "@/lib/booth-requests-core";
 import { partnerTierLabel } from "@/lib/partner-options";
 import { Badge } from "@/components/ui/badge";
@@ -19,22 +23,26 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { deleteCatalogItem, saveCatalogItem, saveLogisticsSettings, type LogisticsState } from "./actions";
 
 const idle: LogisticsState = { status: "idle" };
 
 // ── Ustawienia ─────────────────────────────────────────────────────────────
 
-/** Wartości pól datetime-local w strefie eventu (przeliczone na serwerze). */
+/** Ustawienia do formularza: termin jako pole datetime-local w strefie eventu (przeliczony na serwerze). */
 export type SettingsView = {
   request_deadline: string;
-  setup_from: string;
-  setup_to: string;
-  teardown_from: string;
-  teardown_to: string;
+  setup_windows: TimeWindow[];
+  teardown_windows: TimeWindow[];
+  slot_step_minutes: SlotStep;
+  require_vehicle_plate: boolean;
 };
 
 export function LogisticsSettingsCard({ eventId, settings }: { eventId: string; settings: SettingsView }) {
+  const [deadline, setDeadline] = useState(settings.request_deadline);
+  const [step, setStep] = useState(String(settings.slot_step_minutes));
+  const [requirePlate, setRequirePlate] = useState(settings.require_vehicle_plate);
   const [state, formAction, isPending] = useActionState(async (prev: LogisticsState, fd: FormData) => {
     const res = await saveLogisticsSettings(eventId, prev, fd);
     if (res.status === "success" && res.message) toast.success(res.message);
@@ -44,21 +52,61 @@ export function LogisticsSettingsCard({ eventId, settings }: { eventId: string; 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Termin i godziny</CardTitle>
+        <CardTitle>Termin, godziny i rozładunek</CardTitle>
         <CardDescription>
-          Po terminie partner widzi wniosek tylko do odczytu i może jedynie poprosić o zmianę. Zakresy montażu
-          i demontażu (opcjonalne) ograniczają godziny, które partner może wybrać. Godziny w strefie wydarzenia.
+          Po terminie partner widzi wniosek tylko do odczytu i może jedynie poprosić o zmianę. Okna montażu
+          i demontażu to dni i godziny, w których partner wybiera swój przedział (z listy, co ustawiony krok).
+          Bez okna partner podaje tylko orientacyjne godziny. Godziny w strefie wydarzenia.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form action={formAction} className="flex flex-col gap-4">
-          <fieldset disabled={isPending} className="flex flex-col gap-4">
-            <Field label="Termin składania wniosków" name="request_deadline" initial={settings.request_deadline} />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Montaż od" name="setup_from" initial={settings.setup_from} />
-              <Field label="Montaż do" name="setup_to" initial={settings.setup_to} />
-              <Field label="Demontaż od" name="teardown_from" initial={settings.teardown_from} />
-              <Field label="Demontaż do" name="teardown_to" initial={settings.teardown_to} />
+        <form action={formAction} className="flex flex-col gap-5">
+          <fieldset disabled={isPending} className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="request_deadline">Termin składania wniosków</Label>
+              <div className="flex items-center gap-1">
+                <DateTimePicker id="request_deadline" name="request_deadline" value={deadline} onChange={setDeadline} />
+                {deadline && (
+                  <Button type="button" size="icon-sm" variant="ghost" aria-label="Wyczyść termin" onClick={() => setDeadline("")}>
+                    <X />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <WindowsEditor prefix="setup" label="Okna montażu" initial={settings.setup_windows} />
+            <WindowsEditor prefix="teardown" label="Okna demontażu" initial={settings.teardown_windows} />
+
+            <div className="flex flex-col gap-2 sm:max-w-56">
+              <Label htmlFor="slot_step_minutes">Krok wyboru godzin</Label>
+              <input type="hidden" name="slot_step_minutes" value={step} />
+              <Select value={step} onValueChange={setStep}>
+                <SelectTrigger id="slot_step_minutes">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SLOT_STEPS.map((s) => (
+                    <SelectItem key={s} value={String(s)}>
+                      co {s} min
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="require_vehicle_plate"
+                name="require_vehicle_plate"
+                checked={requirePlate}
+                onCheckedChange={(v) => setRequirePlate(v === true)}
+              />
+              <Label htmlFor="require_vehicle_plate" className="font-normal leading-snug">
+                Wymagaj numeru rejestracyjnego przy rozładunku
+                <span className="block text-xs text-muted-foreground">
+                  Numer widzisz tylko Ty i dany partner (lista stoisk, CSV, wydruk dla ochrony).
+                </span>
+              </Label>
             </div>
           </fieldset>
           <div className="flex flex-wrap items-center gap-3">
@@ -73,19 +121,81 @@ export function LogisticsSettingsCard({ eventId, settings }: { eventId: string; 
   );
 }
 
-function Field({ label, name, initial }: { label: string; name: string; initial: string }) {
-  const [value, setValue] = useState(initial);
+type WindowRow = TimeWindow & { key: number };
+
+function WindowsEditor({ prefix, label, initial }: { prefix: "setup" | "teardown"; label: string; initial: TimeWindow[] }) {
+  const [rows, setRows] = useState<WindowRow[]>(() => initial.map((w, i) => ({ ...w, key: i })));
+  const [nextKey, setNextKey] = useState(initial.length);
+  const update = (key: number, patch: Partial<TimeWindow>) =>
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+
   return (
     <div className="flex flex-col gap-2">
-      <Label htmlFor={name}>{label}</Label>
-      <div className="flex items-center gap-1">
-        <DateTimePicker id={name} name={name} value={value} onChange={setValue} />
-        {value && (
-          <Button type="button" size="icon-sm" variant="ghost" aria-label={`Wyczyść: ${label}`} onClick={() => setValue("")}>
-            <X />
+      <p className="text-sm font-medium">{label}</p>
+      {rows.length === 0 && <p className="text-xs text-muted-foreground">Brak okna — partner poda orientacyjne godziny.</p>}
+      {rows.map((r) => (
+        <div key={r.key} className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor={`${prefix}-date-${r.key}`} className="text-xs text-muted-foreground">Dzień</Label>
+            <Input
+              id={`${prefix}-date-${r.key}`}
+              name={`${prefix}_date`}
+              type="date"
+              value={r.date}
+              onChange={(e) => update(r.key, { date: e.target.value })}
+              className="w-40"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor={`${prefix}-from-${r.key}`} className="text-xs text-muted-foreground">Od</Label>
+            <Input
+              id={`${prefix}-from-${r.key}`}
+              name={`${prefix}_from`}
+              type="time"
+              step={900}
+              value={r.from}
+              onChange={(e) => update(r.key, { from: e.target.value })}
+              className="w-28"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor={`${prefix}-to-${r.key}`} className="text-xs text-muted-foreground">Do</Label>
+            <Input
+              id={`${prefix}-to-${r.key}`}
+              name={`${prefix}_to`}
+              type="time"
+              step={900}
+              value={r.to}
+              onChange={(e) => update(r.key, { to: e.target.value })}
+              className="w-28"
+            />
+          </div>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Usuń okno"
+            onClick={() => setRows((prev) => prev.filter((x) => x.key !== r.key))}
+          >
+            <Trash2 />
           </Button>
-        )}
-      </div>
+        </div>
+      ))}
+      {rows.length < MAX_WINDOWS && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-fit"
+          onClick={() => {
+            const last = rows[rows.length - 1];
+            setRows((prev) => [...prev, { date: last?.date ?? "", from: last?.from ?? "", to: last?.to ?? "", key: nextKey }]);
+            setNextKey((k) => k + 1);
+          }}
+        >
+          <Plus /> Dodaj okno
+        </Button>
+      )}
     </div>
   );
 }

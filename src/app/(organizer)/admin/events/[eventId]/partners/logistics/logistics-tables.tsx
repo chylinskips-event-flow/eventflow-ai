@@ -1,6 +1,6 @@
 import { Truck, Users } from "lucide-react";
 import type { BoothListRow } from "@/lib/booth-requests";
-import { ITEM_STATUS, approvedQty, logisticsRangeLabel, type TotalsRow } from "@/lib/booth-requests-core";
+import { ITEM_STATUS, approvedQty, requestTimesLabel, vehicleLabel, type TotalsRow } from "@/lib/booth-requests-core";
 import { partnerTierLabel } from "@/lib/partner-options";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -49,8 +49,8 @@ export function BoothList({ booths, timezone }: { booths: BoothListRow[]; timezo
     <ul className="flex flex-col gap-3">
       {booths.map((b) => {
         const r = b.request;
-        const setup = logisticsRangeLabel(r.setup_start, r.setup_end, timezone);
-        const teardown = logisticsRangeLabel(r.teardown_start, r.teardown_end, timezone);
+        const setup = requestTimesLabel(r.setup_start, r.setup_end, r.setup_note, timezone);
+        const teardown = requestTimesLabel(r.teardown_start, r.teardown_end, r.teardown_note, timezone);
         // Zatwierdzone (także „Inne potrzeby”, które nie mają ilości); zatwierdzone 0 szt. pomijamy.
         const approved = r.items.filter(
           (i) => (i.status === "approved" || i.status === "changed") && (!i.catalog_item_id || approvedQty(i) > 0),
@@ -62,6 +62,7 @@ export function BoothList({ booths, timezone }: { booths: BoothListRow[]; timezo
               <span className="font-medium">{b.partnerName}</span>
               {b.tier && <Badge variant="secondary">{partnerTierLabel(b.tier)}</Badge>}
               <span className="text-muted-foreground">Stoisko: {b.boothLocation ?? "—"}</span>
+              {r.times_need_fix && <Badge variant="warning">Godziny do poprawy</Badge>}
             </div>
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
@@ -70,7 +71,7 @@ export function BoothList({ booths, timezone }: { booths: BoothListRow[]; timezo
               <span>Montaż: {setup ?? "—"}</span>
               <span>Demontaż: {teardown ?? "—"}</span>
               <span className="inline-flex items-center gap-1">
-                <Truck className="size-3.5" /> Rozładunek: {r.vehicle ? `tak${r.vehicle_note ? ` — ${r.vehicle_note}` : ""}` : "nie"}
+                <Truck className="size-3.5" /> Rozładunek: {vehicleLabel(r).toLowerCase()}
               </span>
             </div>
             {approved.length > 0 ? (

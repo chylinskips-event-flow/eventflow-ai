@@ -1,6 +1,6 @@
 import { BRAND_NAME } from "@/lib/brand";
 import { sendAppEmail } from "@/lib/email/send";
-import { ITEM_STATUS, OTHER_NEEDS_LABEL, type RequestItem } from "@/lib/booth-requests-core";
+import { ITEM_STATUS, OTHER_NEEDS_LABEL, windowLabel, type RequestItem, type TimeWindow } from "@/lib/booth-requests-core";
 
 // #10 Faza A2 — powiadomienia o zapotrzebowaniu na stoisko. Wysyłka przez sendAppEmail
 // (nadawca z RESEND_FROM). Wywołujący łapie błąd — wysyłka nie blokuje zapisu.
@@ -80,6 +80,35 @@ export async function sendBoothDecisionEmail(params: {
   await sendAppEmail({
     to: params.to,
     subject: `Zapotrzebowanie na stoisko rozpatrzone — ${params.eventName}`,
+    html,
+  });
+}
+
+/** Do partnera: organizator zmienił okna montażu/demontażu — wybrane godziny są poza nimi. */
+export async function sendBoothTimesNeedFixEmail(params: {
+  to: string;
+  partnerName: string;
+  eventName: string;
+  setupWindows: TimeWindow[];
+  teardownWindows: TimeWindow[];
+  panelUrl: string;
+}) {
+  const partner = escapeHtml(params.partnerName);
+  const event = escapeHtml(params.eventName);
+  const url = escapeHtml(params.panelUrl);
+  const list = (label: string, windows: TimeWindow[]) =>
+    windows.length ? `<p>${label}:</p><ul>${windows.map((w) => `<li>${escapeHtml(windowLabel(w))}</li>`).join("")}</ul>` : "";
+  const html = `<div style="${WRAP}">
+  <h1 style="font-size: 20px;">Popraw godziny montażu / demontażu</h1>
+  <p>Organizator wydarzenia <strong>${event}</strong> zmienił godziny, w których można montować i demontować stoiska. Godziny wybrane we wniosku firmy <strong>${partner}</strong> są poza nowym zakresem — wybierz je ponownie w panelu partnera.</p>
+  ${list("Montaż", params.setupWindows)}
+  ${list("Demontaż", params.teardownWindows)}
+  <p style="margin: 24px 0;"><a href="${url}" style="${BUTTON}">Otwórz panel partnera</a></p>
+  <p style="font-size: 12px; color: #999;">Wiadomość z ${BRAND_NAME}.</p>
+</div>`;
+  await sendAppEmail({
+    to: params.to,
+    subject: `Popraw godziny montażu — ${params.eventName}`,
     html,
   });
 }

@@ -34,7 +34,8 @@ export type AdminBoothRequestView = {
   setup: string | null;
   teardown: string | null;
   vehicle: boolean;
-  vehicleNote: string | null;
+  vehicleLabel: string;
+  timesNeedFix: boolean;
   submittedAt: string | null;
   lateChange: boolean;
 };
@@ -84,11 +85,17 @@ export function BoothRequestAdmin({
           <>
             <dl className="grid gap-x-6 gap-y-2 rounded-lg border p-3 text-sm sm:grid-cols-2">
               <Info label="Osoby obsługi" value={request.crewCount !== null ? String(request.crewCount) : null} />
+              {request.timesNeedFix && (
+                <p className="sm:col-span-2">
+                  <Badge variant="warning">Godziny do poprawy</Badge>{" "}
+                  <span className="text-xs text-muted-foreground">poza aktualnymi oknami — partner dostał e-mail.</span>
+                </p>
+              )}
               <Info label="Montaż" value={request.setup} />
               <Info label="Demontaż" value={request.teardown} />
               <Info
                 label="Pojazd / rozładunek"
-                value={request.vehicle ? `Tak${request.vehicleNote ? ` — ${request.vehicleNote}` : ""}` : "Nie"}
+                value={request.vehicleLabel}
                 icon={request.vehicle ? <Truck className="size-3.5" /> : null}
               />
               {request.submittedAt && (

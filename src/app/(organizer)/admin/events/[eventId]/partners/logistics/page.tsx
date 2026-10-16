@@ -21,7 +21,6 @@ export default async function BoothLogisticsPage({ params }: { params: Promise<{
   await ensureDefaultCatalog(eventId);
   const { settings, catalog, booths, totals } = await getLogisticsData(eventId);
   const tz = event.timezone;
-  const local = (v: string | null) => toDateTimeLocalValue(v, tz);
   const base = `/admin/events/${eventId}/partners/logistics`;
 
   return (
@@ -45,11 +44,11 @@ export default async function BoothLogisticsPage({ params }: { params: Promise<{
       <LogisticsSettingsCard
         eventId={eventId}
         settings={{
-          request_deadline: local(settings.request_deadline),
-          setup_from: local(settings.setup_from),
-          setup_to: local(settings.setup_to),
-          teardown_from: local(settings.teardown_from),
-          teardown_to: local(settings.teardown_to),
+          request_deadline: toDateTimeLocalValue(settings.request_deadline, tz),
+          setup_windows: settings.setup_windows,
+          teardown_windows: settings.teardown_windows,
+          slot_step_minutes: settings.slot_step_minutes,
+          require_vehicle_plate: settings.require_vehicle_plate,
         }}
       />
       <CatalogCard eventId={eventId} catalog={catalog} />

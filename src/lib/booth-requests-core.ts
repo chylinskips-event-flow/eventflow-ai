@@ -2,7 +2,7 @@
 // jednostkowo i bezpieczna dla klienta. I/O: src/lib/booth-requests.ts.
 
 import { PARTNER_TIERS } from "@/lib/partner-options";
-import { formatDateTime, formatDateTimeRange } from "@/lib/format";
+import { formatDateTime, formatDateTimeRange, toDateTimeLocalValue } from "@/lib/format";
 
 export const CATALOG_NAME_MAX_LENGTH = 120;
 export const CATALOG_UNIT_MAX_LENGTH = 20;
@@ -47,21 +47,44 @@ export type CatalogItem = {
   included_by_tier: IncludedByTier;
 };
 
+/** Okno montażu / demontażu w strefie wydarzenia: dzień + zakres godzin. */
+export type TimeWindow = { date: string; from: string; to: string };
+/** Wybór partnera w obrębie okna (strefa wydarzenia). */
+export type TimeSlot = TimeWindow;
+
+export const SLOT_STEPS = [15, 30, 60] as const;
+export type SlotStep = (typeof SLOT_STEPS)[number];
+export const DEFAULT_SLOT_STEP: SlotStep = 30;
+export const MAX_WINDOWS = 10;
+export const TIME_NOTE_MAX_LENGTH = 200;
+export const PLATE_MAX_LENGTH = 15;
+
 export type LogisticsSettings = {
   request_deadline: string | null;
-  setup_from: string | null;
-  setup_to: string | null;
-  teardown_from: string | null;
-  teardown_to: string | null;
+  setup_windows: TimeWindow[];
+  teardown_windows: TimeWindow[];
+  slot_step_minutes: SlotStep;
+  require_vehicle_plate: boolean;
 };
 
 export const EMPTY_SETTINGS: LogisticsSettings = {
   request_deadline: null,
-  setup_from: null,
-  setup_to: null,
-  teardown_from: null,
-  teardown_to: null,
+  setup_windows: [],
+  teardown_windows: [],
+  slot_step_minutes: DEFAULT_SLOT_STEP,
+  require_vehicle_plate: false,
 };
+
+export const VEHICLE_TYPES = [
+  { value: "car", label: "Osobowy" },
+  { value: "van", label: "Dostawczy" },
+  { value: "truck", label: "Ciężarowy" },
+] as const;
+export type VehicleType = (typeof VEHICLE_TYPES)[number]["value"];
+
+export function vehicleTypeLabel(v: string | null): string | null {
+  return VEHICLE_TYPES.find((t) => t.value === v)?.label ?? null;
+}
 
 export type ItemStatus = "pending" | "approved" | "changed" | "rejected";
 
@@ -84,8 +107,13 @@ export type BoothRequestInfo = {
   setup_end: string | null;
   teardown_start: string | null;
   teardown_end: string | null;
+  /** Orientacyjne godziny, gdy organizator nie ustawił okna. */
+  setup_note: string | null;
+  teardown_note: string | null;
   vehicle: boolean;
   vehicle_note: string | null;
+  vehicle_plate: string | null;
+  vehicle_type: VehicleType | null;
 };
 
 export type BoothRequest = BoothRequestInfo & {
@@ -93,6 +121,8 @@ export type BoothRequest = BoothRequestInfo & {
   partner_id: string;
   submitted_at: string;
   late_change_at: string | null;
+  /** Godziny poza oknem po zmianie okien przez organizatora — partner musi je poprawić. */
+  times_need_fix: boolean;
   items: RequestItem[];
 };
 
@@ -177,11 +207,155 @@ export function logisticsRangeLabel(from: string | null, to: string | null, time
   return null;
 }
 
-export function validateSettings(s: LogisticsSettings): string | null {
-  const before = (a: string | null, b: string | null) => !a || !b || new Date(a).getTime() < new Date(b).getTime();
-  if (!before(s.setup_from, s.setup_to)) return "Montaż: początek zakresu musi być przed końcem.";
-  if (!before(s.teardown_from, s.teardown_to)) return "Demontaż: początek zakresu musi być przed końcem.";
-  return null;
+// ── Okna montażu / demontażu ───────────────────────────────────────────────
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export function toMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function fromMinutes(n: number): string {
+  return `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+}
+
+const byStart = (a: TimeWindow, b: TimeWindow) => a.date.localeCompare(b.date) || a.from.localeCompare(b.from);
+
+function isWindow(w: unknown): w is TimeWindow {
+  if (!w || typeof w !== "object") return false;
+  const { date, from, to } = w as Record<string, unknown>;
+  return (
+    typeof date === "string" &&
+    typeof from === "string" &&
+    typeof to === "string" &&
+    DATE.test(date) &&
+    TIME.test(from) &&
+    TIME.test(to) &&
+    toMinutes(from) < toMinutes(to)
+  );
+}
+
+/** jsonb z bazy → poprawne okna, posortowane (śmieci pomijane). */
+export function parseWindows(raw: unknown): TimeWindow[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isWindow).map(({ date, from, to }) => ({ date, from, to })).sort(byStart);
+}
+
+export function parseSlotStep(raw: unknown): SlotStep {
+  const n = Number(raw);
+  return (SLOT_STEPS as readonly number[]).includes(n) ? (n as SlotStep) : DEFAULT_SLOT_STEP;
+}
+
+/**
+ * Okna z formularza organizatora: równoległe listy `<prefix>_date`, `<prefix>_from`, `<prefix>_to`.
+ * Całkiem pusty wiersz jest pomijany; częściowo wypełniony to błąd.
+ */
+export function readWindows(
+  getAll: (key: string) => FormDataEntryValue[],
+  prefix: "setup" | "teardown",
+  label: string,
+): { ok: true; value: TimeWindow[] } | { ok: false; error: string } {
+  const s = (v: FormDataEntryValue | undefined) => (typeof v === "string" ? v.trim() : "");
+  const dates = getAll(`${prefix}_date`);
+  const froms = getAll(`${prefix}_from`);
+  const tos = getAll(`${prefix}_to`);
+  const out: TimeWindow[] = [];
+  for (let i = 0; i < Math.max(dates.length, froms.length, tos.length); i++) {
+    const w = { date: s(dates[i]), from: s(froms[i]), to: s(tos[i]) };
+    if (!w.date && !w.from && !w.to) continue;
+    if (!DATE.test(w.date) || !TIME.test(w.from) || !TIME.test(w.to)) {
+      return { ok: false, error: `${label}: uzupełnij dzień oraz godzinę od i do w każdym oknie.` };
+    }
+    if (toMinutes(w.from) >= toMinutes(w.to)) return { ok: false, error: `${label}: godzina „od” musi być przed „do”.` };
+    out.push(w);
+  }
+  if (out.length > MAX_WINDOWS) return { ok: false, error: `${label}: najwyżej ${MAX_WINDOWS} okien.` };
+  return { ok: true, value: out.sort(byStart) };
+}
+
+/** Godziny do wyboru w oknie: od początku co `step` minut, zawsze z końcem okna. */
+export function slotTimes(w: Pick<TimeWindow, "from" | "to">, step: number): string[] {
+  const start = toMinutes(w.from);
+  const end = toMinutes(w.to);
+  const out: string[] = [];
+  for (let m = start; m < end; m += step) out.push(fromMinutes(m));
+  out.push(w.to);
+  return out;
+}
+
+/** Czy przedział mieści się w którymś oknie (bez sprawdzania kroku) — do oznaczania „do poprawy”. */
+export function slotWithinWindows(slot: TimeSlot, windows: TimeWindow[]): boolean {
+  const [f, t] = [toMinutes(slot.from), toMinutes(slot.to)];
+  return windows.some((w) => w.date === slot.date && f >= toMinutes(w.from) && t <= toMinutes(w.to));
+}
+
+/** Wybór partnera: w oknie, początek przed końcem, obie godziny z siatki kroku tego okna. */
+export function slotFits(slot: TimeSlot, windows: TimeWindow[], step: number): boolean {
+  if (!DATE.test(slot.date) || !TIME.test(slot.from) || !TIME.test(slot.to)) return false;
+  if (toMinutes(slot.from) >= toMinutes(slot.to)) return false;
+  return windows.some((w) => {
+    if (w.date !== slot.date) return false;
+    const allowed = new Set(slotTimes(w, step));
+    return allowed.has(slot.from) && allowed.has(slot.to);
+  });
+}
+
+/** Zapisany wybór (timestamptz) → dzień i godziny w strefie wydarzenia; null, gdy koniec innego dnia. */
+export function toLocalSlot(start: string | null, end: string | null, timeZone: string | null): TimeSlot | null {
+  if (!start || !end) return null;
+  const [sd, st] = toDateTimeLocalValue(start, timeZone).split("T");
+  const [ed, et] = toDateTimeLocalValue(end, timeZone).split("T");
+  if (sd !== ed) return null;
+  return { date: sd, from: st, to: et };
+}
+
+const DAY_FMT = new Intl.DateTimeFormat("pl-PL", { weekday: "short", day: "numeric", month: "long", timeZone: "UTC" });
+
+/** „pon., 17 listopada” — dzień okna (data bez strefy). */
+export function windowDayLabel(date: string): string {
+  return DAY_FMT.format(new Date(`${date}T00:00:00Z`));
+}
+
+export function windowLabel(w: TimeWindow): string {
+  return `${windowDayLabel(w.date)}, ${w.from}–${w.to}`;
+}
+
+export function windowsLabel(windows: TimeWindow[]): string | null {
+  return windows.length ? windows.map(windowLabel).join("; ") : null;
+}
+
+/** Godziny montażu/demontażu do wyświetlenia (strefa wydarzenia) albo orientacyjny opis partnera. */
+export function requestTimesLabel(
+  start: string | null,
+  end: string | null,
+  note: string | null,
+  timeZone: string | null,
+): string | null {
+  const slot = toLocalSlot(start, end, timeZone);
+  if (slot) return windowLabel(slot);
+  const range = logisticsRangeLabel(start, end, timeZone);
+  if (range) return range;
+  return note ? `orientacyjnie: ${note}` : null;
+}
+
+// ── Pojazd ─────────────────────────────────────────────────────────────────
+
+/** „Tak — dostawczy, WX 12345 — uwaga” / „Nie” (widoki organizatora i partnera). */
+export function vehicleLabel(
+  r: Pick<BoothRequestInfo, "vehicle" | "vehicle_type" | "vehicle_plate" | "vehicle_note">,
+): string {
+  if (!r.vehicle) return "Nie";
+  const what = [vehicleTypeLabel(r.vehicle_type)?.toLowerCase(), r.vehicle_plate].filter(Boolean).join(", ");
+  return ["Tak", what, r.vehicle_note].filter(Boolean).join(" — ");
+}
+
+/** Numer rejestracyjny: wielkie litery, pojedyncze spacje; null gdy pusty, "invalid" gdy zły. */
+export function normalizePlate(raw: string): string | null | "invalid" {
+  const v = raw.trim().toUpperCase().replace(/\s+/g, " ");
+  if (!v) return null;
+  return v.length <= PLATE_MAX_LENGTH && /^[A-Z0-9][A-Z0-9 -]*$/.test(v) ? v : "invalid";
 }
 
 // ── Wniosek partnera ───────────────────────────────────────────────────────
@@ -221,33 +395,23 @@ export function parseRequestItems(
 }
 
 /**
- * Informacje o stoisku. Godziny przychodzą już jako ISO (konwersja ze strefy eventu
- * w akcji). Zakresy organizatora, jeśli ustawione, ograniczają godziny montażu/demontażu.
+ * Dane o stoisku. Godziny wybrane z okien sprawdza akcja (slotFits) — tu limity pól
+ * i wymóg numeru rejestracyjnego ustawiany przez organizatora.
  */
-export function validateRequestInfo(
-  info: BoothRequestInfo,
-  settings: LogisticsSettings,
-): string | null {
+export function validateRequestInfo(info: BoothRequestInfo, settings: LogisticsSettings): string | null {
   if (info.crew_count !== null && (!Number.isInteger(info.crew_count) || info.crew_count < 0 || info.crew_count > CREW_MAX)) {
     return `Liczba osób obsługi: od 0 do ${CREW_MAX}.`;
   }
   if (info.vehicle_note && info.vehicle_note.length > VEHICLE_NOTE_MAX_LENGTH) {
     return `Uwaga o rozładunku może mieć najwyżej ${VEHICLE_NOTE_MAX_LENGTH} znaków.`;
   }
-  const t = (v: string | null) => (v ? new Date(v).getTime() : null);
-  const check = (label: string, start: string | null, end: string | null, from: string | null, to: string | null) => {
-    const [s, e, f, u] = [t(start), t(end), t(from), t(to)];
-    if (s !== null && e !== null && s >= e) return `${label}: początek musi być przed końcem.`;
-    for (const v of [s, e]) {
-      if (v === null) continue;
-      if ((f !== null && v < f) || (u !== null && v > u)) return `${label}: godziny spoza zakresu ustalonego przez organizatora.`;
-    }
-    return null;
-  };
-  return (
-    check("Montaż", info.setup_start, info.setup_end, settings.setup_from, settings.setup_to) ??
-    check("Demontaż", info.teardown_start, info.teardown_end, settings.teardown_from, settings.teardown_to)
-  );
+  for (const [label, note] of [["Montaż", info.setup_note], ["Demontaż", info.teardown_note]] as const) {
+    if (note && note.length > TIME_NOTE_MAX_LENGTH) return `${label}: opis godzin może mieć najwyżej ${TIME_NOTE_MAX_LENGTH} znaków.`;
+  }
+  if (info.vehicle && settings.require_vehicle_plate && !info.vehicle_plate) {
+    return "Podaj numer rejestracyjny pojazdu — organizator wymaga go przy rozładunku.";
+  }
+  return null;
 }
 
 export type ItemPlan = {
