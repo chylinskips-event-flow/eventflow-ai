@@ -1,7 +1,11 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Truck } from "lucide-react";
 import { getOwnEvent } from "@/lib/events";
 import { getEventPartners, getPartnerStats } from "@/lib/partners";
 import { getPendingReviewCounts, getPortalAccessSummary } from "@/lib/partner-portal";
+import { getBoothRequestStatuses, loadBoothData } from "@/lib/booth-requests";
+import { BOOTH_ERROR_HINT_ORGANIZER, BoothLoadError } from "@/components/booth-load-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PartnerFormDialog } from "./partner-form-dialog";
@@ -19,22 +23,34 @@ export default async function EventPartnersPage({
     notFound();
   }
 
-  const [partners, partnerStats, pendingReviews, portalAccess] = await Promise.all([
+  const [partners, partnerStats, pendingReviews, portalAccess, boothStatuses] = await Promise.all([
     getEventPartners(eventId),
     getPartnerStats(eventId),
     getPendingReviewCounts(eventId),
     getPortalAccessSummary(eventId),
+    loadBoothData(() => getBoothRequestStatuses(eventId)),
   ]);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <h1 className="text-2xl font-semibold">Partnerzy</h1>
-        <PartnerFormDialog
-          eventId={eventId}
-          trigger={<Button>Dodaj partnera</Button>}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/admin/events/${eventId}/partners/logistics`}>
+              <Truck /> Logistyka stoisk
+            </Link>
+          </Button>
+          <PartnerFormDialog
+            eventId={eventId}
+            trigger={<Button>Dodaj partnera</Button>}
+          />
+        </div>
       </div>
+
+      {!boothStatuses.ok && (
+        <BoothLoadError title="Nie udało się wczytać wniosków o zapotrzebowanie na stoisko" hint={BOOTH_ERROR_HINT_ORGANIZER} />
+      )}
 
       {partners.length === 0 ? (
         <Card>
@@ -55,6 +71,7 @@ export default async function EventPartnersPage({
               leadCount={partnerStats[partner.id]?.leads ?? 0}
               pendingReviews={pendingReviews[partner.id] ?? 0}
               portalAccess={portalAccess[partner.id] ?? "none"}
+              boothStatus={boothStatuses.ok ? (boothStatuses.value[partner.id] ?? { kind: "none" }) : null}
             />
           ))}
         </div>
