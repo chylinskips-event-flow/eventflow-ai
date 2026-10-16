@@ -4,7 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrigin } from "@/lib/request-origin";
-import { buildEventUrl, buildEventInternalPath } from "@/lib/event-url";
+import { buildEventApexUrl, buildEventInternalPath } from "@/lib/event-url";
 import { sendAttendeeConfirmationEmail } from "@/lib/email/attendee-confirmation";
 import {
   ATTENDEE_TOKEN_COOKIE,
@@ -381,7 +381,7 @@ export async function startPaidCheckout(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? origin;
   const returnBase = process.env.NEXT_PUBLIC_APP_URL
     ? `${process.env.NEXT_PUBLIC_APP_URL}/e/${slug}`
-    : buildEventUrl(slug, origin);
+    : buildEventApexUrl(slug, origin);
 
   const p24Result = await registerTransaction(cfg, {
     sessionId,
