@@ -168,22 +168,24 @@ export function PartnerCard({
               </Badge>
             )}
           </div>
-          <div>
+          {/* flex-wrap + max-w-full/truncate: na wąskim ekranie plakietki zawijają się do
+              kolejnej linii (a bardzo długie skracają), zamiast wystawać poza kartę. */}
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             {status.kind === "pending" ? (
-              <Badge asChild variant="warning">
+              <Badge asChild variant="warning" className="max-w-full">
                 <Link href={panelHref} className="hover:underline">
-                  <AlertCircle /> Do akceptacji ({status.count})
+                  <AlertCircle /> <span className="truncate">Do akceptacji ({status.count})</span>
                 </Link>
               </Badge>
             ) : (
-              <Badge variant={STATUS_BADGE[status.kind].variant}>
-                {STATUS_BADGE[status.kind].label}
+              <Badge variant={STATUS_BADGE[status.kind].variant} className="max-w-full">
+                <span className="truncate">{STATUS_BADGE[status.kind].label}</span>
               </Badge>
             )}
             {boothStatus && (boothStatus.kind !== "none" || portalAccess === "active") && (
-              <Badge asChild variant={BOOTH_BADGE[boothStatus.kind]} className="ml-1.5">
+              <Badge asChild variant={BOOTH_BADGE[boothStatus.kind]} className="max-w-full">
                 <Link href={panelHref} className="hover:underline">
-                  <Truck /> Stoisko: {requestStatusLabel(boothStatus)}
+                  <Truck /> <span className="truncate">Stoisko: {requestStatusLabel(boothStatus)}</span>
                 </Link>
               </Badge>
             )}

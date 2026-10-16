@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { resolveTabKey, tabFromHash, urlForTab } from "@/lib/url-tabs";
-import { SETTINGS_DEFAULT_TAB, SETTINGS_TAB_KEYS, partnerDetailTabs, type PartnerDetailState } from "@/lib/organizer-tabs";
+import {
+  ATTENDEE_TAB_KEYS,
+  ATTENDEE_TAB_STATUS,
+  SETTINGS_DEFAULT_TAB,
+  SETTINGS_TAB_KEYS,
+  attendeeTabs,
+  partnerDetailTabs,
+  type PartnerDetailState,
+} from "@/lib/organizer-tabs";
 
 describe("?tab= w adresie", () => {
   it("widoczna zakładka → ta zakładka", () => {
@@ -61,5 +69,22 @@ describe("szczegóły partnera — zakładki", () => {
   it("błąd wczytania logistyki: zakładka „Stoisko” jest, bez znacznika", () => {
     const { tabs } = partnerDetailTabs({ ...base, pendingBoothItems: null });
     expect(tabs.find((t) => t.key === "stoisko")?.mark).toBeNull();
+  });
+});
+
+describe("uczestnicy — zakładki statusu", () => {
+  it("liczniki w etykietach, ● przy oczekujących", () => {
+    const { tabs } = attendeeTabs({ pending: 2, approved: 5, rejected: 1 });
+    expect(tabs.map((t) => t.label)).toEqual(["Wszyscy (8)", "Oczekujący (2)", "Zatwierdzeni (5)", "Odrzuceni (1)"]);
+    expect(tabs.find((t) => t.key === "oczekujacy")?.mark?.label).toBe("do akceptacji: 2");
+  });
+  it("domyślna jak dotąd: „Oczekujący”, gdy ktoś czeka, inaczej „Wszyscy”", () => {
+    expect(attendeeTabs({ pending: 1, approved: 0, rejected: 0 }).defaultTab).toBe("oczekujacy");
+    expect(attendeeTabs({ pending: 0, approved: 3, rejected: 0 }).defaultTab).toBe("wszyscy");
+  });
+  it("?tab= → filtr statusu; nieznana wartość → domyślna", () => {
+    expect(ATTENDEE_TAB_STATUS[resolveTabKey("zatwierdzeni", ATTENDEE_TAB_KEYS, "wszyscy")]).toBe("approved");
+    expect(resolveTabKey("pending", ATTENDEE_TAB_KEYS, "wszyscy")).toBe("wszyscy");
+    expect(ATTENDEE_TAB_STATUS.wszyscy).toBeNull();
   });
 });

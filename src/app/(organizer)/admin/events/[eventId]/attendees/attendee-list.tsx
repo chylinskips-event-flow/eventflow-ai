@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { Attendee, AttendeeStatus } from "@/lib/attendees";
+import type { Attendee } from "@/lib/attendees";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { TabBar, panelDomId, tabDomId, type TabBarItem } from "@/components/tab-bar";
+import { ATTENDEE_TAB_STATUS, type AttendeeTabKey } from "@/lib/organizer-tabs";
+import { urlForTab } from "@/lib/url-tabs";
 import { AttendeeActions } from "./attendee-actions";
 import { DeleteAttendeeButton } from "./delete-attendee-button";
 import { EditAttendeeButton } from "./edit-attendee-button";
@@ -21,36 +23,40 @@ const STATUS_VARIANTS: Record<Attendee["status"], "warning" | "success" | "destr
   rejected: "destructive",
 };
 
-type FilterValue = "all" | AttendeeStatus;
-
 function attendeeName(attendee: Attendee) {
   return [attendee.first_name, attendee.last_name].filter(Boolean).join(" ") || "–";
 }
 
+/**
+ * Lista uczestników z filtrem statusu na wspólnym pasku zakładek (jak reszta panelu organizatora).
+ * Zakładka w adresie (?tab=), domyślna bez parametru.
+ */
 export function AttendeeList({
   eventId,
   attendees,
+  tabs,
+  initialTab,
+  defaultTab,
 }: {
   eventId: string;
   attendees: Attendee[];
+  tabs: TabBarItem<AttendeeTabKey>[];
+  initialTab: AttendeeTabKey;
+  defaultTab: AttendeeTabKey;
 }) {
-  const hasPending = attendees.some((attendee) => attendee.status === "pending");
-  const [filter, setFilter] = useState<FilterValue>(hasPending ? "pending" : "all");
+  const [active, setActive] = useState<AttendeeTabKey>(initialTab);
+  const status = ATTENDEE_TAB_STATUS[active];
+  const filtered = status ? attendees.filter((attendee) => attendee.status === status) : attendees;
 
-  const filtered =
-    filter === "all"
-      ? attendees
-      : attendees.filter((attendee) => attendee.status === filter);
+  function select(key: AttendeeTabKey) {
+    setActive(key);
+    window.history.replaceState(window.history.state, "", urlForTab(window.location.href, key, defaultTab));
+  }
 
   return (
-    <Tabs value={filter} onValueChange={(value) => setFilter(value as FilterValue)}>
-      <TabsList>
-        <TabsTrigger value="all">Wszyscy</TabsTrigger>
-        <TabsTrigger value="pending">Oczekujący</TabsTrigger>
-        <TabsTrigger value="approved">Zatwierdzeni</TabsTrigger>
-        <TabsTrigger value="rejected">Odrzuceni</TabsTrigger>
-      </TabsList>
-      <TabsContent value={filter} className="mt-4">
+    <div className="flex min-w-0 flex-col gap-4">
+      <TabBar tabs={tabs} active={active} onSelect={select} idPrefix="attendees" ariaLabel="Status uczestników" />
+      <div role="tabpanel" id={panelDomId("attendees", active)} aria-labelledby={tabDomId("attendees", active)}>
         {filtered.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
@@ -89,7 +95,7 @@ export function AttendeeList({
             ))}
           </div>
         )}
-      </TabsContent>
-    </Tabs>
+      </div>
+    </div>
   );
 }

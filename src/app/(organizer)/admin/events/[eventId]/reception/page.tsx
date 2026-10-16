@@ -4,6 +4,7 @@ import { getOwnEvent } from "@/lib/events";
 import { getReceptionList } from "@/lib/reception";
 import { getOrigin } from "@/lib/request-origin";
 import { ReceptionPanel } from "@/components/reception-panel";
+import { PageShell } from "@/components/page-shell";
 import { ReceptionTokenSection } from "./reception-token-section";
 import {
   organizerCheckInByQr,
@@ -30,22 +31,29 @@ export default async function ReceptionPage({
   const checkInById = organizerCheckInById.bind(null, eventId);
   const undoCheckIn = organizerUndoCheckIn.bind(null, eventId);
 
+  // Wspólna rama panelu organizatora (tytuł, szerokość). Bez zakładek: recepcja to jedno narzędzie
+  // (licznik, skan QR, szukajka, filtry, lista) — kolejne kliknięcia tylko by spowalniały check-in.
+  // Panel ma własne marginesy (wspólny z publiczną stroną recepcji), więc znosimy marginesy ramy.
   return (
-    <ReceptionPanel
-      attendees={attendees}
-      checkInByQrAction={checkInByQr}
-      checkInByIdAction={checkInById}
-      undoCheckInAction={undoCheckIn}
-      stickyTopClass="top-14"
-      receptionLinkSlot={
-        <ReceptionTokenSection
-          compact
-          eventId={eventId}
-          receptionToken={event.reception_token}
-          eventSlug={event.slug}
-          origin={origin}
+    <PageShell title="Recepcja">
+      <div className="-mx-4 sm:-mx-6">
+        <ReceptionPanel
+          attendees={attendees}
+          checkInByQrAction={checkInByQr}
+          checkInByIdAction={checkInById}
+          undoCheckInAction={undoCheckIn}
+          stickyTopClass="top-14"
+          receptionLinkSlot={
+            <ReceptionTokenSection
+              compact
+              eventId={eventId}
+              receptionToken={event.reception_token}
+              eventSlug={event.slug}
+              origin={origin}
+            />
+          }
         />
-      }
-    />
+      </div>
+    </PageShell>
   );
 }

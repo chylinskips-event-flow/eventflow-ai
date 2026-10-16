@@ -49,3 +49,36 @@ export function partnerDetailTabs(s: PartnerDetailState): {
   const defaultTab = tabs.find((t) => t.mark)?.key ?? "wizytowka";
   return { tabs, defaultTab };
 }
+
+// ── Uczestnicy ─────────────────────────────────────────────────────────────
+
+export type AttendeeTabKey = "wszyscy" | "oczekujacy" | "zatwierdzeni" | "odrzuceni";
+export const ATTENDEE_TAB_KEYS: AttendeeTabKey[] = ["wszyscy", "oczekujacy", "zatwierdzeni", "odrzuceni"];
+
+/** Zakładka → filtr statusu (null = wszyscy). */
+export const ATTENDEE_TAB_STATUS: Record<AttendeeTabKey, "pending" | "approved" | "rejected" | null> = {
+  wszyscy: null,
+  oczekujacy: "pending",
+  zatwierdzeni: "approved",
+  odrzuceni: "rejected",
+};
+
+/**
+ * Zakładki listy uczestników (filtr statusu) z licznikami; ● przy „Oczekujący”, gdy ktoś czeka.
+ * Domyślna jak dotąd: „Oczekujący”, jeśli są zgłoszenia do decyzji, inaczej „Wszyscy”.
+ */
+export function attendeeTabs(counts: { pending: number; approved: number; rejected: number }): {
+  tabs: TabBarItem<AttendeeTabKey>[];
+  defaultTab: AttendeeTabKey;
+} {
+  const total = counts.pending + counts.approved + counts.rejected;
+  return {
+    tabs: [
+      { key: "wszyscy", label: `Wszyscy (${total})` },
+      { key: "oczekujacy", label: `Oczekujący (${counts.pending})`, mark: toReview(counts.pending) },
+      { key: "zatwierdzeni", label: `Zatwierdzeni (${counts.approved})` },
+      { key: "odrzuceni", label: `Odrzuceni (${counts.rejected})` },
+    ],
+    defaultTab: counts.pending > 0 ? "oczekujacy" : "wszyscy",
+  };
+}
