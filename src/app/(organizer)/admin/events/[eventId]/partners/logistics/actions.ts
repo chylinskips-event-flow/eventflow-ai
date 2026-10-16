@@ -128,7 +128,7 @@ async function flagRequestsOutsideWindows(
           eventName: event.name,
           setupWindows: settings.setup_windows,
           teardownWindows: settings.teardown_windows,
-          panelUrl: `${origin}/partner/${r.partner_id}`,
+          panelUrl: `${origin}/partner/${r.partner_id}?tab=stoisko`,
         }),
       ),
     );

@@ -61,7 +61,7 @@ async function notifyIfReviewed(
   }
   const recipients = await getPartnerRecipientEmails(ctx.partner.id);
   if (recipients.length === 0) return null;
-  const panelUrl = `${getOrigin(await headers())}/partner/${ctx.partner.id}`;
+  const panelUrl = `${getOrigin(await headers())}/partner/${ctx.partner.id}?tab=stoisko`;
   const results = await Promise.allSettled(
     recipients.map((to) =>
       sendBoothDecisionEmail({ to, partnerName: ctx.partner.name, eventName: ctx.event.name, items: request.items, panelUrl }),

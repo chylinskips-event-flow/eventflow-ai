@@ -224,7 +224,7 @@ export async function submitBoothRequest(
         eventName: ctx.event.name,
         pendingItems: saved.items.filter((i) => i.status === "pending"),
         lateChange: late,
-        reviewUrl: `${getOrigin(await headers())}/admin/events/${ctx.event.id}/partners/${partnerId}`,
+        reviewUrl: `${getOrigin(await headers())}/admin/events/${ctx.event.id}/partners/${partnerId}#stoisko`,
       });
     }
   } catch (e) {

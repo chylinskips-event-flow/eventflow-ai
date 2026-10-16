@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Building2, ExternalLink, FileText, LogOut, MapPin, Trash2 } from "lucide-react";
 import type { PartnerContact, PartnerMaterial, ProfileDraft } from "@/lib/partner-portal";
@@ -29,6 +29,15 @@ import { cn } from "@/lib/utils";
 import { signOutPartner } from "../actions";
 import { BOOTH_ERROR_HINT_PARTNER, BOOTH_ERROR_TITLE, BoothLoadError } from "@/components/booth-load-error";
 import { BoothRequestCard } from "./booth-request-card";
+import { NextSteps, ProgressLine, TabBar, panelId, tabId } from "./panel-tabs";
+import {
+  DEFAULT_TAB,
+  computeProgress,
+  nextTasks,
+  type PanelState,
+  type TabInfo,
+  type TabKey,
+} from "@/lib/partner-panel-tabs";
 import {
   deletePartnerMaterial,
   savePartnerContact,
@@ -52,6 +61,10 @@ export function PartnerPanel({
   contact,
   publicUrl,
   booth,
+  panelState,
+  tabs,
+  initialTab,
+  leads,
 }: {
   partnerId: string;
   userEmail: string;
@@ -66,7 +79,40 @@ export function PartnerPanel({
   publicUrl: string | null;
   /** null = dane logistyki nie wczytały się (pokazujemy błąd, nie pusty wniosek). */
   booth: Omit<React.ComponentProps<typeof BoothRequestCard>, "partnerId"> | null;
+  panelState: PanelState;
+  /** Widoczne zakładki ze stanem (computeTabs na serwerze). */
+  tabs: TabInfo[];
+  /** Zakładka z `?tab=` (resolveTab: nieznana → domyślna). */
+  initialTab: TabKey;
+  /** Treść zakładki „Leady” (Faza B) — zakładka widoczna tylko z panelState.leadsEnabled. */
+  leads?: React.ReactNode;
 }) {
+  const [active, setActive] = useState<TabKey>(initialTab);
+  const dirty = useRef(false);
+  const progress = computeProgress(tabs);
+  const tasks = nextTasks(panelState);
+
+  // Zamknięcie / przeładowanie karty z niezapisanymi zmianami — standardowe ostrzeżenie przeglądarki.
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => {
+      if (dirty.current) e.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
+
+  function select(key: TabKey) {
+    if (key === active) return;
+    if (dirty.current && !window.confirm("Masz niezapisane zmiany — przejść bez zapisu?")) return;
+    dirty.current = false;
+    setActive(key);
+    // Adres odzwierciedla zakładkę (odświeżenie i linki z maili), bez przeładowania strony.
+    const url = new URL(window.location.href);
+    if (key === DEFAULT_TAB) url.searchParams.delete("tab");
+    else url.searchParams.set("tab", key);
+    window.history.replaceState(window.history.state, "", url);
+  }
+
   return (
     <div className="flex flex-col">
       <header className="border-b bg-background">
@@ -111,15 +157,42 @@ export function PartnerPanel({
           </div>
         </div>
 
-        <StatusBanner draft={draft} publicUrl={publicUrl} />
-        <ProfileForm partnerId={partnerId} published={published} draft={draft} />
-        <MaterialsCard partnerId={partnerId} materials={materials} />
-        {booth ? (
-          <BoothRequestCard partnerId={partnerId} {...booth} />
-        ) : (
-          <BoothLoadError title={BOOTH_ERROR_TITLE} hint={BOOTH_ERROR_HINT_PARTNER} />
-        )}
-        <ContactForm partnerId={partnerId} contact={contact} />
+        <ProgressLine {...progress} />
+        <TabBar tabs={tabs} active={active} onSelect={select} boothDeadline={panelState.booth?.deadlineLabel ?? null} />
+
+        {/* Tylko aktywna zakładka jest zamontowana — przy zmianie z niezapisanym formularzem pytamy
+            o potwierdzenie (select). Wpisanie czegokolwiek oznacza zakładkę jako zmienioną,
+            wysłanie formularza zdejmuje oznaczenie. */}
+        <div
+          key={active}
+          role="tabpanel"
+          id={panelId(active)}
+          aria-labelledby={tabId(active)}
+          tabIndex={0}
+          className="flex flex-col gap-6 focus-visible:outline-none"
+          onInput={() => (dirty.current = true)}
+          onChange={() => (dirty.current = true)}
+          onSubmit={() => (dirty.current = false)}
+        >
+          {active === "przeglad" && (
+            <NextSteps tasks={tasks} hasWaiting={tabs.some((t) => t.status === "waiting")} onOpen={select} />
+          )}
+          {active === "wizytowka" && (
+            <>
+              <StatusBanner draft={draft} publicUrl={publicUrl} />
+              <ProfileForm partnerId={partnerId} published={published} draft={draft} />
+            </>
+          )}
+          {active === "materialy" && <MaterialsCard partnerId={partnerId} materials={materials} />}
+          {active === "stoisko" &&
+            (booth ? (
+              <BoothRequestCard partnerId={partnerId} {...booth} />
+            ) : (
+              <BoothLoadError title={BOOTH_ERROR_TITLE} hint={BOOTH_ERROR_HINT_PARTNER} />
+            ))}
+          {active === "leady" && leads}
+          {active === "kontakt" && <ContactForm partnerId={partnerId} contact={contact} />}
+        </div>
       </main>
     </div>
   );
