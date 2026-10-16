@@ -37,7 +37,9 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { SettingsBar, SettingsNav, type SettingsSectionId } from "./settings-nav";
+import { PageShell } from "@/components/page-shell";
+import { TabbedSections } from "@/components/tabbed-sections";
+import { SETTINGS_DEFAULT_TAB, SETTINGS_TABS, type SettingsTabKey } from "@/lib/organizer-tabs";
 import {
   Select,
   SelectContent,
@@ -84,6 +86,7 @@ export function EventEditForm({
   subdomainStatus,
   summary,
   badgesLockedMessage = null,
+  initialTab = SETTINGS_DEFAULT_TAB,
 }: {
   event: Event;
   attendeeCount: number;
@@ -92,6 +95,8 @@ export function EventEditForm({
   summary?: React.ReactNode;
   /** Komunikat „dostępne w planie X", gdy identyfikatory są spoza planu. */
   badgesLockedMessage?: string | null;
+  /** Zakładka z `?tab=` (resolveTabKey na serwerze). */
+  initialTab?: SettingsTabKey;
 }) {
   const updateEventForEvent = updateEvent.bind(null, event.id);
   const uploadLogoForEvent = uploadEventLogo.bind(null, event.id);
@@ -269,14 +274,19 @@ export function EventEditForm({
   }
 
   return (
-    <main className="mx-auto w-full max-w-2xl p-6 xl:grid xl:max-w-none xl:grid-cols-[11rem_minmax(0,42rem)] xl:justify-center xl:gap-10">
-      <SettingsNav className="hidden xl:block" />
+    <PageShell title="Ustawienia wydarzenia">
+      {summary}
 
-      <div className="flex min-w-0 flex-col gap-6">
-        <SettingsBar className="xl:hidden" />
-
-        {summary}
-
+      {/* Wszystkie zakładki zamontowane (TabbedSections) — kolor w „Branding” należy do formularza
+          „Ogólne” (atrybut form) i musi się wysyłać także, gdy aktywna jest inna zakładka. */}
+      <TabbedSections
+        idPrefix="settings"
+        ariaLabel="Sekcje ustawień"
+        tabs={[...SETTINGS_TABS]}
+        defaultTab={SETTINGS_DEFAULT_TAB}
+        initialTab={initialTab}
+        panels={{
+          ogolne: (
         <SettingsSection
           id="ogolne"
           title="Ogólne"
@@ -580,7 +590,8 @@ export function EventEditForm({
             </Button>
           </form>
         </SettingsSection>
-
+          ),
+          "branding": (
         <SettingsSection
           id="branding"
           title="Branding"
@@ -647,7 +658,8 @@ export function EventEditForm({
             </Button>
           </div>
         </SettingsSection>
-
+          ),
+          "identyfikatory": (
         <SettingsSection
           id="identyfikatory"
           title="Identyfikatory"
@@ -672,7 +684,8 @@ export function EventEditForm({
             </span>
           </p>
         </SettingsSection>
-
+          ),
+          "strefa-niebezpieczna": (
         <SettingsSection
           id="strefa-niebezpieczna"
           title="Strefa niebezpieczna"
@@ -808,8 +821,10 @@ export function EventEditForm({
             </Dialog>
           </div>
         </SettingsSection>
-      </div>
-    </main>
+          ),
+        }}
+      />
+    </PageShell>
   );
 }
 
@@ -820,7 +835,7 @@ function SettingsSection({
   danger = false,
   children,
 }: {
-  id: SettingsSectionId;
+  id: SettingsTabKey;
   title: string;
   description: string;
   danger?: boolean;
@@ -830,7 +845,7 @@ function SettingsSection({
     <section
       id={id}
       aria-labelledby={`${id}-title`}
-      className={cn("scroll-mt-24", danger && "mt-6")}
+      className="scroll-mt-24"
     >
       <Card className={danger ? "border-destructive/40" : undefined}>
         <CardHeader className="border-b">
