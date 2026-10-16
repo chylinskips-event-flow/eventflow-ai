@@ -16,7 +16,8 @@ import { accessStatus, changedProfileFields } from "@/lib/partner-portal-core";
 import { partnerTierLabel } from "@/lib/partner-options";
 import { getOrigin } from "@/lib/request-origin";
 import { formatDateTime, getCurrentTimestamp } from "@/lib/format";
-import { getBoothRequest, getCatalog } from "@/lib/booth-requests";
+import { getBoothRequest, getCatalog, loadBoothData } from "@/lib/booth-requests";
+import { BOOTH_ERROR_HINT_ORGANIZER, BOOTH_ERROR_TITLE, BoothLoadError } from "@/components/booth-load-error";
 import { inPackagePendingIds, includedFor, isOverPackage, requestTimesLabel, vehicleLabel } from "@/lib/booth-requests-core";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
 import { Badge } from "@/components/ui/badge";
@@ -39,15 +40,16 @@ export default async function PartnerPortalAdminPage({
   const partner = await getPartnerById(eventId, partnerId);
   if (!partner) notFound();
 
-  const [access, draft, materials, contact, boothRequest, catalog] = await Promise.all([
+  const [access, draft, materials, contact, boothData] = await Promise.all([
     getPartnerAccessList(partnerId),
     getProfileDraft(partnerId),
     getPartnerMaterials(partnerId),
     getPartnerContact(partnerId),
-    getBoothRequest(partnerId),
-    getCatalog(eventId),
+    // Błąd odczytu logistyki (np. brak migracji) → widoczny komunikat zamiast „Brak wniosku”.
+    loadBoothData(() => Promise.all([getBoothRequest(partnerId), getCatalog(eventId)])),
   ]);
   const tz = event.timezone;
+  const [boothRequest, catalog] = boothData.ok ? boothData.value : [null, []];
   const catalogById = new Map(catalog.map((c) => [c.id, c]));
   const boothView: AdminBoothRequestView | null = boothRequest && {
     items: boothRequest.items.map((i) => {
@@ -111,12 +113,16 @@ export default async function PartnerPortalAdminPage({
         timezone={event.timezone}
       />
 
-      <BoothRequestAdmin
-        eventId={eventId}
-        partnerId={partnerId}
-        request={boothView}
-        inPackageCount={boothRequest ? inPackagePendingIds(boothRequest.items, catalog, partner.tier).length : 0}
-      />
+      {boothData.ok ? (
+        <BoothRequestAdmin
+          eventId={eventId}
+          partnerId={partnerId}
+          request={boothView}
+          inPackageCount={boothRequest ? inPackagePendingIds(boothRequest.items, catalog, partner.tier).length : 0}
+        />
+      ) : (
+        <BoothLoadError title={BOOTH_ERROR_TITLE} hint={BOOTH_ERROR_HINT_ORGANIZER} />
+      )}
     </main>
   );
 }

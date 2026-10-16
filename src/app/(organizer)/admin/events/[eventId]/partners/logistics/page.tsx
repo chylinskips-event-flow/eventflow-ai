@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { ChevronLeft, Download, Printer } from "lucide-react";
 import { getOwnEvent } from "@/lib/events";
 import { featureGate } from "@/lib/entitlements";
-import { ensureDefaultCatalog, getLogisticsData } from "@/lib/booth-requests";
+import { ensureDefaultCatalog, getLogisticsData, loadBoothData } from "@/lib/booth-requests";
+import { BOOTH_ERROR_HINT_ORGANIZER, BoothLoadError } from "@/components/booth-load-error";
 import { toDateTimeLocalValue } from "@/lib/format";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
 import { Button } from "@/components/ui/button";
@@ -18,8 +19,19 @@ export default async function BoothLogisticsPage({ params }: { params: Promise<{
   const gate = await featureGate(event.organization_id, "partner_portal");
   if (!gate.ok) return <FeatureLockedPage title="Logistyka stoisk" message={gate.message} />;
 
-  await ensureDefaultCatalog(eventId);
-  const { settings, catalog, booths, totals } = await getLogisticsData(eventId);
+  const data = await loadBoothData(async () => {
+    await ensureDefaultCatalog(eventId);
+    return getLogisticsData(eventId);
+  });
+  if (!data.ok) {
+    return (
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+        <h1 className="text-2xl font-semibold">Logistyka stoisk</h1>
+        <BoothLoadError title="Nie udało się wczytać logistyki stoisk" hint={BOOTH_ERROR_HINT_ORGANIZER} />
+      </main>
+    );
+  }
+  const { settings, catalog, booths, totals } = data.value;
   const tz = event.timezone;
   const base = `/admin/events/${eventId}/partners/logistics`;
 

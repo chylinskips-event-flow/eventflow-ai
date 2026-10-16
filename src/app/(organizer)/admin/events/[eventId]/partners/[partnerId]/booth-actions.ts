@@ -6,7 +6,7 @@ import { getOwnEvent } from "@/lib/events";
 import { featureGate } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrigin } from "@/lib/request-origin";
-import { getBoothRequest, getCatalog, getPartnerRecipientEmails } from "@/lib/booth-requests";
+import { BOOTH_LOAD_ERROR, getBoothRequest, getCatalog, getPartnerRecipientEmails, loadBoothData } from "@/lib/booth-requests";
 import { DECISION_NOTE_MAX_LENGTH, ITEM_QTY_MAX, inPackagePendingIds } from "@/lib/booth-requests-core";
 import { sendBoothDecisionEmail } from "@/lib/email/booth-request";
 
@@ -105,7 +105,8 @@ export async function decideBoothItem(
   if (!data?.length) return { status: "error", message: "Pozycja nie istnieje — odśwież stronę." };
 
   revalidate(eventId, partnerId);
-  const mail = await notifyIfReviewed(ctx);
+  // Odczyt po zapisie decyzji nie może jej „cofnąć” w UI — błąd = brak maila.
+  const mail = await notifyIfReviewed(ctx).catch(() => " E-mail do partnera nie został wysłany.");
   return { status: "success", message: `Decyzja zapisana.${mail ?? ""}` };
 }
 
@@ -114,7 +115,9 @@ export async function approveBoothItemsInPackage(eventId: string, partnerId: str
   const ctx = await organizerContext(eventId, partnerId);
   if ("error" in ctx) return { status: "error", message: ctx.error };
 
-  const [request, catalog] = await Promise.all([getBoothRequest(partnerId), getCatalog(eventId)]);
+  const loaded = await loadBoothData(() => Promise.all([getBoothRequest(partnerId), getCatalog(eventId)]));
+  if (!loaded.ok) return { status: "error", message: BOOTH_LOAD_ERROR };
+  const [request, catalog] = loaded.value;
   const ids = request ? inPackagePendingIds(request.items, catalog, ctx.partner.tier) : [];
   if (ids.length === 0) return { status: "error", message: "Brak oczekujących pozycji w pakiecie." };
 
@@ -127,6 +130,7 @@ export async function approveBoothItemsInPackage(eventId: string, partnerId: str
   if (error) return { status: "error", message: "Nie udało się zatwierdzić pozycji." };
 
   revalidate(eventId, partnerId);
-  const mail = await notifyIfReviewed(ctx);
+  // Odczyt po zapisie decyzji nie może jej „cofnąć” w UI — błąd = brak maila.
+  const mail = await notifyIfReviewed(ctx).catch(() => " E-mail do partnera nie został wysłany.");
   return { status: "success", message: `Zatwierdzono ${ids.length} poz.${mail ?? ""}` };
 }

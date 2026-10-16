@@ -4,7 +4,15 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPartnerContext } from "@/lib/partner-portal";
-import { ensureDefaultCatalog, getBoothRequest, getCatalog, getLogisticsSettings, getOrganizerEmail } from "@/lib/booth-requests";
+import {
+  BOOTH_LOAD_ERROR,
+  ensureDefaultCatalog,
+  getBoothRequest,
+  getCatalog,
+  getLogisticsSettings,
+  getOrganizerEmail,
+  loadBoothData,
+} from "@/lib/booth-requests";
 import {
   VEHICLE_TYPES,
   hasPlanChanges,
@@ -125,12 +133,12 @@ export async function submitBoothRequest(
   const ctx = await getPartnerContext(partnerId);
   if (!ctx) return { status: "error", message: NO_ACCESS };
 
-  await ensureDefaultCatalog(ctx.event.id);
-  const [settings, catalog, existing] = await Promise.all([
-    getLogisticsSettings(ctx.event.id),
-    getCatalog(ctx.event.id),
-    getBoothRequest(partnerId),
-  ]);
+  const loaded = await loadBoothData(async () => {
+    await ensureDefaultCatalog(ctx.event.id);
+    return Promise.all([getLogisticsSettings(ctx.event.id), getCatalog(ctx.event.id), getBoothRequest(partnerId)]);
+  });
+  if (!loaded.ok) return { status: "error", message: BOOTH_LOAD_ERROR };
+  const [settings, catalog, existing] = loaded.value;
 
   const late = isAfterDeadline(settings.request_deadline, Date.now());
   if (late && formData.get("change_request") !== "1") {

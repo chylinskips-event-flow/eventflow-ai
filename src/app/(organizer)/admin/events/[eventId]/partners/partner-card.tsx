@@ -95,7 +95,8 @@ export function PartnerCard({
   leadCount: number;
   pendingReviews: number;
   portalAccess: PortalAccessSummary;
-  boothStatus: RequestStatus;
+  /** null = statusy wniosków nie wczytały się (baner błędu nad listą). */
+  boothStatus: RequestStatus | null;
 }) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
@@ -174,7 +175,7 @@ export function PartnerCard({
                 {STATUS_BADGE[status.kind].label}
               </Badge>
             )}
-            {(boothStatus.kind !== "none" || portalAccess === "active") && (
+            {boothStatus && (boothStatus.kind !== "none" || portalAccess === "active") && (
               <Badge asChild variant={BOOTH_BADGE[boothStatus.kind]} className="ml-1.5">
                 <Link href={panelHref} className="hover:underline">
                   <Truck /> Stoisko: {requestStatusLabel(boothStatus)}

@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { signOutPartner } from "../actions";
+import { BOOTH_ERROR_HINT_PARTNER, BOOTH_ERROR_TITLE, BoothLoadError } from "@/components/booth-load-error";
 import { BoothRequestCard } from "./booth-request-card";
 import {
   deletePartnerMaterial,
@@ -63,7 +64,8 @@ export function PartnerPanel({
   materials: PartnerMaterial[];
   contact: PartnerContact | null;
   publicUrl: string | null;
-  booth: Omit<React.ComponentProps<typeof BoothRequestCard>, "partnerId">;
+  /** null = dane logistyki nie wczytały się (pokazujemy błąd, nie pusty wniosek). */
+  booth: Omit<React.ComponentProps<typeof BoothRequestCard>, "partnerId"> | null;
 }) {
   return (
     <div className="flex flex-col">
@@ -112,7 +114,11 @@ export function PartnerPanel({
         <StatusBanner draft={draft} publicUrl={publicUrl} />
         <ProfileForm partnerId={partnerId} published={published} draft={draft} />
         <MaterialsCard partnerId={partnerId} materials={materials} />
-        <BoothRequestCard partnerId={partnerId} {...booth} />
+        {booth ? (
+          <BoothRequestCard partnerId={partnerId} {...booth} />
+        ) : (
+          <BoothLoadError title={BOOTH_ERROR_TITLE} hint={BOOTH_ERROR_HINT_PARTNER} />
+        )}
         <ContactForm partnerId={partnerId} contact={contact} />
       </main>
     </div>

@@ -6,7 +6,7 @@ import { getOwnEvent } from "@/lib/events";
 import { featureGate } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseDateTimeLocal, pluralizePl } from "@/lib/format";
-import { getCatalog, getEventBoothRequests, getPartnerRecipientEmails } from "@/lib/booth-requests";
+import { getCatalog, getEventBoothRequests, getPartnerRecipientEmails, loadBoothData } from "@/lib/booth-requests";
 import {
   MAX_CATALOG_ITEMS,
   SLOT_STEPS,
@@ -73,8 +73,12 @@ export async function saveLogisticsSettings(
     .upsert({ event_id: eventId, ...settings }, { onConflict: "event_id" });
   if (dbError) return { status: "error", message: "Nie udało się zapisać ustawień." };
 
-  const flagged = await flagRequestsOutsideWindows(ctx.event, settings);
+  const check = await loadBoothData(() => flagRequestsOutsideWindows(ctx.event, settings));
   revalidate(eventId);
+  if (!check.ok) {
+    return { status: "error", message: "Ustawienia zapisane, ale nie udało się wczytać wniosków, żeby sprawdzić godziny. Odśwież stronę." };
+  }
+  const flagged = check.value;
   return {
     status: "success",
     message:
@@ -157,7 +161,9 @@ export async function saveCatalogItem(
     if (error) return { status: "error", message: "Nie udało się zapisać pozycji." };
     if (!data?.length) return { status: "error", message: "Pozycja nie istnieje." };
   } else {
-    const catalog = await getCatalog(eventId);
+    const loaded = await loadBoothData(() => getCatalog(eventId));
+    if (!loaded.ok) return { status: "error", message: "Nie udało się wczytać katalogu. Odśwież stronę." };
+    const catalog = loaded.value;
     if (catalog.length >= MAX_CATALOG_ITEMS) {
       return { status: "error", message: `Katalog może mieć najwyżej ${MAX_CATALOG_ITEMS} pozycji.` };
     }

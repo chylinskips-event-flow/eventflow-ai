@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getOwnEvent } from "@/lib/events";
 import { featureGate } from "@/lib/entitlements";
-import { getLogisticsData } from "@/lib/booth-requests";
+import { getLogisticsData, loadBoothData } from "@/lib/booth-requests";
+import { BOOTH_ERROR_HINT_ORGANIZER, BoothLoadError } from "@/components/booth-load-error";
 import { formatDateTime, getCurrentTimestamp } from "@/lib/format";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,15 @@ export default async function BoothLogisticsPrintPage({ params }: { params: Prom
   const gate = await featureGate(event.organization_id, "partner_portal");
   if (!gate.ok) return <FeatureLockedPage title="Logistyka stoisk" message={gate.message} />;
 
-  const { booths, totals } = await getLogisticsData(eventId);
+  const data = await loadBoothData(() => getLogisticsData(eventId));
+  if (!data.ok) {
+    return (
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+        <BoothLoadError title="Nie udało się wczytać logistyki stoisk" hint={BOOTH_ERROR_HINT_ORGANIZER} />
+      </main>
+    );
+  }
+  const { booths, totals } = data.value;
   const printedAt = formatDateTime(new Date(getCurrentTimestamp()).toISOString(), event.timezone);
 
   return (

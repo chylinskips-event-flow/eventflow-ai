@@ -17,8 +17,41 @@ import {
   requestStatus,
 } from "@/lib/booth-requests-core";
 
-function logError(what: string, error: { code?: string; message: string } | null) {
+type DbError = { code?: string; message: string } | null;
+
+function logError(what: string, error: DbError) {
   if (error) console.error(`[booth-requests] ${what}`, JSON.stringify({ code: error.code, message: error.message }));
+}
+
+/**
+ * Błąd odczytu danych logistyki (np. brak tabeli / kolumny po niezastosowanej migracji).
+ * Nie zamieniamy go na pusty wynik — strona pokazuje „Nie udało się wczytać wniosku”,
+ * żeby brak migracji był widoczny od razu, a nie wyglądał jak „Brak wniosku”.
+ */
+export class BoothDataError extends Error {
+  constructor(what: string, error: NonNullable<DbError>) {
+    super(`[booth-requests] ${what}: ${error.code ?? ""} ${error.message}`);
+    this.name = "BoothDataError";
+  }
+}
+
+function failOn(what: string, error: DbError) {
+  if (!error) return;
+  logError(what, error);
+  throw new BoothDataError(what, error);
+}
+
+export const BOOTH_LOAD_ERROR =
+  "Nie udało się wczytać wniosku. Odśwież stronę — jeśli błąd się powtarza, zgłoś go organizatorowi.";
+
+/** Odczyt danych logistyki: błąd bazy → { ok: false }; inne wyjątki (np. redirect) lecą dalej. */
+export async function loadBoothData<T>(load: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false }> {
+  try {
+    return { ok: true, value: await load() };
+  } catch (e) {
+    if (e instanceof BoothDataError) return { ok: false };
+    throw e;
+  }
 }
 
 const SETTINGS_COLUMNS = "request_deadline, setup_windows, teardown_windows, slot_step_minutes, require_vehicle_plate";
@@ -34,7 +67,7 @@ export async function getLogisticsSettings(eventId: string): Promise<LogisticsSe
     .select(SETTINGS_COLUMNS)
     .eq("event_id", eventId)
     .maybeSingle();
-  logError("settings read failed", error);
+  failOn("settings read failed", error);
   if (!data) return EMPTY_SETTINGS;
   return {
     request_deadline: data.request_deadline as string | null,
@@ -54,19 +87,23 @@ export async function ensureDefaultCatalog(eventId: string): Promise<void> {
   const { error: upsertError } = await admin
     .from("booth_logistics_settings")
     .upsert({ event_id: eventId }, { onConflict: "event_id", ignoreDuplicates: true });
-  logError("settings init failed", upsertError);
+  failOn("settings init failed", upsertError);
   const { data: claimed, error } = await admin
     .from("booth_logistics_settings")
     .update({ catalog_seeded: true })
     .eq("event_id", eventId)
     .eq("catalog_seeded", false)
     .select("id");
-  logError("seed claim failed", error);
+  failOn("seed claim failed", error);
   if (!claimed?.length) return;
   const { error: insertError } = await admin.from("booth_catalog_items").insert(
     DEFAULT_BOOTH_CATALOG.map((c, i) => ({ event_id: eventId, name: c.name, unit: c.unit, sort_order: i })),
   );
-  logError("seed insert failed", insertError);
+  if (insertError) {
+    // Zwolnij flagę, żeby następne wejście spróbowało wstawić katalog ponownie.
+    await admin.from("booth_logistics_settings").update({ catalog_seeded: false }).eq("event_id", eventId);
+  }
+  failOn("seed insert failed", insertError);
 }
 
 export async function getCatalog(eventId: string): Promise<CatalogItem[]> {
@@ -76,7 +113,7 @@ export async function getCatalog(eventId: string): Promise<CatalogItem[]> {
     .eq("event_id", eventId)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
-  logError("catalog read failed", error);
+  failOn("catalog read failed", error);
   return ((data ?? []) as (CatalogItem & { included_by_tier: unknown })[]).map((c) => ({
     ...c,
     included_by_tier: parseIncludedByTier(c.included_by_tier),
@@ -103,14 +140,14 @@ export async function getBoothRequest(partnerId: string): Promise<BoothRequest |
     .select(REQUEST_COLUMNS)
     .eq("partner_id", partnerId)
     .maybeSingle();
-  logError("request read failed", error);
+  failOn("request read failed", error);
   if (!data) return null;
   const { data: items, error: itemsError } = await admin
     .from("partner_booth_request_items")
     .select(ITEM_COLUMNS)
     .eq("request_id", data.id)
     .order("created_at", { ascending: true });
-  logError("items read failed", itemsError);
+  failOn("items read failed", itemsError);
   return attachItems([data as RequestRow], (items ?? []) as ItemRow[])[0];
 }
 
@@ -125,8 +162,8 @@ export async function getEventBoothRequests(eventId: string): Promise<BoothReque
       .eq("event_id", eventId)
       .order("created_at", { ascending: true }),
   ]);
-  logError("event requests read failed", requests.error);
-  logError("event items read failed", items.error);
+  failOn("event requests read failed", requests.error);
+  failOn("event items read failed", items.error);
   return attachItems((requests.data ?? []) as RequestRow[], (items.data ?? []) as ItemRow[]);
 }
 
@@ -178,7 +215,7 @@ export async function getLogisticsData(eventId: string) {
     getEventBoothRequests(eventId),
     admin.from("partners").select("id, name, tier, booth_location").eq("event_id", eventId).order("name", { ascending: true }),
   ]);
-  logError("partners read failed", partnersRes.error);
+  failOn("partners read failed", partnersRes.error);
   const partners = (partnersRes.data ?? []) as { id: string; name: string; tier: string | null; booth_location: string | null }[];
   const byPartner = new Map(requests.map((r) => [r.partner_id, r]));
   const booths: BoothListRow[] = partners

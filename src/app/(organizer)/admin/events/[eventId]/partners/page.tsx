@@ -4,7 +4,8 @@ import { Truck } from "lucide-react";
 import { getOwnEvent } from "@/lib/events";
 import { getEventPartners, getPartnerStats } from "@/lib/partners";
 import { getPendingReviewCounts, getPortalAccessSummary } from "@/lib/partner-portal";
-import { getBoothRequestStatuses } from "@/lib/booth-requests";
+import { getBoothRequestStatuses, loadBoothData } from "@/lib/booth-requests";
+import { BOOTH_ERROR_HINT_ORGANIZER, BoothLoadError } from "@/components/booth-load-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PartnerFormDialog } from "./partner-form-dialog";
@@ -27,7 +28,7 @@ export default async function EventPartnersPage({
     getPartnerStats(eventId),
     getPendingReviewCounts(eventId),
     getPortalAccessSummary(eventId),
-    getBoothRequestStatuses(eventId),
+    loadBoothData(() => getBoothRequestStatuses(eventId)),
   ]);
 
   return (
@@ -46,6 +47,10 @@ export default async function EventPartnersPage({
           />
         </div>
       </div>
+
+      {!boothStatuses.ok && (
+        <BoothLoadError title="Nie udało się wczytać wniosków o zapotrzebowanie na stoisko" hint={BOOTH_ERROR_HINT_ORGANIZER} />
+      )}
 
       {partners.length === 0 ? (
         <Card>
@@ -66,7 +71,7 @@ export default async function EventPartnersPage({
               leadCount={partnerStats[partner.id]?.leads ?? 0}
               pendingReviews={pendingReviews[partner.id] ?? 0}
               portalAccess={portalAccess[partner.id] ?? "none"}
-              boothStatus={boothStatuses[partner.id] ?? { kind: "none" }}
+              boothStatus={boothStatuses.ok ? (boothStatuses.value[partner.id] ?? { kind: "none" }) : null}
             />
           ))}
         </div>

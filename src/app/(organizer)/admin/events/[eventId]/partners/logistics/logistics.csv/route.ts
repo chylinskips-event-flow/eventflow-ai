@@ -1,6 +1,6 @@
 import { getOwnEvent } from "@/lib/events";
 import { featureGate } from "@/lib/entitlements";
-import { getLogisticsData } from "@/lib/booth-requests";
+import { getLogisticsData, loadBoothData } from "@/lib/booth-requests";
 import { ITEM_STATUS, approvedQty, requestTimesLabel, vehicleTypeLabel } from "@/lib/booth-requests-core";
 import { partnerTierLabel } from "@/lib/partner-options";
 import { toExcelCsv } from "@/lib/csv";
@@ -15,7 +15,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (!gate.ok) return new Response("Forbidden", { status: 403 });
 
   const view = new URL(req.url).searchParams.get("view") === "booths" ? "booths" : "totals";
-  const { booths, totals } = await getLogisticsData(eventId);
+  const data = await loadBoothData(() => getLogisticsData(eventId));
+  if (!data.ok) {
+    return new Response("Nie udało się wczytać logistyki stoisk — sprawdź migracje bazy.", {
+      status: 500,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+  const { booths, totals } = data.value;
   const tz = event.timezone;
 
   const csv =
