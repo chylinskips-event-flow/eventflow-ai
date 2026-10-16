@@ -8,13 +8,17 @@ import { EventEditForm } from "./form";
 import { Card, CardContent } from "@/components/ui/card";
 import { SubdomainStatus } from "./subdomain-status";
 import { featureGate } from "@/lib/entitlements";
+import { SETTINGS_DEFAULT_TAB, SETTINGS_TAB_KEYS } from "@/lib/organizer-tabs";
+import { resolveTabKey } from "@/lib/url-tabs";
 
 export default async function EventDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
 }) {
-  const { eventId } = await params;
+  const [{ eventId }, { tab }] = await Promise.all([params, searchParams]);
   const event = await getOwnEvent(eventId);
 
   if (!event) {
@@ -88,6 +92,7 @@ export default async function EventDetailPage({
   return (
     <EventEditForm
       event={event}
+      initialTab={resolveTabKey(tab, SETTINGS_TAB_KEYS, SETTINGS_DEFAULT_TAB)}
       attendeeCount={attendeeCount ?? 0}
       paidOrderCount={paidOrderCount ?? 0}
       badgesLockedMessage={badgesGate.ok ? null : badgesGate.message}
