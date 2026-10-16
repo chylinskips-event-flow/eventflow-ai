@@ -35,12 +35,17 @@ export function BadgesButton({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    // Etykieta „PDF dla:” — lista wybiera, kogo obejmie PDF; nie filtruje listy uczestników
+    // (bez niej wyglądała jak drugi filtr obok zakładek statusu).
+    <div className="flex flex-wrap items-center gap-2">
+      <label htmlFor="badges-pdf-filter" className="text-sm text-muted-foreground">
+        PDF dla:
+      </label>
       <Select
         value={filter}
         onValueChange={(v) => setFilter(v as BadgeFilter)}
       >
-        <SelectTrigger className="w-44 h-9 text-sm">
+        <SelectTrigger id="badges-pdf-filter" className="w-44 h-9 text-sm">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
