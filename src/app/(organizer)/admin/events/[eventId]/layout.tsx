@@ -48,23 +48,26 @@ export default async function EventLayout({
   return (
     <div className="flex min-h-screen bg-background">
       {/* Ciemny sidebar — fixed, zawsze widoczny na md+ */}
-      <EventSidebar
-        eventId={eventId}
-        gamificationEnabled={event?.gamification_enabled ?? false}
-        hasLottery={
-          (event?.gamification_enabled ?? false) &&
-          event?.lottery_points_per_ticket != null
-        }
-        userEmail={user?.email ?? null}
-        signOut={signOut}
-      />
+      {/* Na wydruku (logistyka stoisk, QR) tylko treść strony. */}
+      <div className="print:hidden">
+        <EventSidebar
+          eventId={eventId}
+          gamificationEnabled={event?.gamification_enabled ?? false}
+          hasLottery={
+            (event?.gamification_enabled ?? false) &&
+            event?.lottery_points_per_ticket != null
+          }
+          userEmail={user?.email ?? null}
+          signOut={signOut}
+        />
+      </div>
 
       {/* Workspace — przesuwa się za sidebar na desktop.
           overflow-x-clip (nie hidden): hidden tworzy kontener przewijania i psuje
           sticky (nagłówek, sub-nav Ustawień). min-w-0 — clip nie zeruje min-width elementu flex. */}
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-x-clip md:pl-64">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-x-clip md:pl-64 print:pl-0">
         {/* Workspace header */}
-        <header data-workspace-header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b bg-background px-6 py-3">
+        <header data-workspace-header className="print:hidden sticky top-0 z-20 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b bg-background px-6 py-3">
           {/* pl-12 na mobile — robi miejsce na hamburger z EventSidebar */}
           <div className="flex flex-col pl-12 md:pl-0">
             <span className="text-sm font-semibold leading-tight">

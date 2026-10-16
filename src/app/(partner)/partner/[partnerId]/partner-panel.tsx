@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { signOutPartner } from "../actions";
+import { BoothRequestCard } from "./booth-request-card";
 import {
   deletePartnerMaterial,
   savePartnerContact,
@@ -49,6 +50,7 @@ export function PartnerPanel({
   materials,
   contact,
   publicUrl,
+  booth,
 }: {
   partnerId: string;
   userEmail: string;
@@ -61,6 +63,7 @@ export function PartnerPanel({
   materials: PartnerMaterial[];
   contact: PartnerContact | null;
   publicUrl: string | null;
+  booth: Omit<React.ComponentProps<typeof BoothRequestCard>, "partnerId">;
 }) {
   return (
     <div className="flex flex-col">
@@ -109,6 +112,7 @@ export function PartnerPanel({
         <StatusBanner draft={draft} publicUrl={publicUrl} />
         <ProfileForm partnerId={partnerId} published={published} draft={draft} />
         <MaterialsCard partnerId={partnerId} materials={materials} />
+        <BoothRequestCard partnerId={partnerId} {...booth} />
         <ContactForm partnerId={partnerId} contact={contact} />
       </main>
     </div>

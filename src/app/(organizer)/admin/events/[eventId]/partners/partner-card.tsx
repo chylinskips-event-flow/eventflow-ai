@@ -11,11 +11,13 @@ import {
   Pencil,
   QrCode,
   Trash2,
+  Truck,
   UserCog,
 } from "lucide-react";
 import { deletePartner } from "./actions";
 import type { Partner } from "@/lib/partners";
 import type { PortalAccessSummary } from "@/lib/partner-portal-core";
+import { requestStatusLabel, type RequestStatus } from "@/lib/booth-requests-core";
 import { pluralizePl } from "@/lib/format";
 import { partnerTierLabel } from "@/lib/partner-options";
 import { Button } from "@/components/ui/button";
@@ -60,6 +62,14 @@ const STATUS_BADGE: Record<
   none: { label: "Brak dostępu", variant: "secondary" },
 };
 
+const BOOTH_BADGE: Record<RequestStatus["kind"], "secondary" | "warning" | "indigo" | "success" | "destructive"> = {
+  none: "secondary",
+  pending: "warning",
+  partial: "indigo",
+  approved: "success",
+  rejected: "destructive",
+};
+
 // Oczekujące akceptacje mają pierwszeństwo — to jedyny stan wymagający akcji organizatora.
 function portalStatus(
   pendingReviews: number,
@@ -77,6 +87,7 @@ export function PartnerCard({
   leadCount,
   pendingReviews,
   portalAccess,
+  boothStatus,
 }: {
   eventId: string;
   partner: Partner;
@@ -84,6 +95,7 @@ export function PartnerCard({
   leadCount: number;
   pendingReviews: number;
   portalAccess: PortalAccessSummary;
+  boothStatus: RequestStatus;
 }) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
@@ -160,6 +172,13 @@ export function PartnerCard({
             ) : (
               <Badge variant={STATUS_BADGE[status.kind].variant}>
                 {STATUS_BADGE[status.kind].label}
+              </Badge>
+            )}
+            {(boothStatus.kind !== "none" || portalAccess === "active") && (
+              <Badge asChild variant={BOOTH_BADGE[boothStatus.kind]} className="ml-1.5">
+                <Link href={panelHref} className="hover:underline">
+                  <Truck /> Stoisko: {requestStatusLabel(boothStatus)}
+                </Link>
               </Badge>
             )}
           </div>

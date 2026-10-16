@@ -15,10 +15,13 @@ import {
 import { accessStatus, changedProfileFields } from "@/lib/partner-portal-core";
 import { partnerTierLabel } from "@/lib/partner-options";
 import { getOrigin } from "@/lib/request-origin";
-import { getCurrentTimestamp } from "@/lib/format";
+import { formatDateTime, getCurrentTimestamp } from "@/lib/format";
+import { getBoothRequest, getCatalog } from "@/lib/booth-requests";
+import { inPackagePendingIds, includedFor, isOverPackage, logisticsRangeLabel } from "@/lib/booth-requests-core";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
 import { Badge } from "@/components/ui/badge";
 import { PartnerPortalAdmin } from "./partner-portal-admin";
+import { BoothRequestAdmin, type AdminBoothRequestView } from "./booth-request-admin";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -36,12 +39,30 @@ export default async function PartnerPortalAdminPage({
   const partner = await getPartnerById(eventId, partnerId);
   if (!partner) notFound();
 
-  const [access, draft, materials, contact] = await Promise.all([
+  const [access, draft, materials, contact, boothRequest, catalog] = await Promise.all([
     getPartnerAccessList(partnerId),
     getProfileDraft(partnerId),
     getPartnerMaterials(partnerId),
     getPartnerContact(partnerId),
+    getBoothRequest(partnerId),
+    getCatalog(eventId),
   ]);
+  const tz = event.timezone;
+  const catalogById = new Map(catalog.map((c) => [c.id, c]));
+  const boothView: AdminBoothRequestView | null = boothRequest && {
+    items: boothRequest.items.map((i) => {
+      const c = i.catalog_item_id ? catalogById.get(i.catalog_item_id) : undefined;
+      const included = c ? includedFor(c, partner.tier) : null;
+      return { ...i, included, over: isOverPackage(i.qty, included) };
+    }),
+    crewCount: boothRequest.crew_count,
+    setup: logisticsRangeLabel(boothRequest.setup_start, boothRequest.setup_end, tz),
+    teardown: logisticsRangeLabel(boothRequest.teardown_start, boothRequest.teardown_end, tz),
+    vehicle: boothRequest.vehicle,
+    vehicleNote: boothRequest.vehicle_note,
+    submittedAt: formatDateTime(boothRequest.submitted_at, tz),
+    lateChange: !!boothRequest.late_change_at,
+  };
   const origin = getOrigin(await headers());
   const now = getCurrentTimestamp();
   const published = publishedProfile(partner);
@@ -87,6 +108,13 @@ export default async function PartnerPortalAdminPage({
         materials={materials}
         contact={contact}
         timezone={event.timezone}
+      />
+
+      <BoothRequestAdmin
+        eventId={eventId}
+        partnerId={partnerId}
+        request={boothView}
+        inPackageCount={boothRequest ? inPackagePendingIds(boothRequest.items, catalog, partner.tier).length : 0}
       />
     </main>
   );
