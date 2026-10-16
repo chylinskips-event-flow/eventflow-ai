@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import {
   TAB_STATUS_MARK,
@@ -37,10 +37,30 @@ export function TabBar({
   boothDeadline: string | null;
 }) {
   const refs = useRef(new Map<TabKey, HTMLButtonElement>());
+  const scroller = useRef<HTMLDivElement>(null);
+  const [fadeRight, setFadeRight] = useState(false);
+
+  function updateFade() {
+    const el = scroller.current;
+    if (el) setFadeRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }
 
   useEffect(() => {
-    refs.current.get(active)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    // Przewijamy tylko pasek zakładek (poziomo), nie całą stronę.
+    const el = scroller.current;
+    const tab = refs.current.get(active);
+    if (el && tab) {
+      const left = tab.offsetLeft - el.offsetLeft;
+      if (left < el.scrollLeft) el.scrollTo({ left: left - 16 });
+      else if (left + tab.offsetWidth > el.scrollLeft + el.clientWidth) el.scrollTo({ left: left + tab.offsetWidth - el.clientWidth + 16 });
+    }
+    updateFade();
   }, [active]);
+
+  useEffect(() => {
+    window.addEventListener("resize", updateFade);
+    return () => window.removeEventListener("resize", updateFade);
+  }, []);
 
   function onKeyDown(e: React.KeyboardEvent, index: number) {
     const next =
@@ -57,11 +77,17 @@ export function TabBar({
   }
 
   return (
-    <div
-      role="tablist"
-      aria-label="Sekcje panelu partnera"
-      className="-mx-4 flex min-w-0 gap-1 overflow-x-auto border-b px-4 [scrollbar-width:thin] sm:mx-0 sm:px-0"
-    >
+    // Linia bazowa rysowana osobno (absolute), żeby podkreślenie zakładki nie wystawało poza
+    // przewijany kontener — wcześniej -mb-px dawało pionowe przewijanie i widoczny suwak.
+    <div className="relative -mx-4 min-w-0 sm:mx-0">
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-border" />
+      <div
+        ref={scroller}
+        role="tablist"
+        aria-label="Sekcje panelu partnera"
+        onScroll={updateFade}
+        className="relative flex gap-1 overflow-x-auto overflow-y-hidden px-4 [-ms-overflow-style:none] [scrollbar-width:none] sm:px-0 [&::-webkit-scrollbar]:hidden"
+      >
       {tabs.map((t, i) => {
         const selected = t.key === active;
         const mark = t.status ? TAB_STATUS_MARK[t.status] : null;
@@ -82,8 +108,9 @@ export function TabBar({
             onClick={() => onSelect(t.key)}
             onKeyDown={(e) => onKeyDown(e, i)}
             className={cn(
-              "-mb-px inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-              "focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+              // ring-inset: obrys fokusu mieści się w kontenerze z overflow-y: hidden.
+              "focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
               selected
                 ? "border-primary text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground",
@@ -99,6 +126,11 @@ export function TabBar({
           </button>
         );
       })}
+      </div>
+      {/* Sygnał, że po prawej są kolejne zakładki (tylko gdy da się przewinąć dalej). */}
+      {fadeRight && (
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent" />
+      )}
     </div>
   );
 }
