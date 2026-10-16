@@ -64,7 +64,7 @@ export function BoothRequestAdmin({
   const status = requestStatus(request?.items ?? null);
 
   return (
-    <Card>
+    <Card id="stoisko" className="scroll-mt-20">
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle>Zapotrzebowanie na stoisko</CardTitle>

@@ -21,10 +21,17 @@ import {
 } from "@/lib/booth-requests";
 import { includedFor, isAfterDeadline, toLocalSlot } from "@/lib/booth-requests-core";
 import type { BoothRequestView } from "./booth-request-card";
+import { computeTabs, resolveTab, type PanelState } from "@/lib/partner-panel-tabs";
 import { PartnerPanel } from "./partner-panel";
 
-export default async function PartnerPanelPage({ params }: { params: Promise<{ partnerId: string }> }) {
-  const { partnerId } = await params;
+export default async function PartnerPanelPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ partnerId: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
+}) {
+  const [{ partnerId }, { tab }] = await Promise.all([params, searchParams]);
   const ctx = await getPartnerContext(partnerId);
   if (!ctx) {
     if (!(await getAuthUser())) redirect("/partner/login");
@@ -84,6 +91,30 @@ export default async function PartnerPanelPage({ params }: { params: Promise<{ p
     };
   }
 
+  const published = publishedProfile(ctx.partner);
+  const panelState: PanelState = {
+    profile: {
+      draftStatus: draft?.status ?? null,
+      hasLogo: !!published.logo_url,
+      hasDescription: !!published.description?.trim(),
+    },
+    materials: materials.map((m) => m.status),
+    booth: booth
+      ? {
+          loadError: false,
+          hasRequest: !!booth.request,
+          pendingItems: booth.request?.items.filter((i) => i.status === "pending").length ?? 0,
+          timesNeedFix: booth.request?.timesNeedFix ?? false,
+          locked: booth.locked,
+          deadlineLabel: booth.deadlineLabel,
+        }
+      : { loadError: true, hasRequest: false, pendingItems: 0, timesNeedFix: false, locked: false, deadlineLabel: null },
+    // Faza B (pytania i kontakty ze stoiska) dołoży tu swoją flagę i treść zakładki „Leady”.
+    leadsEnabled: false,
+    contact: { hasContact: !!(contact?.contact_name?.trim() || contact?.contact_email?.trim() || contact?.contact_phone?.trim()) },
+  };
+  const tabs = computeTabs(panelState);
+
   return (
     <PartnerPanel
       partnerId={partnerId}
@@ -92,12 +123,15 @@ export default async function PartnerPanelPage({ params }: { params: Promise<{ p
       eventDate={formatDate(ctx.event.starts_at, ctx.event.timezone)}
       tier={partnerTierLabel(ctx.partner.tier)}
       boothLocation={ctx.partner.booth_location}
-      published={publishedProfile(ctx.partner)}
+      published={published}
       draft={draft}
       materials={materials}
       contact={contact}
       publicUrl={isPublic ? `${origin}/e/${ctx.event.slug}/partners/${partnerId}` : null}
       booth={booth}
+      panelState={panelState}
+      tabs={tabs}
+      initialTab={resolveTab(tab, tabs)}
     />
   );
 }
