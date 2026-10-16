@@ -15,12 +15,16 @@ import {
 import { accessStatus, changedProfileFields } from "@/lib/partner-portal-core";
 import { partnerTierLabel } from "@/lib/partner-options";
 import { getOrigin } from "@/lib/request-origin";
-import { getCurrentTimestamp } from "@/lib/format";
+import { formatDateTime, getCurrentTimestamp } from "@/lib/format";
+import { getBoothRequest, getCatalog, loadBoothData } from "@/lib/booth-requests";
+import { BOOTH_ERROR_HINT_ORGANIZER, BOOTH_ERROR_TITLE, BoothLoadError } from "@/components/booth-load-error";
+import { inPackagePendingIds, includedFor, isOverPackage, requestTimesLabel, vehicleLabel } from "@/lib/booth-requests-core";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
 import { Badge } from "@/components/ui/badge";
 import { getLeadAudit, getPartnerLeadCount, getPartnerQuestions, isPartnerLeadsEnabled } from "@/lib/partner-leads";
 import { PartnerPortalAdmin } from "./partner-portal-admin";
 import { PartnerLeadsAdmin } from "./partner-leads-admin";
+import { BoothRequestAdmin, type AdminBoothRequestView } from "./booth-request-admin";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -39,15 +43,36 @@ export default async function PartnerPortalAdminPage({
   if (!partner) notFound();
 
   const leadsEnabled = isPartnerLeadsEnabled();
-  const [access, draft, materials, contact, questions, leadCount, audit] = await Promise.all([
+  const [access, draft, materials, contact, boothData, questions, leadCount, audit] = await Promise.all([
     getPartnerAccessList(partnerId),
     getProfileDraft(partnerId),
     getPartnerMaterials(partnerId),
     getPartnerContact(partnerId),
+    // Błąd odczytu logistyki (np. brak migracji) → widoczny komunikat zamiast „Brak wniosku”.
+    loadBoothData(() => Promise.all([getBoothRequest(partnerId), getCatalog(eventId)])),
     leadsEnabled ? getPartnerQuestions(partnerId) : Promise.resolve([]),
     leadsEnabled ? getPartnerLeadCount(partnerId) : Promise.resolve(0),
     leadsEnabled ? getLeadAudit(partnerId) : Promise.resolve([]),
   ]);
+  const tz = event.timezone;
+  const [boothRequest, catalog] = boothData.ok ? boothData.value : [null, []];
+  const catalogById = new Map(catalog.map((c) => [c.id, c]));
+  const boothView: AdminBoothRequestView | null = boothRequest && {
+    items: boothRequest.items.map((i) => {
+      const c = i.catalog_item_id ? catalogById.get(i.catalog_item_id) : undefined;
+      const included = c ? includedFor(c, partner.tier) : null;
+      return { ...i, included, over: isOverPackage(i.qty, included) };
+    }),
+    crewCount: boothRequest.crew_count,
+    setup: requestTimesLabel(boothRequest.setup_start, boothRequest.setup_end, boothRequest.setup_note, tz),
+    teardown: requestTimesLabel(boothRequest.teardown_start, boothRequest.teardown_end, boothRequest.teardown_note, tz),
+    vehicle: boothRequest.vehicle,
+    vehicleLabel: vehicleLabel(boothRequest),
+    timesNeedFix: boothRequest.times_need_fix,
+    submittedAt: formatDateTime(boothRequest.submitted_at, tz),
+    // Tylko dopóki zmiana czeka na decyzję (rozpatrzone wnioski sprzed poprawki też bez etykiety).
+    lateChange: !!boothRequest.late_change_at && boothRequest.items.some((i) => i.status === "pending"),
+  };
   const origin = getOrigin(await headers());
   const now = getCurrentTimestamp();
   const published = publishedProfile(partner);
@@ -103,6 +128,17 @@ export default async function PartnerPortalAdminPage({
           audit={audit}
           timezone={event.timezone}
         />
+      )}
+
+      {boothData.ok ? (
+        <BoothRequestAdmin
+          eventId={eventId}
+          partnerId={partnerId}
+          request={boothView}
+          inPackageCount={boothRequest ? inPackagePendingIds(boothRequest.items, catalog, partner.tier).length : 0}
+        />
+      ) : (
+        <BoothLoadError title={BOOTH_ERROR_TITLE} hint={BOOTH_ERROR_HINT_ORGANIZER} />
       )}
     </main>
   );
