@@ -42,14 +42,23 @@ function revalidate(eventId: string, partnerId: string) {
 }
 
 /**
- * Gdy po decyzji nie zostało nic do akceptacji — jeden zbiorczy mail do osób z dostępem
- * do panelu partnera. Błąd wysyłki nie cofa decyzji (jak w zaproszeniach).
+ * Gdy po decyzji nie zostało nic do akceptacji: zdejmujemy oznaczenie „Zmiana po terminie”
+ * (zmiana rozpatrzona) i wysyłamy jeden zbiorczy mail do osób z dostępem do panelu partnera.
+ * Błąd wysyłki nie cofa decyzji (jak w zaproszeniach).
  */
 async function notifyIfReviewed(
   ctx: { event: { name: string }; partner: { id: string; name: string } },
 ): Promise<string | null> {
   const request = await getBoothRequest(ctx.partner.id);
   if (!request || request.items.length === 0 || request.items.some((i) => i.status === "pending")) return null;
+  if (request.late_change_at) {
+    const { error } = await createAdminClient()
+      .from("partner_booth_requests")
+      .update({ late_change_at: null })
+      .eq("id", request.id)
+      .eq("partner_id", ctx.partner.id);
+    if (error) console.error("[booth-requests] late flag clear failed", JSON.stringify({ code: error.code, message: error.message }));
+  }
   const recipients = await getPartnerRecipientEmails(ctx.partner.id);
   if (recipients.length === 0) return null;
   const panelUrl = `${getOrigin(await headers())}/partner/${ctx.partner.id}`;

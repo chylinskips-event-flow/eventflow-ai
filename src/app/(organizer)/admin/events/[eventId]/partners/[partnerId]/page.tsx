@@ -64,7 +64,8 @@ export default async function PartnerPortalAdminPage({
     vehicleLabel: vehicleLabel(boothRequest),
     timesNeedFix: boothRequest.times_need_fix,
     submittedAt: formatDateTime(boothRequest.submitted_at, tz),
-    lateChange: !!boothRequest.late_change_at,
+    // Tylko dopóki zmiana czeka na decyzję (rozpatrzone wnioski sprzed poprawki też bez etykiety).
+    lateChange: !!boothRequest.late_change_at && boothRequest.items.some((i) => i.status === "pending"),
   };
   const origin = getOrigin(await headers());
   const now = getCurrentTimestamp();

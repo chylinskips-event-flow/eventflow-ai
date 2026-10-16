@@ -71,7 +71,7 @@ export function BoothList({ booths, timezone }: { booths: BoothListRow[]; timezo
               <span>Montaż: {setup ?? "—"}</span>
               <span>Demontaż: {teardown ?? "—"}</span>
               <span className="inline-flex items-center gap-1">
-                <Truck className="size-3.5" /> Rozładunek: {vehicleLabel(r).toLowerCase()}
+                <Truck className="size-3.5" /> Rozładunek: {vehicleLabel(r)}
               </span>
             </div>
             {approved.length > 0 ? (

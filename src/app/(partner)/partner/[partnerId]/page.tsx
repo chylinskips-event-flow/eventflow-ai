@@ -62,7 +62,7 @@ export default async function PartnerPanelPage({ params }: { params: Promise<{ p
       vehicle_plate: request.vehicle_plate,
       vehicle_type: request.vehicle_type,
       submittedAt: formatDateTime(request.submitted_at, tz),
-      lateChange: !!request.late_change_at,
+      lateChange: !!request.late_change_at && request.items.some((i) => i.status === "pending"),
       timesNeedFix: request.times_need_fix,
     };
     booth = {
