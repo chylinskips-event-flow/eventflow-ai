@@ -45,6 +45,41 @@ export function leadConsentFor(
   return { version: variant.version, text: variant.text(partnerName, eventName) };
 }
 
+/** Stan karty zgody przy stoisku (strona uczestnika). */
+export type LeadCardState = {
+  /** Pytania widoczne dla uczestnika — wyłącznie zaakceptowane przez organizatora. */
+  questions: PublicQuestion[];
+  consent: { version: string; text: string };
+  /** „given” — aktywna zgoda (podziękowanie + „Wycofaj”); „form” — formularz zgody. */
+  mode: "form" | "given";
+  activeConsentId: string | null;
+};
+
+/**
+ * Karta zgody przy włączonej fladze jest ZAWSZE widoczna: bez zaakceptowanych pytań (brak pytań
+ * albo tylko oczekujące / odrzucone) — sama zgoda na kontakt „Zostaw kontakt dla {partner}”;
+ * z zaakceptowanymi — pytania + zgoda. Po wycofaniu zgody (brak aktywnej) wraca formularz.
+ * Flaga wyłączona → null (karty nie ma).
+ */
+export function leadCardState(params: {
+  enabled: boolean;
+  questions: (PublicQuestion & { status?: string })[];
+  activeConsentId: string | null;
+  partnerName: string;
+  eventName: string;
+}): LeadCardState | null {
+  if (!params.enabled) return null;
+  const questions = params.questions
+    .filter((q) => q.status === undefined || q.status === "approved")
+    .map(({ id, kind, prompt, options }) => ({ id, kind, prompt, options }));
+  return {
+    questions,
+    consent: leadConsentFor(questions.length > 0, params.partnerName, params.eventName),
+    mode: params.activeConsentId ? "given" : "form",
+    activeConsentId: params.activeConsentId,
+  };
+}
+
 /** Porównanie pytań do wykrywania duplikatów: bez wielkości liter, nadmiarowych spacji i końcowej interpunkcji. */
 export function normalizePrompt(prompt: string): string {
   return prompt.trim().toLowerCase().replace(/\s+/g, " ").replace(/[\s?!.]+$/u, "");

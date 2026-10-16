@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { submitBoothVisit, type BoothActionState } from "./actions";
+import { visitResultView } from "@/lib/booth-visit";
 import type { Partner } from "@/lib/partners";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,6 +51,7 @@ export function BoothClient({
     state.status === "no_attempts" || attemptsUsed >= 2;
 
   if (state.status === "success") {
+    const view = visitResultView({ hasQuest: !!quest, pointsAwarded: state.pointsAwarded, levelUp: state.levelUp });
     return (
       <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
         <Card>
@@ -58,13 +60,13 @@ export function BoothClient({
               ✓
             </div>
             <div className="flex flex-col gap-1">
-              <p className="text-xl font-semibold">{quest ? "Stoisko odwiedzone!" : "Wizyta zapisana"}</p>
-              {quest && state.pointsAwarded > 0 && (
+              <p className="text-xl font-semibold">{view.title}</p>
+              {view.points !== null && (
                 <p className="text-3xl font-bold text-primary">
-                  +{state.pointsAwarded} pkt
+                  +{view.points} pkt
                 </p>
               )}
-              {state.levelUp && (
+              {view.showLevelUp && (
                 <p className="text-sm font-medium text-green-600 dark:text-green-400">
                   Nowy poziom: {LEVEL_LABELS[state.newLevel] ?? state.newLevel}!
                 </p>

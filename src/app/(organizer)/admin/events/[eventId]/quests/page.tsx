@@ -9,6 +9,9 @@ import { QuestCard } from "./quest-card";
 import { SeedQuestsButton } from "./seed-button";
 import { featureGate } from "@/lib/entitlements";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
+import { Info } from "lucide-react";
+import { pluralizePl } from "@/lib/format";
+import { partnersWithoutBoothQuest } from "@/lib/booth-visit";
 
 export default async function QuestsPage({
   params,
@@ -46,6 +49,7 @@ export default async function QuestsPage({
   }));
 
   const partnerMap = new Map(partners.map((p) => [p.id, p.name]));
+  const withoutQuest = partnersWithoutBoothQuest(partners, quests);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
@@ -67,6 +71,22 @@ export default async function QuestsPage({
           trigger={<Button>Dodaj quest</Button>}
         />
       </div>
+
+      {withoutQuest.length > 0 && (
+        <div role="note" className="flex items-start gap-3 rounded-lg border border-dashed bg-muted/40 p-4 text-sm">
+          <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <div className="flex flex-col gap-1">
+            <p>
+              Dla stoiska partnera brak questa — dodaj quest typu „Odwiedziny stoiska (skan QR)”, żeby uczestnicy
+              dostawali punkty.
+            </p>
+            <p className="text-muted-foreground">
+              {pluralizePl(withoutQuest.length, ["Partner", "Partnerzy", "Partnerzy"])} bez questa:{" "}
+              {withoutQuest.map((p) => p.name).join(", ")}
+            </p>
+          </div>
+        </div>
+      )}
 
       {quests.length === 0 ? (
         <Card>

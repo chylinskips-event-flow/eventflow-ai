@@ -9,7 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getActiveConsent, getPartnerQuestions, isPartnerLeadsEnabled } from "@/lib/partner-leads";
-import { leadConsentFor } from "@/lib/partner-leads-core";
+import { leadCardState } from "@/lib/partner-leads-core";
 import { BoothClient, type BoothQuestForClient } from "./booth-client";
 import { PartnerLeadCard } from "./partner-lead-card";
 
@@ -68,18 +68,26 @@ export default async function BoothPage({
       getPartnerQuestions(partner.id, { approvedOnly: true }),
       getActiveConsent(partner.id, attendee.id),
     ]);
-    const leadConsent = leadConsentFor(questions.length > 0, partner.name, event.name);
-    leadCard = (
-      <PartnerLeadCard
-        slug={slug}
-        partnerToken={token}
-        partnerName={partner.name}
-        questions={questions.map(({ id, kind, prompt, options }) => ({ id, kind, prompt, options }))}
-        consentText={leadConsent.text}
-        consentVersion={leadConsent.version}
-        activeConsentId={consent?.id ?? null}
-      />
-    );
+    const card = leadCardState({
+      enabled: leadsV2,
+      questions,
+      activeConsentId: consent?.id ?? null,
+      partnerName: partner.name,
+      eventName: event.name,
+    });
+    if (card) {
+      leadCard = (
+        <PartnerLeadCard
+          slug={slug}
+          partnerToken={token}
+          partnerName={partner.name}
+          questions={card.questions}
+          consentText={card.consent.text}
+          consentVersion={card.consent.version}
+          activeConsentId={card.activeConsentId}
+        />
+      );
+    }
   }
 
   // Gdy gamification wyłączona — brak questa, BoothClient obsługuje prosty check-in
