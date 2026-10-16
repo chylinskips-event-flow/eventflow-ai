@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getOwnOrganization } from "@/lib/organizations";
 import { parseLines } from "@/lib/events";
 import { parseDateTimeLocal } from "@/lib/format";
-import { SLUG_PATTERN } from "@/lib/slug";
+import { slugify, validateSlug } from "@/lib/slug";
+import { checkEventSlug, suggestEventSlug, takenSlugMessage } from "@/lib/event-slug";
 import { getLimit } from "@/lib/entitlements";
 
 export type CreateEventState = {
@@ -18,7 +19,9 @@ export async function createEvent(
   formData: FormData,
 ): Promise<CreateEventState> {
   const name = formData.get("name");
-  const slug = formData.get("slug");
+  const rawSlug = formData.get("slug");
+  // Końcowy myślnik z wpisywania na bieżąco porządkujemy tu (slugify jest idempotentny).
+  const slug = typeof rawSlug === "string" ? slugify(rawSlug) : "";
   const startsAt = formData.get("starts_at");
   const endsAt = formData.get("ends_at");
   const timezone = formData.get("timezone");
@@ -32,13 +35,8 @@ export async function createEvent(
     return { status: "error", message: "Podaj nazwę eventu." };
   }
 
-  if (typeof slug !== "string" || !SLUG_PATTERN.test(slug)) {
-    return {
-      status: "error",
-      message:
-        "Adres może zawierać tylko małe litery, cyfry i myślniki (np. moj-event).",
-    };
-  }
+  const slugError = validateSlug(slug);
+  if (slugError) return { status: "error", message: slugError };
 
   if (typeof startsAt !== "string" || !startsAt) {
     return { status: "error", message: "Podaj datę i godzinę rozpoczęcia." };
@@ -86,17 +84,10 @@ export async function createEvent(
     }
   }
 
-  const { data: existing } = await supabase
-    .from("events")
-    .select("id")
-    .eq("slug", slug)
-    .maybeSingle();
-
-  if (existing) {
-    return {
-      status: "error",
-      message: "Ten adres jest już zajęty, wybierz inny.",
-    };
+  // Adres jest globalnie unikalny — sprawdzamy w całej bazie (RLS widzi tylko własne wydarzenia).
+  const availability = await checkEventSlug(slug).catch(() => null);
+  if (availability?.status === "taken") {
+    return { status: "error", message: takenSlugMessage(availability.suggestion) };
   }
 
   const { data: event, error } = await supabase
@@ -122,10 +113,9 @@ export async function createEvent(
 
   if (error || !event) {
     if (error?.code === "23505") {
-      return {
-        status: "error",
-        message: "Ten adres jest już zajęty, wybierz inny.",
-      };
+      // Wyścig: ktoś zajął adres między sprawdzeniem a zapisem.
+      const suggestion = await suggestEventSlug(slug).catch(() => null);
+      return { status: "error", message: takenSlugMessage(suggestion) };
     }
     return {
       status: "error",

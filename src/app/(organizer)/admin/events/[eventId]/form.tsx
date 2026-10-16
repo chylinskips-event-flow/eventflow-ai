@@ -20,6 +20,7 @@ import { toDateTimeLocalValue } from "@/lib/format";
 import { validateImageFile, MB } from "@/lib/upload-validation";
 import { EVENT_TYPE_OPTIONS, NO_EVENT_TYPE_VALUE } from "@/lib/event-options";
 import { slugify } from "@/lib/slug";
+import { EventAddressField } from "@/components/event-address-field";
 import { BadgeBgUpload } from "./badges/badge-bg-upload";
 import { UpgradeNotice } from "@/components/upgrade-notice";
 import { TIMEZONES } from "@/lib/timezones";
@@ -268,9 +269,21 @@ export function EventEditForm({
     }
   }
 
+  // Wartość już uporządkowana przez pole adresu (sanitizeSlugInput / slugify przy opuszczeniu pola).
   function handleSlugChange(value: string) {
     setSlugTouched(true);
-    setSlug(slugify(value));
+    setSlug(value);
+  }
+
+  // Strona wydarzenia jest (lub była) publiczna — zmiana adresu psuje dotychczasowe linki i QR.
+  const addressPublished = event.status !== "draft";
+
+  function confirmAddressChange(e: React.FormEvent<HTMLFormElement>) {
+    if (!addressPublished || slugify(slug) === event.slug) return;
+    const ok = window.confirm(
+      "Zmiana adresu unieważni dotychczasowe linki i kody QR do strony wydarzenia (także na wydrukach). Zapisać nowy adres?",
+    );
+    if (!ok) e.preventDefault();
   }
 
   return (
@@ -402,6 +415,7 @@ export function EventEditForm({
           <form
             id={GENERAL_FORM_ID}
             action={formAction}
+            onSubmit={confirmAddressChange}
             className="flex flex-col gap-4"
           >
             <div className="flex flex-col gap-2">
@@ -414,17 +428,13 @@ export function EventEditForm({
                 required
               />
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="slug">Adres (slug)</Label>
-              <Input
-                id="slug"
-                name="slug"
-                value={slug}
-                onChange={(e) => handleSlugChange(e.target.value)}
-                pattern="^[a-z0-9]+(-[a-z0-9]+)*$"
-                required
-              />
-            </div>
+            <EventAddressField
+              value={slug}
+              onChange={handleSlugChange}
+              eventId={event.id}
+              originalSlug={event.slug}
+              published={addressPublished}
+            />
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="starts_at">Początek</Label>

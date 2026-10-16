@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { createOrganization, type OnboardingState } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,37 +15,13 @@ import {
 
 const initialState: OnboardingState = { status: "idle" };
 
-const DIACRITICS_PATTERN = /[̀-ͯ]/g;
-
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(DIACRITICS_PATTERN, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-export function OnboardingForm({ defaultEmail }: { defaultEmail: string }) {
+// Jedno pole: nazwa firmy lub marki. Wewnętrzny identyfikator organizacji (slug) powstaje
+// automatycznie z nazwy, a e-mail do rozliczeń to adres z logowania (createOrganization).
+export function OnboardingForm({ email }: { email: string }) {
   const [state, formAction, isPending] = useActionState(
     createOrganization,
     initialState,
   );
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [slugTouched, setSlugTouched] = useState(false);
-
-  function handleNameChange(value: string) {
-    setName(value);
-    if (!slugTouched) {
-      setSlug(slugify(value));
-    }
-  }
-
-  function handleSlugChange(value: string) {
-    setSlugTouched(true);
-    setSlug(slugify(value));
-  }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -53,44 +29,28 @@ export function OnboardingForm({ defaultEmail }: { defaultEmail: string }) {
         <CardHeader>
           <CardTitle>Skonfiguruj swoją organizację</CardTitle>
           <CardDescription>
-            Te dane będą widoczne dla uczestników i partnerów Twoich eventów.
+            Ta nazwa będzie widoczna dla uczestników i partnerów Twoich wydarzeń.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form action={formAction} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="name">Nazwa organizacji</Label>
+              <Label htmlFor="name">Nazwa Twojej firmy lub marki</Label>
               <Input
                 id="name"
                 name="name"
-                value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="Moja Firma"
+                placeholder="np. Next Stop"
+                maxLength={200}
+                autoComplete="organization"
                 required
               />
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="slug">Adres (slug)</Label>
-              <Input
-                id="slug"
-                name="slug"
-                value={slug}
-                onChange={(e) => handleSlugChange(e.target.value)}
-                placeholder="moja-firma"
-                pattern="^[a-z0-9]+(-[a-z0-9]+)*$"
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="billing_email">Email do rozliczeń</Label>
-              <Input
-                id="billing_email"
-                name="billing_email"
-                type="email"
-                defaultValue={defaultEmail}
-                required
-              />
-            </div>
+            {email && (
+              <p className="text-xs text-muted-foreground">
+                Sprawy rozliczeń będą trafiać na adres, którym się logujesz:{" "}
+                <span className="break-all font-medium text-foreground">{email}</span>.
+              </p>
+            )}
             {state.status === "error" && (
               <p className="text-sm text-destructive">{state.message}</p>
             )}

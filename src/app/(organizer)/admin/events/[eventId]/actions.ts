@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { parseLines } from "@/lib/events";
 import { parseDateTimeLocal } from "@/lib/format";
-import { validateSlug } from "@/lib/slug";
+import { slugify, validateSlug } from "@/lib/slug";
+import { checkEventSlug, suggestEventSlug, takenSlugMessage } from "@/lib/event-slug";
 import { addDomain, removeDomain, getDomainStatus } from "@/lib/vercel-domains";
 import { getPaidOrderCount } from "@/lib/orders";
 import { featureGate, hasFeature } from "@/lib/entitlements";
@@ -31,7 +32,9 @@ export async function updateEvent(
   formData: FormData,
 ): Promise<EventFormState> {
   const name = formData.get("name");
-  const slug = formData.get("slug");
+  const rawSlug = formData.get("slug");
+  // Końcowy myślnik z wpisywania na bieżąco porządkujemy tu (slugify jest idempotentny).
+  const slug = typeof rawSlug === "string" ? slugify(rawSlug) : null;
   const startsAt = formData.get("starts_at");
   const endsAt = formData.get("ends_at");
   const timezone = formData.get("timezone");
@@ -113,18 +116,10 @@ export async function updateEvent(
     if (!gate.ok) return { status: "error", message: gate.message };
   }
 
-  const { data: existing } = await supabase
-    .from("events")
-    .select("id")
-    .eq("slug", slug)
-    .neq("id", eventId)
-    .maybeSingle();
-
-  if (existing) {
-    return {
-      status: "error",
-      message: "Ten adres jest już zajęty, wybierz inny.",
-    };
+  // Adres jest globalnie unikalny — sprawdzamy w całej bazie (RLS widzi tylko własne wydarzenia).
+  const availability = await checkEventSlug(slug, eventId).catch(() => null);
+  if (availability?.status === "taken") {
+    return { status: "error", message: takenSlugMessage(availability.suggestion) };
   }
 
   const { error } = await supabase
@@ -157,10 +152,8 @@ export async function updateEvent(
 
   if (error) {
     if (error.code === "23505") {
-      return {
-        status: "error",
-        message: "Ten adres jest już zajęty, wybierz inny.",
-      };
+      const suggestion = await suggestEventSlug(slug, eventId).catch(() => null);
+      return { status: "error", message: takenSlugMessage(suggestion) };
     }
     return {
       status: "error",

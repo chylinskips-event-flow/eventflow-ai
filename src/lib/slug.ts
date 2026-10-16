@@ -32,12 +32,61 @@ export function validateSlug(slug: string): string | null {
 
 const DIACRITICS_PATTERN = /[̀-ͯ]/g;
 
+/**
+ * Litery, których NFKD nie rozkłada na literę + znak diakrytyczny (np. „ł” zostawało usunięte:
+ * „Łódź” → „odz”) — zamieniamy je ręcznie przed normalizacją.
+ */
+const TRANSLITERATION: Record<string, string> = {
+  ł: "l",
+  đ: "d",
+  ø: "o",
+  æ: "ae",
+  œ: "oe",
+  ß: "ss",
+  þ: "th",
+  ð: "d",
+  ı: "i",
+};
+
 export function slugify(value: string) {
   return value
     .toLowerCase()
+    .replace(/[łđøæœßþðı]/g, (ch) => TRANSLITERATION[ch] ?? ch)
     .normalize("NFKD")
     .replace(DIACRITICS_PATTERN, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
+    .slice(0, SLUG_MAX_LENGTH)
+    .replace(/-+$/g, "");
+}
+
+/**
+ * Porządkowanie wpisu na bieżąco (pole adresu): jak slugify, ale bez obcinania myślnika na
+ * końcu — inaczej nie dałoby się wpisać „moj-event” (myślnik znikał po każdym klawiszu).
+ * Ostateczne porządkowanie (końcowy myślnik) robi slugify przy zapisie / opuszczeniu pola.
+ */
+export function sanitizeSlugInput(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[łđøæœßþðı]/g, (ch) => TRANSLITERATION[ch] ?? ch)
+    .normalize("NFKD")
+    .replace(DIACRITICS_PATTERN, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+/g, "")
     .slice(0, SLUG_MAX_LENGTH);
+}
+
+/** Slug z nazwy; pusta lub nielatynowa nazwa → bezpieczna wartość zastępcza. */
+export function slugFromName(name: string, fallback: string): string {
+  return slugify(name) || fallback;
+}
+
+/**
+ * Kolejny kandydat przy kolizji: 1 → sam `base`, 2 → `base-2`, 3 → `base-3`…
+ * Base skracany tak, żeby całość mieściła się w limicie długości (etykieta DNS).
+ */
+export function slugCandidate(base: string, attempt: number): string {
+  if (attempt <= 1) return base.slice(0, SLUG_MAX_LENGTH);
+  const suffix = `-${attempt}`;
+  return `${base.slice(0, SLUG_MAX_LENGTH - suffix.length).replace(/-+$/g, "")}${suffix}`;
 }
