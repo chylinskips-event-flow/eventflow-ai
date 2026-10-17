@@ -1,7 +1,7 @@
 import QRCode from "qrcode";
 import { headers } from "next/headers";
 import { getOrigin } from "@/lib/request-origin";
-import { buildEventUrl } from "@/lib/event-url";
+import { buildEventApexUrl } from "@/lib/event-url";
 
 /**
  * Kod QR do wymiany kontaktów jako gotowy <img> (data-URL, generowany
@@ -23,7 +23,7 @@ export async function ContactQr({
   className?: string;
 }) {
   const origin = getOrigin(await headers());
-  const connectUrl = `${buildEventUrl(slug, origin)}/connect/${contactCode}`;
+  const connectUrl = `${buildEventApexUrl(slug, origin)}/connect/${contactCode}`;
   const dataUrl = await QRCode.toDataURL(connectUrl, { width: size, margin: 2 });
 
   return (
