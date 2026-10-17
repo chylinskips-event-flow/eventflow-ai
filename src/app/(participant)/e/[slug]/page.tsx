@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { getOrigin } from "@/lib/request-origin";
-import { buildEventUrl, buildEventInternalPath } from "@/lib/event-url";
+import { buildEventApexUrl, buildEventInternalPath } from "@/lib/event-url";
 import type { LucideIcon } from "lucide-react";
 import {
   Calendar, MapPin,
@@ -71,7 +71,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const ogImage = event.banner_url ?? event.logo_url ?? undefined;
 
   const origin = getOrigin(await headers());
-  const canonical = buildEventUrl(slug, origin);
+  const canonical = buildEventApexUrl(slug, origin);
 
   return {
     title: event.name,
