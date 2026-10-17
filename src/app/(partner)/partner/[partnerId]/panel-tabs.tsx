@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import {
   TAB_STATUS_MARK,
@@ -11,9 +10,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { TabBar as SharedTabBar, panelDomId, tabDomId } from "@/components/tab-bar";
 
-export const tabId = (key: TabKey) => `partner-tab-${key}`;
-export const panelId = (key: TabKey) => `partner-tabpanel-${key}`;
+export const tabId = (key: TabKey) => tabDomId("partner", key);
+export const panelId = (key: TabKey) => panelDomId("partner", key);
 
 const MARK_CLASS = {
   done: "text-green-600 dark:text-green-400",
@@ -21,10 +21,7 @@ const MARK_CLASS = {
   waiting: "",
 } as const;
 
-/**
- * Pasek zakładek: role="tablist", strzałki / Home / End przełączają, aktywna zawsze
- * przewinięta do widoku. Na telefonie przewijany poziomo, bez łamania na dwa wiersze.
- */
+/** Pasek zakładek panelu partnera — wspólny TabBar ze znacznikami ✓ / ● / ⏳. */
 export function TabBar({
   tabs,
   active,
@@ -36,102 +33,21 @@ export function TabBar({
   onSelect: (key: TabKey) => void;
   boothDeadline: string | null;
 }) {
-  const refs = useRef(new Map<TabKey, HTMLButtonElement>());
-  const scroller = useRef<HTMLDivElement>(null);
-  const [fadeRight, setFadeRight] = useState(false);
-
-  function updateFade() {
-    const el = scroller.current;
-    if (el) setFadeRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
-  }
-
-  useEffect(() => {
-    // Przewijamy tylko pasek zakładek (poziomo), nie całą stronę.
-    const el = scroller.current;
-    const tab = refs.current.get(active);
-    if (el && tab) {
-      const left = tab.offsetLeft - el.offsetLeft;
-      if (left < el.scrollLeft) el.scrollTo({ left: left - 16 });
-      else if (left + tab.offsetWidth > el.scrollLeft + el.clientWidth) el.scrollTo({ left: left + tab.offsetWidth - el.clientWidth + 16 });
-    }
-    updateFade();
-  }, [active]);
-
-  useEffect(() => {
-    window.addEventListener("resize", updateFade);
-    return () => window.removeEventListener("resize", updateFade);
-  }, []);
-
-  function onKeyDown(e: React.KeyboardEvent, index: number) {
-    const next =
-      e.key === "ArrowRight" ? (index + 1) % tabs.length
-      : e.key === "ArrowLeft" ? (index - 1 + tabs.length) % tabs.length
-      : e.key === "Home" ? 0
-      : e.key === "End" ? tabs.length - 1
-      : null;
-    if (next === null) return;
-    e.preventDefault();
-    const key = tabs[next].key;
-    onSelect(key);
-    refs.current.get(key)?.focus();
-  }
-
   return (
-    // Linia bazowa rysowana osobno (absolute), żeby podkreślenie zakładki nie wystawało poza
-    // przewijany kontener — wcześniej -mb-px dawało pionowe przewijanie i widoczny suwak.
-    <div className="relative -mx-4 min-w-0 sm:mx-0">
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-border" />
-      <div
-        ref={scroller}
-        role="tablist"
-        aria-label="Sekcje panelu partnera"
-        onScroll={updateFade}
-        className="relative flex gap-1 overflow-x-auto overflow-y-hidden px-4 [-ms-overflow-style:none] [scrollbar-width:none] sm:px-0 [&::-webkit-scrollbar]:hidden"
-      >
-      {tabs.map((t, i) => {
-        const selected = t.key === active;
-        const mark = t.status ? TAB_STATUS_MARK[t.status] : null;
-        return (
-          <button
-            key={t.key}
-            ref={(el) => {
-              if (el) refs.current.set(t.key, el);
-              else refs.current.delete(t.key);
-            }}
-            id={tabId(t.key)}
-            type="button"
-            role="tab"
-            aria-selected={selected}
-            aria-controls={panelId(t.key)}
-            tabIndex={selected ? 0 : -1}
-            title={t.key === "stoisko" && boothDeadline ? `Termin składania: ${boothDeadline}` : undefined}
-            onClick={() => onSelect(t.key)}
-            onKeyDown={(e) => onKeyDown(e, i)}
-            className={cn(
-              "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-              // ring-inset: obrys fokusu mieści się w kontenerze z overflow-y: hidden.
-              "focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-              selected
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t.label}
-            {mark && t.status && (
-              <span aria-hidden className={cn("text-xs", MARK_CLASS[t.status])}>
-                {mark.mark}
-              </span>
-            )}
-            {mark && <span className="sr-only">({mark.label})</span>}
-          </button>
-        );
-      })}
-      </div>
-      {/* Sygnał, że po prawej są kolejne zakładki (tylko gdy da się przewinąć dalej). */}
-      {fadeRight && (
-        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent" />
-      )}
-    </div>
+    <SharedTabBar
+      idPrefix="partner"
+      ariaLabel="Sekcje panelu partnera"
+      active={active}
+      onSelect={onSelect}
+      tabs={tabs.map((t) => ({
+        key: t.key,
+        label: t.label,
+        title: t.key === "stoisko" && boothDeadline ? "Termin składania: " + boothDeadline : undefined,
+        mark: t.status
+          ? { symbol: TAB_STATUS_MARK[t.status].mark, label: TAB_STATUS_MARK[t.status].label, className: MARK_CLASS[t.status] }
+          : null,
+      }))}
+    />
   );
 }
 

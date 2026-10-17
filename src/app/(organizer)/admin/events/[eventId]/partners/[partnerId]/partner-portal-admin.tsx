@@ -48,37 +48,6 @@ const STATUS_VARIANT: Record<AccessStatus, "success" | "secondary" | "warning" |
   revoked: "secondary",
 };
 
-export function PartnerPortalAdmin({
-  eventId,
-  partnerId,
-  access,
-  published,
-  draft,
-  changed,
-  materials,
-  contact,
-  timezone,
-}: {
-  eventId: string;
-  partnerId: string;
-  access: AccessView[];
-  published: ProfileFields;
-  draft: ProfileDraft | null;
-  changed: (keyof ProfileFields)[];
-  materials: PartnerMaterial[];
-  contact: PartnerContact | null;
-  timezone: string | null;
-}) {
-  return (
-    <div className="flex flex-col gap-6">
-      <AccessSection eventId={eventId} partnerId={partnerId} access={access} timezone={timezone} />
-      <DraftSection eventId={eventId} partnerId={partnerId} published={published} draft={draft} changed={changed} />
-      <MaterialsSection eventId={eventId} partnerId={partnerId} materials={materials} />
-      <ContactSection contact={contact} />
-    </div>
-  );
-}
-
 function useAdminAction() {
   const [isPending, startTransition] = useTransition();
   const run = (fn: () => Promise<PortalAdminState>) =>
@@ -115,7 +84,7 @@ function CopyButton({ value, label = "Kopiuj link" }: { value: string; label?: s
 
 // ── Dostęp ─────────────────────────────────────────────────────────────────
 
-function AccessSection({
+export function AccessSection({
   eventId,
   partnerId,
   access,
@@ -272,7 +241,7 @@ function FieldValue({ field, profile }: { field: keyof ProfileFields; profile: P
   );
 }
 
-function DraftSection({
+export function DraftSection({
   eventId,
   partnerId,
   published,
@@ -370,7 +339,7 @@ const MATERIAL_STATUS = {
   rejected: { label: "Odrzucony", variant: "secondary" },
 } as const;
 
-function MaterialsSection({
+export function MaterialsSection({
   eventId,
   partnerId,
   materials,
@@ -437,7 +406,7 @@ function MaterialRow({ eventId, partnerId, material }: { eventId: string; partne
 
 // ── Kontakt ────────────────────────────────────────────────────────────────
 
-function ContactSection({ contact }: { contact: PartnerContact | null }) {
+export function ContactSection({ contact }: { contact: PartnerContact | null }) {
   const rows = [
     ["Osoba", contact?.contact_name],
     ["E-mail", contact?.contact_email],
