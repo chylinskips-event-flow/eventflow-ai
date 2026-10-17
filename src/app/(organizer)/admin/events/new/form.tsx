@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { createEvent, type CreateEventState } from "./actions";
 import { slugify } from "@/lib/slug";
+import { EventAddressField } from "@/components/event-address-field";
 import { TIMEZONES, DEFAULT_TIMEZONE } from "@/lib/timezones";
 import { EVENT_TYPE_OPTIONS, NO_EVENT_TYPE_VALUE } from "@/lib/event-options";
 import { Button } from "@/components/ui/button";
@@ -51,9 +52,10 @@ export function NewEventForm() {
     }
   }
 
+  // Wartość już uporządkowana przez pole adresu (sanitizeSlugInput / slugify przy opuszczeniu pola).
   function handleSlugChange(value: string) {
     setSlugTouched(true);
-    setSlug(slugify(value));
+    setSlug(value);
   }
 
   return (
@@ -78,18 +80,7 @@ export function NewEventForm() {
                 required
               />
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="slug">Adres (slug)</Label>
-              <Input
-                id="slug"
-                name="slug"
-                value={slug}
-                onChange={(e) => handleSlugChange(e.target.value)}
-                placeholder="konferencja-tech-2026"
-                pattern="^[a-z0-9]+(-[a-z0-9]+)*$"
-                required
-              />
-            </div>
+            <EventAddressField value={slug} onChange={handleSlugChange} />
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="starts_at">Początek</Label>

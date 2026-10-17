@@ -26,5 +26,5 @@ export default async function OnboardingPage() {
     redirect("/partner");
   }
 
-  return <OnboardingForm defaultEmail={user.email ?? ""} />;
+  return <OnboardingForm email={user.email ?? ""} />;
 }
