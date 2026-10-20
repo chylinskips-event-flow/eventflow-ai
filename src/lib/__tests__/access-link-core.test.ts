@@ -12,6 +12,10 @@ import {
 
 const EVENT: AccessLinkEvent = { id: "ev1", name: "Expo", slug: "expo", status: "published" };
 const REGISTERED = "ania@example.com";
+const SHARED = "biuro@example.com"; // dwa zatwierdzone rekordy na jeden adres
+const ANIA = { first_name: "Ania", last_name: "Nowak", email: "Ania@Example.com", qr_code_token: "tok-1", created_at: "2026-10-01T09:00:00Z" };
+const JAN = { first_name: "Jan", last_name: "Kowalski", email: "biuro@example.com", qr_code_token: "tok-2", created_at: "2026-10-02T09:00:00Z" };
+const OLA = { first_name: "Ola", last_name: "Wiśniewska", email: "Biuro@example.com", qr_code_token: "tok-3", created_at: "2026-10-03T09:00:00Z" };
 
 type Row = { eventId: string; emailHash: string; ipHash: string; at: number };
 
@@ -19,7 +23,7 @@ function makeDeps(over: Partial<AccessLinkDeps> = {}) {
   const rows: Row[] = [];
   const tasks: (() => Promise<void>)[] = [];
   let clock = Date.parse("2026-10-20T10:00:00Z");
-  const sendLink = vi.fn(async () => {});
+  const sendLinks = vi.fn(async () => {});
   const deps: AccessLinkDeps = {
     findEvent: async (slug) => (slug === EVENT.slug ? EVENT : null),
     isSuspended: async () => false,
@@ -30,11 +34,9 @@ function makeDeps(over: Partial<AccessLinkDeps> = {}) {
     record: async ({ eventId, emailHash, ipHash }) => {
       rows.push({ eventId, emailHash, ipHash, at: clock });
     },
-    findApprovedAttendee: async (eventId, email) =>
-      eventId === EVENT.id && email === REGISTERED
-        ? { first_name: "Ania", email: "Ania@Example.com", qr_code_token: "tok-1" }
-        : null,
-    sendLink,
+    findApprovedAttendees: async (eventId, email) =>
+      eventId !== EVENT.id ? [] : email === REGISTERED ? [ANIA] : email === SHARED ? [JAN, OLA] : [],
+    sendLinks,
     schedule: (task) => void tasks.push(task),
     now: () => new Date(clock),
     ...over,
@@ -42,7 +44,7 @@ function makeDeps(over: Partial<AccessLinkDeps> = {}) {
   const flush = async () => {
     while (tasks.length) await tasks.shift()!();
   };
-  return { deps, rows, tasks, sendLink, flush, advance: (ms: number) => (clock += ms) };
+  return { deps, rows, tasks, sendLinks, flush, advance: (ms: number) => (clock += ms) };
 }
 
 const req = (email: unknown, ip = "1.2.3.4", slug = "expo") => ({ slug, email, ip });
@@ -56,19 +58,27 @@ describe("requestAccessLinkCore — „Wejdź ponownie”", () => {
   it("zarejestrowany adres: wysyła link po odpowiedzi (wielkość liter i spacje bez znaczenia)", async () => {
     const res = await requestAccessLinkCore(t.deps, req("  ANIA@example.com "));
     expect(res).toEqual({ status: "sent", message: ACCESS_LINK_SENT_MESSAGE });
-    expect(t.sendLink).not.toHaveBeenCalled(); // wysyłka dopiero po odpowiedzi (after)
+    expect(t.sendLinks).not.toHaveBeenCalled(); // wysyłka dopiero po odpowiedzi (after)
     await t.flush();
-    expect(t.sendLink).toHaveBeenCalledTimes(1);
-    expect(t.sendLink).toHaveBeenCalledWith({
-      attendee: { first_name: "Ania", email: "Ania@Example.com", qr_code_token: "tok-1" },
-      event: EVENT,
-    });
+    expect(t.sendLinks).toHaveBeenCalledTimes(1);
+    expect(t.sendLinks).toHaveBeenCalledWith({ attendees: [ANIA], event: EVENT });
+  });
+
+  it("dwa zatwierdzone rekordy na jeden adres: JEDEN mail z obydwoma, odpowiedź bez zmian", async () => {
+    const single = await requestAccessLinkCore(t.deps, req(REGISTERED, "1.1.1.1"));
+    const shared = await requestAccessLinkCore(t.deps, req(SHARED, "2.2.2.2"));
+    expect(JSON.stringify(shared)).toBe(JSON.stringify(single));
+    t.sendLinks.mockClear();
+    t.tasks.shift(); // zadanie pierwszej prośby (jeden rekord) pomijamy
+    await t.flush();
+    expect(t.sendLinks).toHaveBeenCalledTimes(1);
+    expect(t.sendLinks).toHaveBeenCalledWith({ attendees: [JAN, OLA], event: EVENT });
   });
 
   it("nieznany adres: nic nie wysyła", async () => {
     await requestAccessLinkCore(t.deps, req("obcy@example.com"));
     await t.flush();
-    expect(t.sendLink).not.toHaveBeenCalled();
+    expect(t.sendLinks).not.toHaveBeenCalled();
   });
 
   it("odpowiedź identyczna dla adresu znanego i nieznanego (treść, status, ta sama ścieżka zapisu)", async () => {
@@ -153,7 +163,7 @@ describe("requestAccessLinkCore — „Wejdź ponownie”", () => {
   it("błąd wysyłki maila nie zmienia odpowiedzi (dzieje się po niej)", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const failing = makeDeps({
-      sendLink: async () => {
+      sendLinks: async () => {
         throw new Error("Resend down");
       },
     });

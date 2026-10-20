@@ -14,6 +14,8 @@ import {
 } from "@/lib/access-link-core";
 
 const TABLE = "attendee_access_link_requests";
+// Górna granica linków w jednym mailu (kilka rekordów na jeden adres — np. bilety dla zespołu).
+const MAX_LINKS_PER_EMAIL = 20;
 
 // ilike bez symboli wieloznacznych — porównanie adresu bez względu na wielkość liter.
 function escapeLike(value: string): string {
@@ -53,26 +55,25 @@ export async function requestAccessLink(
         const purge = await supabase.from(TABLE).delete().lt("created_at", purgeBefore.toISOString());
         if (purge.error) console.warn("[access-link] purge failed:", purge.error.message);
       },
-      findApprovedAttendee: async (eventId, email) => {
+      findApprovedAttendees: async (eventId, email) => {
         const { data, error } = await supabase
           .from("attendees")
-          .select("first_name, email, qr_code_token")
+          .select("first_name, last_name, email, qr_code_token, created_at")
           .eq("event_id", eventId)
           .eq("status", "approved")
           .ilike("email", escapeLike(email))
           .order("created_at", { ascending: true })
-          .limit(1)
-          .maybeSingle();
+          .limit(MAX_LINKS_PER_EMAIL);
         if (error) throw error;
-        return data;
+        return data ?? [];
       },
-      sendLink: ({ attendee, event }) =>
+      sendLinks: ({ attendees, event }) =>
         sendAttendeeAccessLinkEmail({
-          to: attendee.email,
-          firstName: attendee.first_name,
+          to: attendees[0].email,
           eventName: event.name,
           eventSlug: event.slug,
-          qrCodeToken: attendee.qr_code_token,
+          eventTimezone: event.timezone,
+          attendees,
           origin,
         }),
       schedule: (task) => after(task),

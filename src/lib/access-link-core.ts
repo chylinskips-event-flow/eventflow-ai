@@ -30,16 +30,30 @@ export type AccessLinkState = {
   message?: string;
 };
 
-export type AccessLinkEvent = { id: string; name: string; slug: string; status: string };
-export type AccessLinkAttendee = { first_name: string | null; email: string; qr_code_token: string };
+export type AccessLinkEvent = {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  timezone?: string | null;
+};
+export type AccessLinkAttendee = {
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  qr_code_token: string;
+  created_at: string;
+};
 
 export type AccessLinkDeps = {
   findEvent: (slug: string) => Promise<AccessLinkEvent | null>;
   isSuspended: (slug: string) => Promise<boolean>;
   countRecent: (p: { emailHash: string; ipHash: string; since: Date }) => Promise<{ email: number; ip: number }>;
   record: (p: { eventId: string; emailHash: string; ipHash: string; purgeBefore: Date }) => Promise<void>;
-  findApprovedAttendee: (eventId: string, email: string) => Promise<AccessLinkAttendee | null>;
-  sendLink: (p: { attendee: AccessLinkAttendee; event: AccessLinkEvent }) => Promise<void>;
+  /** Wszyscy zatwierdzeni uczestnicy tego wydarzenia z danym adresem (od najstarszej rejestracji). */
+  findApprovedAttendees: (eventId: string, email: string) => Promise<AccessLinkAttendee[]>;
+  /** Jeden mail na prośbę — przy kilku rekordach z listą linków. */
+  sendLinks: (p: { attendees: AccessLinkAttendee[]; event: AccessLinkEvent }) => Promise<void>;
   /** Uruchamia zadanie po wysłaniu odpowiedzi (w aplikacji: after() z next/server). */
   schedule: (task: () => Promise<void>) => void;
   now: () => Date;
@@ -109,8 +123,8 @@ export async function requestAccessLinkCore(
 
   deps.schedule(async () => {
     try {
-      const attendee = await deps.findApprovedAttendee(ev.id, email);
-      if (attendee) await deps.sendLink({ attendee, event: ev });
+      const attendees = await deps.findApprovedAttendees(ev.id, email);
+      if (attendees.length > 0) await deps.sendLinks({ attendees, event: ev });
     } catch (error) {
       console.error("[access-link] lookup/send failed:", error);
     }
