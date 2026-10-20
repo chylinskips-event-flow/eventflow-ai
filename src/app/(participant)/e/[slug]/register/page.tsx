@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import {
   getEventBySlugForRegistration,
   getRegistrationUnavailableReason,
@@ -8,6 +9,8 @@ import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RegisterForm } from "./register-form";
+import { getOrigin } from "@/lib/request-origin";
+import { ReturnAccessLink } from "../return-access-link";
 
 export default async function RegisterPage({
   params,
@@ -15,6 +18,7 @@ export default async function RegisterPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const origin = getOrigin(await headers());
   const event = await getEventBySlugForRegistration(slug);
 
   if (!event) {
@@ -40,6 +44,9 @@ export default async function RegisterPage({
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">{unavailableReason}</p>
+            {(event.status === "published" || event.status === "live") && (
+              <ReturnAccessLink slug={slug} origin={origin} className="mt-2" />
+            )}
           </CardContent>
         </Card>
       </main>
@@ -62,6 +69,7 @@ export default async function RegisterPage({
         <p className="text-sm text-muted-foreground">
           Zarejestruj się, aby wziąć udział w wydarzeniu.
         </p>
+        <ReturnAccessLink slug={slug} origin={origin} className="w-fit justify-start" />
       </div>
       <RegisterForm
         event={event}

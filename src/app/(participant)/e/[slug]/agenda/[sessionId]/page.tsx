@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { SessionEngagement } from "./session-engagement";
+import { ReturnAccessLink } from "../../return-access-link";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -64,6 +65,7 @@ export default async function SessionPage({
             <Button asChild variant="outline">
               <Link href={eventRoot}>Strona wydarzenia</Link>
             </Button>
+            <ReturnAccessLink slug={slug} origin={origin} />
           </CardContent>
         </Card>
       </main>

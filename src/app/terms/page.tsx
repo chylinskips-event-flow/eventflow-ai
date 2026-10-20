@@ -206,7 +206,7 @@ export default function TermsPage() {
                 Polityka prywatności
               </Link>
             </strong>{" "}
-            dostępna pod adresem /privacy.
+            dostępna pod adresem <strong>/privacy</strong>.
           </p>
 
           <h2>§13. Zmiany regulaminu i postanowienia końcowe</h2>

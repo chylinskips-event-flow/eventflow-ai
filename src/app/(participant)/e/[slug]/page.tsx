@@ -41,6 +41,7 @@ import { ContentSections } from "./content-sections";
 import { LiveNow } from "./live-now";
 import { ContactQr } from "./contact-qr";
 import { CheckinQr } from "@/components/checkin-qr";
+import { ReturnAccessLink } from "./return-access-link";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -397,6 +398,10 @@ export default async function ParticipantEventPage({
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">{unavailableReason}</p>
+              {/* Rejestracja zamknięta, ale wydarzenie publiczne — zarejestrowani muszą móc wrócić. */}
+              {(event.status === "published" || event.status === "live") && (
+                <ReturnAccessLink slug={slug} origin={origin} className="mt-2" />
+              )}
             </CardContent>
           </Card>
         </div>
@@ -537,6 +542,7 @@ export default async function ParticipantEventPage({
               </div>
             )}
           </div>
+          {!previewMode && <ReturnAccessLink slug={slug} origin={origin} className="w-fit" />}
         </div>
       </div>
 
@@ -640,6 +646,11 @@ export default async function ParticipantEventPage({
                 );
               })}
             </div>
+            {!previewMode && (
+              <div className="mt-4 flex justify-center">
+                <ReturnAccessLink slug={slug} origin={origin} />
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -652,6 +663,7 @@ export default async function ParticipantEventPage({
             <Button asChild size="lg" className="w-full sm:w-auto">
               <Link href={buildEventInternalPath(slug, "/register", origin)}>Zarejestruj się</Link>
             </Button>
+            {!previewMode && <ReturnAccessLink slug={slug} origin={origin} />}
           </div>
         </div>
       )}

@@ -13,10 +13,11 @@ import { leadCardState } from "@/lib/partner-leads-core";
 import { alreadyVisitedPointsLabel } from "@/lib/booth-visit";
 import { BoothClient, type BoothQuestForClient } from "./booth-client";
 import { PartnerLeadCard } from "./partner-lead-card";
+import { ReturnAccessLink } from "../../return-access-link";
 
 const COOLDOWN_MS = 10 * 60 * 1000;
 
-function Notice({ href, message }: { href: string; message: string }) {
+function Notice({ href, message, footer }: { href: string; message: string; footer?: React.ReactNode }) {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
       <Card>
@@ -25,6 +26,7 @@ function Notice({ href, message }: { href: string; message: string }) {
           <Button asChild>
             <Link href={href}>Wróć do wydarzenia</Link>
           </Button>
+          {footer}
         </CardContent>
       </Card>
     </main>
@@ -51,6 +53,7 @@ export default async function BoothPage({
       <Notice
         href={eventRoot}
         message="Aby zarejestrować odwiedziny, wejdź najpierw przez swój link wejściowy."
+        footer={<ReturnAccessLink slug={slug} origin={origin} />}
       />
     );
   }
