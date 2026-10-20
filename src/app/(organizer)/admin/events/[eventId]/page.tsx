@@ -5,6 +5,11 @@ import { getPaidOrderCount } from "@/lib/orders";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDomainStatus } from "@/lib/vercel-domains";
 import { EventEditForm } from "./form";
+import { ChecklistRestoreButton, EventChecklist } from "./event-checklist";
+import { computeChecklist } from "@/lib/event-checklist";
+import { buildEventApexUrl } from "@/lib/event-url";
+import { getOrigin } from "@/lib/request-origin";
+import { headers } from "next/headers";
 import { Card, CardContent } from "@/components/ui/card";
 import { SubdomainStatus } from "./subdomain-status";
 import { featureGate } from "@/lib/entitlements";
@@ -46,13 +51,36 @@ export default async function EventDetailPage({
 
   const admin = createAdminClient();
 
-  const [{ count: attendeeCount }, paidOrderCount] = await Promise.all([
+  // Liczniki do checklisty startowej — lekkie zapytania count (head), równolegle, bez N+1.
+  const countFor = (table: "ticket_types" | "sessions" | "speakers" | "partners") =>
+    admin.from(table).select("id", { count: "exact", head: true }).eq("event_id", eventId);
+  const [{ count: attendeeCount }, paidOrderCount, ticketTypes, sessions, speakers, partners, origin] = await Promise.all([
     admin
       .from("attendees")
       .select("id", { count: "exact", head: true })
       .eq("event_id", eventId),
     getPaidOrderCount(eventId),
+    countFor("ticket_types"),
+    countFor("sessions"),
+    countFor("speakers"),
+    countFor("partners"),
+    headers().then(getOrigin),
   ]);
+  const checklist = computeChecklist({
+    eventId,
+    status: event.status,
+    startsAt: event.starts_at,
+    endsAt: event.ends_at,
+    location: event.location,
+    logoUrl: event.logo_url,
+    primaryColor: event.primary_color,
+    registrationOpen: event.registration_open,
+    ticketTypes: ticketTypes.count ?? 0,
+    sessions: sessions.count ?? 0,
+    speakers: speakers.count ?? 0,
+    partners: partners.count ?? 0,
+    publicUrl: buildEventApexUrl(event.slug, origin),
+  });
 
   let stats: {
     totalCheckins: number;
@@ -96,6 +124,8 @@ export default async function EventDetailPage({
       attendeeCount={attendeeCount ?? 0}
       paidOrderCount={paidOrderCount ?? 0}
       badgesLockedMessage={badgesGate.ok ? null : badgesGate.message}
+      checklist={<EventChecklist eventId={eventId} checklist={checklist} />}
+      generalExtra={<ChecklistRestoreButton eventId={eventId} />}
       subdomainStatus={
         isPublished && !subdomainsGate.ok ? (
           <p className="text-sm text-muted-foreground">{subdomainsGate.message}</p>

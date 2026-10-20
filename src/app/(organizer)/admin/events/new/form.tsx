@@ -4,6 +4,8 @@ import { useActionState, useState } from "react";
 import { createEvent, type CreateEventState } from "./actions";
 import { slugify } from "@/lib/slug";
 import { EventAddressField } from "@/components/event-address-field";
+import { RequiredMark } from "@/components/required-mark";
+import Link from "next/link";
 import { TIMEZONES, DEFAULT_TIMEZONE } from "@/lib/timezones";
 import { EVENT_TYPE_OPTIONS, NO_EVENT_TYPE_VALUE } from "@/lib/event-options";
 import { Button } from "@/components/ui/button";
@@ -58,19 +60,31 @@ export function NewEventForm() {
     setSlug(value);
   }
 
+  const fieldError = (field: NonNullable<CreateEventState["field"]>) =>
+    state.status === "error" && state.field === field ? (state.message ?? null) : null;
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Nowy event</CardTitle>
-          <CardDescription>
-            Event zostanie utworzony jako szkic – opublikujesz go później.
+          <CardDescription className="flex flex-col gap-1">
+            <span>
+              Wystarczą nazwa, adres strony oraz data i godzina początku i końca — strefę czasową
+              ustawiliśmy za Ciebie. Event powstanie jako szkic, a opublikujesz go, kiedy będzie gotowy.
+            </span>
+            <span className="text-xs">
+              Pola oznaczone <span className="text-destructive">*</span> są wymagane.
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form action={formAction} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="name">Nazwa eventu</Label>
+              <Label htmlFor="name">
+                Nazwa eventu
+                <RequiredMark />
+              </Label>
               <Input
                 id="name"
                 name="name"
@@ -78,31 +92,44 @@ export function NewEventForm() {
                 onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="Konferencja Tech 2026"
                 required
+                aria-invalid={fieldError("name") ? true : undefined}
               />
+              <FieldError message={fieldError("name")} />
             </div>
-            <EventAddressField value={slug} onChange={handleSlugChange} />
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="starts_at">Początek</Label>
+            <EventAddressField value={slug} onChange={handleSlugChange} requiredMark error={fieldError("slug")} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex min-w-0 flex-col gap-2">
+                <Label htmlFor="starts_at">
+                  Początek
+                  <RequiredMark />
+                </Label>
                 <DateTimePicker
                   id="starts_at"
                   name="starts_at"
                   value={startsAt}
                   onChange={setStartsAt}
                 />
+                <FieldError message={fieldError("starts_at")} />
               </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="ends_at">Koniec</Label>
+              <div className="flex min-w-0 flex-col gap-2">
+                <Label htmlFor="ends_at">
+                  Koniec
+                  <RequiredMark />
+                </Label>
                 <DateTimePicker
                   id="ends_at"
                   name="ends_at"
                   value={endsAt}
                   onChange={setEndsAt}
                 />
+                <FieldError message={fieldError("ends_at")} />
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="timezone">Strefa czasowa</Label>
+              <Label htmlFor="timezone">
+                Strefa czasowa
+                <RequiredMark />
+              </Label>
               <input type="hidden" name="timezone" value={timezone} />
               <Select value={timezone} onValueChange={setTimezone}>
                 <SelectTrigger id="timezone" className="w-full">
@@ -190,15 +217,31 @@ export function NewEventForm() {
                 </p>
               </div>
             </div>
-            {state.status === "error" && (
+            {/* Błąd bez przypisanego pola (np. limit planu) — przy przyciskach. */}
+            {state.status === "error" && !state.field && (
               <p className="text-sm text-destructive">{state.message}</p>
             )}
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Tworzenie..." : "Utwórz event"}
-            </Button>
+            {/* Telefon: przycisk główny na górze, „Anuluj” pod nim (oba pełnej szerokości). */}
+            <div className="flex flex-col gap-2 sm:flex-row-reverse sm:justify-start">
+              <Button type="submit" disabled={isPending} className="min-h-11 sm:min-h-9">
+                {isPending ? "Tworzenie..." : "Utwórz event"}
+              </Button>
+              <Button asChild variant="outline" className="min-h-11 sm:min-h-9">
+                <Link href="/admin">Anuluj</Link>
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
     </main>
+  );
+}
+
+function FieldError({ message }: { message: string | null }) {
+  if (!message) return null;
+  return (
+    <p role="alert" className="text-sm text-destructive">
+      {message}
+    </p>
   );
 }
