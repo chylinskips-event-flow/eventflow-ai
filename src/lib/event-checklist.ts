@@ -43,8 +43,12 @@ export type Checklist = {
 /** Kolor z pola koloru, gdy organizator go nie zmieniał (input type=color zapisuje czarny). */
 const DEFAULT_COLORS = new Set(["#000000", "#000"]);
 
-/** Ile ukończonych kroków, by checklista była domyślnie zwinięta. */
-export const COLLAPSE_AFTER_DONE = 2;
+/**
+ * Ile ukończonych kroków, by checklista była domyślnie zwinięta. Nowe wydarzenie ma od razu
+ * 2 kroki (Podstawy z formularza, otwarta rejestracja) — przy progu 3 nowy organizator widzi ją
+ * rozwiniętą.
+ */
+export const COLLAPSE_AFTER_DONE = 3;
 
 export function computeChecklist(d: ChecklistData): Checklist {
   const base = `/admin/events/${d.eventId}`;
@@ -116,7 +120,7 @@ export function computeChecklist(d: ChecklistData): Checklist {
   return { steps, done, total: required.length, complete: done === required.length };
 }
 
-/** Domyślnie rozwinięta, dopóki ukończono mniej niż 2 kroki. */
+/** Domyślnie rozwinięta, dopóki ukończono mniej niż 3 kroki. */
 export function checklistStartsExpanded(c: Checklist): boolean {
   return c.done < COLLAPSE_AFTER_DONE;
 }

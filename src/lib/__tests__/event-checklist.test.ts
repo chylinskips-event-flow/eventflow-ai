@@ -93,9 +93,11 @@ describe("checklista startowa — postęp", () => {
     expect(computeChecklist({ ...noDates, partners: 3 })).toMatchObject({ done: 0, total: 5 });
   });
 
-  it("domyślnie rozwinięta przy < 2 ukończonych krokach, potem zwinięta", () => {
-    // Świeże wydarzenie z datami z formularza: 1 krok (Podstawy) → rozwinięta.
-    expect(checklistStartsExpanded(computeChecklist(fresh))).toBe(true);
-    expect(checklistStartsExpanded(computeChecklist({ ...fresh, sessions: 1 }))).toBe(false);
+  it("domyślnie rozwinięta przy < 3 ukończonych krokach, potem zwinięta", () => {
+    // Nowe wydarzenie: Podstawy (daty z formularza) + otwarta rejestracja = 2 kroki → rozwinięta.
+    const newEvent = { ...fresh, registrationOpen: true };
+    expect(computeChecklist(newEvent).done).toBe(2);
+    expect(checklistStartsExpanded(computeChecklist(newEvent))).toBe(true);
+    expect(checklistStartsExpanded(computeChecklist({ ...newEvent, sessions: 1 }))).toBe(false);
   });
 });
