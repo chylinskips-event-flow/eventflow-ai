@@ -55,8 +55,9 @@ export function computeChecklist(d: ChecklistData): Checklist {
     {
       key: "podstawy",
       title: "Podstawy",
-      description: "Data i godzina początku i końca oraz miejsce wydarzenia.",
-      done: !!d.startsAt && !!d.endsAt && !!d.location?.trim(),
+      description: "Data i godzina początku i końca. Dodaj też miejsce, jeśli je znasz.",
+      // Tylko to, czego wymaga formularz „Nowy event” — lokalizacja jest opcjonalna.
+      done: !!d.startsAt && !!d.endsAt,
       optional: false,
       href: `${base}?tab=ogolne`,
     },

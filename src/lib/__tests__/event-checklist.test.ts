@@ -20,11 +20,11 @@ const fresh: ChecklistData = {
 const done = (d: ChecklistData, key: string) => computeChecklist(d).steps.find((s) => s.key === key)!.done;
 
 describe("checklista startowa — kroki", () => {
-  it("Podstawy: daty i lokalizacja", () => {
-    expect(done(fresh, "podstawy")).toBe(false);
-    expect(done({ ...fresh, location: "  " }, "podstawy")).toBe(false);
+  it("Podstawy: daty początku i końca; lokalizacja nie wpływa na odhaczenie", () => {
+    expect(done(fresh, "podstawy")).toBe(true);
     expect(done({ ...fresh, location: "Łódź, EXPO" }, "podstawy")).toBe(true);
-    expect(done({ ...fresh, location: "Łódź", endsAt: null }, "podstawy")).toBe(false);
+    expect(done({ ...fresh, endsAt: null }, "podstawy")).toBe(false);
+    expect(done({ ...fresh, startsAt: null, location: "Łódź" }, "podstawy")).toBe(false);
   });
 
   it("Wygląd strony: logo albo zmieniony kolor (czarny domyślny z pola koloru się nie liczy)", () => {
@@ -76,7 +76,6 @@ describe("checklista startowa — kroki", () => {
 describe("checklista startowa — postęp", () => {
   const all: ChecklistData = {
     ...fresh,
-    location: "Łódź",
     logoUrl: "https://x/logo.png",
     ticketTypes: 1,
     sessions: 1,
@@ -89,13 +88,14 @@ describe("checklista startowa — postęp", () => {
   });
 
   it("licznik tylko kroków wymaganych", () => {
-    expect(computeChecklist(fresh)).toMatchObject({ done: 0, total: 5, complete: false });
-    expect(computeChecklist({ ...fresh, partners: 3 })).toMatchObject({ done: 0, total: 5 });
+    const noDates = { ...fresh, startsAt: null, endsAt: null };
+    expect(computeChecklist(noDates)).toMatchObject({ done: 0, total: 5, complete: false });
+    expect(computeChecklist({ ...noDates, partners: 3 })).toMatchObject({ done: 0, total: 5 });
   });
 
   it("domyślnie rozwinięta przy < 2 ukończonych krokach, potem zwinięta", () => {
+    // Świeże wydarzenie z datami z formularza: 1 krok (Podstawy) → rozwinięta.
     expect(checklistStartsExpanded(computeChecklist(fresh))).toBe(true);
-    expect(checklistStartsExpanded(computeChecklist({ ...fresh, location: "Łódź" }))).toBe(true);
-    expect(checklistStartsExpanded(computeChecklist({ ...fresh, location: "Łódź", sessions: 1 }))).toBe(false);
+    expect(checklistStartsExpanded(computeChecklist({ ...fresh, sessions: 1 }))).toBe(false);
   });
 });

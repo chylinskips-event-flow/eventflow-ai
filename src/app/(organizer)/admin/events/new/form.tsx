@@ -71,9 +71,8 @@ export function NewEventForm() {
           <CardDescription className="flex flex-col gap-1">
             <span>
               Wystarczą nazwa, adres strony oraz data i godzina początku i końca — strefę czasową
-              ustawiliśmy za Ciebie. Resztę uzupełnisz później.
+              ustawiliśmy za Ciebie. Event powstanie jako szkic, a opublikujesz go, kiedy będzie gotowy.
             </span>
-            <span>Event zostanie utworzony jako szkic – opublikujesz go później.</span>
             <span className="text-xs">
               Pola oznaczone <span className="text-destructive">*</span> są wymagane.
             </span>
