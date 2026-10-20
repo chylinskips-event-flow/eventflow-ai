@@ -86,6 +86,8 @@ export function EventEditForm({
   paidOrderCount,
   subdomainStatus,
   summary,
+  checklist,
+  generalExtra,
   badgesLockedMessage = null,
   initialTab = SETTINGS_DEFAULT_TAB,
 }: {
@@ -94,6 +96,10 @@ export function EventEditForm({
   paidOrderCount: number;
   subdomainStatus?: React.ReactNode;
   summary?: React.ReactNode;
+  /** Checklista startowa — nad resztą treści strony wydarzenia. */
+  checklist?: React.ReactNode;
+  /** Dodatek na końcu zakładki „Ogólne” (np. przywrócenie checklisty). */
+  generalExtra?: React.ReactNode;
   /** Komunikat „dostępne w planie X", gdy identyfikatory są spoza planu. */
   badgesLockedMessage?: string | null;
   /** Zakładka z `?tab=` (resolveTabKey na serwerze). */
@@ -288,6 +294,7 @@ export function EventEditForm({
 
   return (
     <PageShell title="Ustawienia wydarzenia">
+      {checklist}
       {summary}
 
       {/* Wszystkie zakładki zamontowane (TabbedSections) — kolor w „Branding” należy do formularza
@@ -410,6 +417,7 @@ export function EventEditForm({
               ) : null}
             </div>
             {subdomainStatus}
+            {generalExtra}
           </div>
 
           <form

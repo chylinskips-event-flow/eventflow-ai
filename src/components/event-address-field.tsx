@@ -7,6 +7,7 @@ import type { EventSlugCheck } from "@/lib/event-slug";
 import { SLUG_MAX_LENGTH, sanitizeSlugInput, slugify, validateSlug } from "@/lib/slug";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RequiredMark } from "@/components/required-mark";
 
 /** Adres publiczny pokazywany w podglądzie (strona działa zawsze pod eventro.pl/e/<adres>). */
 const PUBLIC_HOST = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "eventro.pl";
@@ -28,6 +29,8 @@ export function EventAddressField({
   published = false,
   id = "slug",
   name = "slug",
+  requiredMark = false,
+  error = null,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -37,6 +40,10 @@ export function EventAddressField({
   published?: boolean;
   id?: string;
   name?: string;
+  /** Czerwona gwiazdka przy etykiecie (formularz z oznaczeniem pól wymaganych). */
+  requiredMark?: boolean;
+  /** Błąd z serwera dotyczący tego pola (np. zajęty adres przy zapisie). */
+  error?: string | null;
 }) {
   const [availability, setAvailability] = useState<Availability>(null);
   const finalSlug = slugify(value);
@@ -62,7 +69,10 @@ export function EventAddressField({
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <Label htmlFor={id}>Adres strony wydarzenia</Label>
+      <Label htmlFor={id}>
+        Adres strony wydarzenia
+        {requiredMark && <RequiredMark />}
+      </Label>
       <div className="flex min-w-0 items-stretch overflow-hidden rounded-md border focus-within:ring-2 focus-within:ring-ring">
         <span className="flex shrink-0 items-center border-r bg-muted px-2 text-sm text-muted-foreground">
           {PUBLIC_HOST}/e/
@@ -94,6 +104,11 @@ export function EventAddressField({
         )}
       </p>
       <div id={`${id}-status`} aria-live="polite" className="text-xs">
+        {error && (
+          <p className="flex items-center gap-1.5 text-destructive">
+            <XCircle className="size-3.5 shrink-0" /> {error}
+          </p>
+        )}
         {formatError && (
           <p className="flex items-center gap-1.5 text-destructive">
             <XCircle className="size-3.5 shrink-0" /> {formatError}

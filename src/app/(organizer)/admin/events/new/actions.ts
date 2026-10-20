@@ -12,6 +12,8 @@ import { getLimit } from "@/lib/entitlements";
 export type CreateEventState = {
   status: "idle" | "error";
   message?: string;
+  /** Pole, którego dotyczy błąd — formularz pokazuje komunikat przy nim. */
+  field?: "name" | "slug" | "starts_at" | "ends_at" | "timezone";
 };
 
 export async function createEvent(
@@ -32,22 +34,22 @@ export async function createEvent(
   const requiresApproval = formData.get("requires_approval") === "on";
 
   if (typeof name !== "string" || !name.trim()) {
-    return { status: "error", message: "Podaj nazwę eventu." };
+    return { status: "error", field: "name", message: "Podaj nazwę eventu." };
   }
 
   const slugError = validateSlug(slug);
-  if (slugError) return { status: "error", message: slugError };
+  if (slugError) return { status: "error", field: "slug", message: slugError };
 
   if (typeof startsAt !== "string" || !startsAt) {
-    return { status: "error", message: "Podaj datę i godzinę rozpoczęcia." };
+    return { status: "error", field: "starts_at", message: "Podaj datę i godzinę rozpoczęcia." };
   }
 
   if (typeof endsAt !== "string" || !endsAt) {
-    return { status: "error", message: "Podaj datę i godzinę zakończenia." };
+    return { status: "error", field: "ends_at", message: "Podaj datę i godzinę zakończenia." };
   }
 
   if (typeof timezone !== "string" || !timezone) {
-    return { status: "error", message: "Wybierz strefę czasową." };
+    return { status: "error", field: "timezone", message: "Wybierz strefę czasową." };
   }
 
   const startsAtIso = parseDateTimeLocal(startsAt, timezone);
@@ -56,6 +58,7 @@ export async function createEvent(
   if (new Date(endsAtIso).getTime() <= new Date(startsAtIso).getTime()) {
     return {
       status: "error",
+      field: "ends_at",
       message: "Data zakończenia musi być późniejsza niż data rozpoczęcia.",
     };
   }
@@ -87,7 +90,7 @@ export async function createEvent(
   // Adres jest globalnie unikalny — sprawdzamy w całej bazie (RLS widzi tylko własne wydarzenia).
   const availability = await checkEventSlug(slug).catch(() => null);
   if (availability?.status === "taken") {
-    return { status: "error", message: takenSlugMessage(availability.suggestion) };
+    return { status: "error", field: "slug", message: takenSlugMessage(availability.suggestion) };
   }
 
   const { data: event, error } = await supabase
@@ -115,7 +118,7 @@ export async function createEvent(
     if (error?.code === "23505") {
       // Wyścig: ktoś zajął adres między sprawdzeniem a zapisem.
       const suggestion = await suggestEventSlug(slug).catch(() => null);
-      return { status: "error", message: takenSlugMessage(suggestion) };
+      return { status: "error", field: "slug", message: takenSlugMessage(suggestion) };
     }
     return {
       status: "error",
