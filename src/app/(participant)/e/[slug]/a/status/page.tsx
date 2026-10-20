@@ -4,6 +4,7 @@ import { getOrigin } from "@/lib/request-origin";
 import { buildEventInternalPath } from "@/lib/event-url";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReturnAccessLink } from "../../return-access-link";
 
 const CONTENT: Record<string, { title: string; message: string }> = {
   pending: {
@@ -47,6 +48,7 @@ export default async function AttendeeAccessStatusPage({
               <Link href={buildEventInternalPath(slug, "/register", origin)}>Zarejestruj się</Link>
             </Button>
           )}
+          {reason === "invalid" && <ReturnAccessLink slug={slug} origin={origin} />}
         </CardContent>
       </Card>
     </main>
