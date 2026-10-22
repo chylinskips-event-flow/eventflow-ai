@@ -42,6 +42,7 @@ import { LiveNow } from "./live-now";
 import { ContactQr } from "./contact-qr";
 import { CheckinQr } from "@/components/checkin-qr";
 import { ReturnAccessLink } from "./return-access-link";
+import { isDraftEvent, NEUTRAL_EVENT_METADATA, NEUTRAL_EVENT_TITLE } from "@/lib/event-metadata";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -50,6 +51,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const event = await getEventBySlugForRegistration(slug);
 
   if (!event) return {};
+  // Szkic: bez nazwy, opisu i obrazka wydarzenia, z noindex.
+  if (isDraftEvent(event)) return NEUTRAL_EVENT_METADATA;
 
   // event_content_sections has no RLS policy yet (blocked for anon) — use admin client.
   const supabase = createAdminClient();
@@ -394,7 +397,8 @@ export default async function ParticipantEventPage({
         <div className="flex flex-1 flex-col items-center justify-center p-4">
           <Card className="w-full max-w-sm">
             <CardHeader>
-              <CardTitle>{event.name}</CardTitle>
+              {/* Szkic: bez nazwy wydarzenia (podgląd organizatora omija ten ekran). */}
+              <CardTitle>{isDraftEvent(event) ? NEUTRAL_EVENT_TITLE : event.name}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">{unavailableReason}</p>

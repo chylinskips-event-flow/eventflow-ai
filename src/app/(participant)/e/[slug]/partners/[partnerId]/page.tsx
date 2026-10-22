@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Building2, ChevronLeft, Download, ExternalLink, Gift, Globe, MapPin } from "lucide-react";
 import { getEventBySlugForRegistration } from "@/lib/events";
+import { isDraftEvent, NEUTRAL_EVENT_METADATA } from "@/lib/event-metadata";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { getOrigin } from "@/lib/request-origin";
 import { buildEventInternalPath } from "@/lib/event-url";
@@ -35,7 +36,9 @@ async function loadPartner(slug: string, partnerId: string) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug, partnerId } = await params;
   const loaded = await loadPartner(slug, partnerId);
-  return loaded ? { title: `${loaded.partner.name} — ${loaded.event.name}` } : {};
+  if (!loaded) return {};
+  if (isDraftEvent(loaded.event)) return NEUTRAL_EVENT_METADATA;
+  return { title: `${loaded.partner.name} — ${loaded.event.name}` };
 }
 
 function hostOf(url: string) {

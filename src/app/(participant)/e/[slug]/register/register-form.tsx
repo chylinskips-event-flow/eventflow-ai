@@ -53,6 +53,21 @@ export function RegisterForm({
     );
   }
 
+  if (state.status === "already_registered") {
+    return (
+      <Card className="w-full max-w-2xl">
+        <CardHeader>
+          <CardTitle>Jesteś już zarejestrowany(-a)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p role="status" className="rounded-md bg-muted px-3 py-3 text-sm">
+            {state.message}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="w-full max-w-2xl">
         <CardHeader>

@@ -21,18 +21,23 @@ beforeEach(() => {
   sent.length = 0;
 });
 
-describe("mail „Twój link do wydarzenia”", () => {
-  it("jeden rekord: temat, przycisk indigo, link awaryjny, escapowanie HTML", () => {
+describe("mail „Twój link do wydarzenia” (układ maili uczestnika)", () => {
+  it("jeden rekord: temat, układ marki, przycisk, link awaryjny, escapowanie HTML", () => {
     const { subject, html } = buildAttendeeAccessLinkEmail({
       eventName: "Expo & Co",
-      entries: [entry({ firstName: "<Ania>" })],
+      entries: [entry({ firstName: "<Łucja>" })],
     });
     expect(subject).toBe("Twój link do wydarzenia Expo & Co");
     expect(html).toContain("#4f46e5");
+    expect(html).toContain("#f3f4f6"); // szare tło
+    expect(html).toContain("Eventro · eventro.pl");
     expect(html).toContain("Expo &amp; Co");
-    expect(html).toContain("&lt;Ania&gt;");
-    expect(html).toContain("Otwórz panel uczestnika");
-    expect(html.match(/https:\/\/eventro\.pl\/e\/expo\/a\/tok/g)).toHaveLength(2);
+    expect(html).toContain("Witaj, &lt;Łucja&gt;!");
+    expect(html).toContain(">Otwórz mój panel<");
+    expect(html).toContain("Jeśli przycisk nie działa");
+    // przycisk + link awaryjny (href i tekst)
+    expect(html.match(/https:\/\/eventro\.pl\/e\/expo\/a\/tok/g)).toHaveLength(3);
+    expect(html).not.toContain("display: flex");
   });
 
   it("kilka rekordów: lista z imieniem, nazwiskiem, datą rejestracji i przyciskiem dla każdego", () => {
@@ -49,9 +54,8 @@ describe("mail „Twój link do wydarzenia”", () => {
     expect(html).toContain("Rejestracja: 2 października 2026");
     expect(html).toContain("Rejestracja: 3 października 2026");
     expect(html.match(/>Otwórz panel</g)).toHaveLength(2);
-    // Każdy link: przycisk + link awaryjny.
-    expect(html.match(/\/a\/tok-2/g)).toHaveLength(2);
-    expect(html.match(/\/a\/tok-3/g)).toHaveLength(2);
+    expect(html.match(/\/a\/tok-2/g)).toHaveLength(3);
+    expect(html.match(/\/a\/tok-3/g)).toHaveLength(3);
   });
 
   it("dwa rekordy na jeden adres → jeden mail z dwoma linkami eventro.pl/e/<slug>/a/<token>", async () => {
@@ -83,5 +87,6 @@ describe("mail „Twój link do wydarzenia”", () => {
     });
     expect(sent).toHaveLength(1);
     expect(sent[0].html).toContain("/e/expo/a/tok-1");
+    expect(sent[0].html).toContain("Witaj!");
   });
 });

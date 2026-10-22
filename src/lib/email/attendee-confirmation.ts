@@ -3,6 +3,7 @@ import type { Event } from "@/lib/events";
 import { getTemplate, applyVariables } from "@/lib/message-templates";
 import { sendAppEmail } from "@/lib/email/send";
 import { buildEventApexUrl } from "@/lib/event-url";
+import { QR_CONTENT_ID } from "@/lib/email/attendee-layout";
 
 export async function sendAttendeeConfirmationEmail(params: {
   to: string;
@@ -24,12 +25,15 @@ export async function sendAttendeeConfirmationEmail(params: {
   } = params;
 
   const accessUrl = `${buildEventApexUrl(event.slug, origin)}/a/${qrCodeToken}`;
-  const [qrPngBuffer, checkInQrPngBuffer] = await Promise.all([
-    QRCode.toBuffer(accessUrl, { type: "png", width: 400 }),
-    checkInToken
-      ? QRCode.toBuffer(checkInToken, { type: "png", width: 400 })
-      : null,
-  ]);
+  // Jeden kod QR: wejście na wydarzenie (check_in_token — ten sam, co skanuje recepcja i co
+  // uczestnik widzi w panelu). Panel otwiera przycisk/link w treści. Obraz osadzony inline
+  // przez Content-ID (cid:qr-code w szablonie) — wyświetla się bez wczytywania obrazów
+  // z zewnątrz; ten sam plik jest jedynym załącznikiem.
+  const qrPngBuffer = await QRCode.toBuffer(checkInToken ?? accessUrl, {
+    type: "png",
+    width: 400,
+    margin: 2,
+  });
 
   const template = await getTemplate(event.id, templateType);
   const vars = { imię: firstName, nazwa_eventu: event.name, "link_dostępu": accessUrl };
@@ -40,12 +44,7 @@ export async function sendAttendeeConfirmationEmail(params: {
     to,
     subject,
     html,
-    attachments: [
-      { filename: "qr-dostep.png", content: qrPngBuffer, contentId: "qr-dostep" },
-      ...(checkInQrPngBuffer
-        ? [{ filename: "qr-wejscie.png", content: checkInQrPngBuffer, contentId: "qr-wejscie" }]
-        : []),
-    ],
+    attachments: [{ filename: "kod-qr-wejscie.png", content: qrPngBuffer, contentId: QR_CONTENT_ID }],
   });
 }
 

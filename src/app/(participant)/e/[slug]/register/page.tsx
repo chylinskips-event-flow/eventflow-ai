@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import {
   getEventBySlugForRegistration,
@@ -11,6 +12,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RegisterForm } from "./register-form";
 import { getOrigin } from "@/lib/request-origin";
 import { ReturnAccessLink } from "../return-access-link";
+import { isDraftEvent, NEUTRAL_EVENT_METADATA, NEUTRAL_EVENT_TITLE } from "@/lib/event-metadata";
+
+// Szkic: neutralny tytuł i noindex (bez nazwy wydarzenia).
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const event = await getEventBySlugForRegistration(slug);
+  if (!event) return {};
+  return isDraftEvent(event) ? NEUTRAL_EVENT_METADATA : { title: `Rejestracja — ${event.name}` };
+}
 
 export default async function RegisterPage({
   params,
@@ -40,7 +50,7 @@ export default async function RegisterPage({
       <main className="flex min-h-screen flex-col items-center justify-center p-4">
         <Card className="w-full max-w-sm">
           <CardHeader>
-            <CardTitle>{event.name}</CardTitle>
+            <CardTitle>{isDraftEvent(event) ? NEUTRAL_EVENT_TITLE : event.name}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">{unavailableReason}</p>

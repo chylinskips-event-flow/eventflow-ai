@@ -15,9 +15,10 @@ import {
 } from "@/lib/attendee-session";
 import type { Event } from "@/lib/events";
 import { ATTENDEE_LIMIT_MESSAGE, isAttendeeLimitReached } from "@/lib/entitlements";
+import { handleDuplicateRegistration } from "@/lib/duplicate-registration";
 
 export type RegisterAttendeeState = {
-  status: "idle" | "error";
+  status: "idle" | "error" | "already_registered";
   message?: string;
 };
 
@@ -76,6 +77,17 @@ export async function registerAttendee(
       status: "error",
       message: "Nie udało się zarejestrować. Spróbuj ponownie.",
     };
+  }
+
+  // Ten sam adres już zarejestrowany w tym wydarzeniu → bez nowego rekordu, link do panelu.
+  const duplicateMessage = await handleDuplicateRegistration({
+    eventId: event.id,
+    slug: event.slug,
+    email: trimmedEmail,
+    headers: await headers(),
+  });
+  if (duplicateMessage) {
+    return { status: "already_registered", message: duplicateMessage };
   }
 
   if (await isAttendeeLimitReached(event)) {
