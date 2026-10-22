@@ -1,4 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  emailButton,
+  emailFallbackLink,
+  emailParagraphs,
+  emailQrBlock,
+  renderAttendeeEmail,
+} from "@/lib/email/attendee-layout";
 
 export type MessageTemplateType =
   | "registration_confirmed"
@@ -99,34 +106,25 @@ export function buildStructuredHtml(
     return main ?? "";
   }
 
-  const headingHtml = heading
-    ? `<h1 style="font-size: 20px;">${escapeHtml(heading)}</h1>`
-    : "";
-
-  const mainHtml = (main ?? "")
-    .split("\n\n")
-    .map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
-    .join("\n  ");
+  // Wspólny układ maili uczestnika. {nazwa_eventu} i {link_dostępu} podstawia applyVariables
+  // (z escapowaniem) przy wysyłce; QR to obraz inline (cid:qr-code) z załącznika maila.
+  const headingHtml = heading ? escapeHtml(heading) : null;
+  const mainHtml = emailParagraphs(main);
 
   if (HAS_QR.has(type)) {
-    const footerHtml = footer ? `\n  <p>${escapeHtml(footer)}</p>` : "";
-    return `<div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #171717;">
-  ${headingHtml}
-  ${mainHtml}
-  <p style="margin-top: 24px;">
-    <img src="cid:qr-code" alt="Twój kod QR" width="200" height="200" />
-  </p>${footerHtml}
-  <p style="font-size: 13px; color: #666;">
-    Jeśli kod się nie wyświetla, użyj tego linku:<br />
-    <a href="{link_dostępu}">{link_dostępu}</a>
-  </p>
-</div>`;
+    return renderAttendeeEmail({
+      eventName: "{nazwa_eventu}",
+      heading: headingHtml,
+      contentHtml: [
+        mainHtml,
+        emailQrBlock(footer ? escapeHtml(footer) : null),
+        emailButton("Otwórz mój panel", "{link_dostępu}"),
+        emailFallbackLink("{link_dostępu}"),
+      ].join("\n      "),
+    });
   }
 
-  return `<div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #171717;">
-  ${headingHtml}
-  ${mainHtml}
-</div>`;
+  return renderAttendeeEmail({ eventName: "{nazwa_eventu}", heading: headingHtml, contentHtml: mainHtml });
 }
 
 export function applyVariables(

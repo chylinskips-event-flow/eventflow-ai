@@ -14,9 +14,10 @@ import type { Event } from "@/lib/events";
 import { getPaymentConfig, registerTransaction, getP24BaseUrl } from "@/lib/p24";
 import { randomUUID } from "crypto";
 import { ATTENDEE_LIMIT_MESSAGE, hasFeature, isAttendeeLimitReached } from "@/lib/entitlements";
+import { handleDuplicateRegistration } from "@/lib/duplicate-registration";
 
 export type FreeCheckoutState = {
-  status: "idle" | "error";
+  status: "idle" | "error" | "already_registered";
   message?: string;
 };
 
@@ -55,6 +56,17 @@ export async function completeFreeCheckout(
 
   if (!event)
     return { status: "error", message: "Wydarzenie nie istnieje." };
+
+  // Bilet darmowy = rejestracja bez płatności: ten sam adres już zarejestrowany w tym
+  // wydarzeniu → bez nowego rekordu i bez rezerwacji puli, link do panelu (jak „Wejdź ponownie”).
+  const duplicateMessage = await handleDuplicateRegistration({
+    eventId: event.id,
+    slug: event.slug,
+    email: email.trim(),
+    headers: await headers(),
+  });
+  if (duplicateMessage) return { status: "already_registered", message: duplicateMessage };
+
   if (await isAttendeeLimitReached(event))
     return { status: "error", message: ATTENDEE_LIMIT_MESSAGE };
 

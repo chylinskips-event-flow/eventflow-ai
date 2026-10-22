@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tag } from "lucide-react";
 
 const init: FreeCheckoutState = { status: "idle" };
+const initPaid: PaidCheckoutState = { status: "idle" };
 
 export function CheckoutForm({
   eventId,
@@ -46,7 +47,7 @@ export function CheckoutForm({
   );
   const [paidState, paidFormAction, isPaidP] = useActionState<PaidCheckoutState, FormData>(
     paidAction,
-    init,
+    initPaid,
   );
 
   const state = isFree ? freeState : paidState;
@@ -165,6 +166,12 @@ export function CheckoutForm({
             </Label>
           </div>
         </div>
+
+        {state.status === "already_registered" && state.message && (
+          <p role="status" className="rounded-lg bg-muted p-3 text-sm">
+            {state.message}
+          </p>
+        )}
 
         {state.status === "error" && state.message && (
           <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
