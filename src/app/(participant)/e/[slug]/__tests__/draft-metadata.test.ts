@@ -56,11 +56,13 @@ describe("metadane szkicu", () => {
     expect(meta.robots).toEqual({ index: false, follow: false });
   });
 
-  it("opublikowane wydarzenie: pełne metadane jak dotąd", async () => {
-    ctx.status = "published";
+  it.each(["published", "live"])("wydarzenie %s: pełne metadane, bez noindex", async (status) => {
+    ctx.status = status;
     const meta = await page.generateMetadata({ params });
     expect(meta.title).toBe("Tajna Konferencja");
     expect(JSON.stringify(meta.openGraph)).toContain("tajny-baner");
     expect(meta.robots).toBeUndefined();
+    const reg = await registerPage.generateMetadata({ params });
+    expect(reg.robots).toBeUndefined();
   });
 });
