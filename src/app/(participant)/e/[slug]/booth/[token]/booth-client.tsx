@@ -186,7 +186,8 @@ export function BoothClient({
         {legacyLeadConsent && (
           <div className="flex items-start gap-3 rounded-md border p-3">
             <Checkbox id="lead_consent" name="lead_consent" disabled={isPending} />
-            <Label htmlFor="lead_consent" className="cursor-pointer text-sm font-normal leading-relaxed">
+            {/* block (nie flex z Label): nazwa partnera zostaje w tym samym akapicie co zdanie. */}
+            <Label htmlFor="lead_consent" className="block cursor-pointer text-sm font-normal leading-relaxed">
               Wyrażam zgodę na przekazanie moich danych kontaktowych (imię, nazwisko,
               firma, email) partnerowi <strong>{partner.name}</strong> w celach
               marketingowych i handlowych.

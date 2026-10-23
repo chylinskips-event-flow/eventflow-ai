@@ -135,7 +135,8 @@ export function PartnerLeadCard({
 
                 <div className="flex items-start gap-3 rounded-md border p-3">
                   <Checkbox id="partner_consent" name="partner_consent" disabled={isPending} />
-                  <Label htmlFor="partner_consent" className="cursor-pointer text-sm font-normal leading-relaxed">
+                  {/* block (nie flex z Label): zdanie zgody jest jednym akapitem; treść draft-2026-10 bez zmian. */}
+                  <Label htmlFor="partner_consent" className="block cursor-pointer text-sm font-normal leading-relaxed">
                     {consentText}
                   </Label>
                 </div>
