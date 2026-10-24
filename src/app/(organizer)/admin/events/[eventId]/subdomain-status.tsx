@@ -17,6 +17,10 @@ interface SubdomainStatusProps {
  * Status subdomeny {slug}.{rootDomain} — dodatkowego adresu wydarzenia.
  * Główny adres to zawsze {rootDomain}/e/{slug} (buildEventApexUrl), więc
  * nieaktywna subdomena nie jest błędem strony, tylko brakiem drugiego adresu.
+ *
+ * "unknown" = subdomena celowo nieaktywna (szkic, brak funkcji w planie albo brak konfiguracji
+ * Vercel) — wtedy tylko neutralne wyjaśnienie, bez statusu i bez „Ponów”, bo ponowienie nic nie da.
+ * "error" / "activating" — próba rejestracji była, więc „Ponów” ma sens.
  */
 export function SubdomainStatus({ eventId, slug, initialState }: SubdomainStatusProps) {
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "eventro.pl";
@@ -33,6 +37,29 @@ export function SubdomainStatus({ eventId, slug, initialState }: SubdomainStatus
       const result = await retrySubdomain(eventId);
       setState(result);
     });
+  }
+
+  const apexLink = (
+    <a
+      href={apexUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-mono underline underline-offset-2 hover:text-foreground"
+    >
+      {apexLabel}
+    </a>
+  );
+
+  if (state === "unknown") {
+    return (
+      <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+        <Info className="mt-px size-3.5 shrink-0" />
+        <span>
+          Dodatkowy adres (subdomena) nie jest aktywny – strona działa pod {apexLink}, a linki i
+          kody QR prowadzą na ten adres.
+        </span>
+      </p>
+    );
   }
 
   return (
@@ -52,7 +79,7 @@ export function SubdomainStatus({ eventId, slug, initialState }: SubdomainStatus
             aktywuje się…
           </span>
         )}
-        {(state === "error" || state === "unknown") && (
+        {state === "error" && (
           <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
             <Info className="size-3.5 shrink-0" />
             nieaktywna
@@ -74,7 +101,7 @@ export function SubdomainStatus({ eventId, slug, initialState }: SubdomainStatus
           </a>
         )}
 
-        {(state === "error" || state === "unknown" || state === "activating") && (
+        {(state === "error" || state === "activating") && (
           <Button
             variant="outline"
             size="sm"
@@ -93,16 +120,7 @@ export function SubdomainStatus({ eventId, slug, initialState }: SubdomainStatus
           {state === "activating"
             ? "Subdomena jeszcze nie działa. "
             : "Subdomena nie jest aktywna — to tylko dodatkowy adres. "}
-          Strona wydarzenia działa pod{" "}
-          <a
-            href={apexUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-mono underline underline-offset-2 hover:text-foreground"
-          >
-            {apexLabel}
-          </a>
-          , a linki i kody QR prowadzą na ten adres.
+          Strona wydarzenia działa pod {apexLink}, a linki i kody QR prowadzą na ten adres.
         </p>
       )}
     </div>
