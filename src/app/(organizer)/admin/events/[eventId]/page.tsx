@@ -40,7 +40,10 @@ export default async function EventDetailPage({
 
   if (isPublished && subdomainsGate.ok && process.env.VERCEL_API_TOKEN && process.env.VERCEL_PROJECT_ID) {
     const domainStatus = await getDomainStatus(`${event.slug}.${rootDomain}`);
-    if (domainStatus === null) {
+    if (domainStatus === "missing") {
+      // Domeny nie ma w projekcie Vercel — subdomena celowo nieaktywna (neutralna linia, bez „Ponów”).
+      subdomainInitialState = "unknown";
+    } else if (domainStatus === null) {
       subdomainInitialState = "error";
     } else if (domainStatus.verified) {
       subdomainInitialState = "active";
