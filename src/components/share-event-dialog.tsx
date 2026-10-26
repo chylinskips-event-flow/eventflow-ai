@@ -17,9 +17,12 @@ interface ShareEventDialogProps {
   eventName: string;
   slug: string;
   disabled?: boolean;
+  /** Na telefonie sama ikona (etykieta zostaje dla czytników ekranu). */
+  compactOnMobile?: boolean;
 }
 
-export function ShareEventDialog({ url, eventName, slug, disabled }: ShareEventDialogProps) {
+export function ShareEventDialog({ url, eventName, slug, disabled, compactOnMobile }: ShareEventDialogProps) {
+  const label = <span className={compactOnMobile ? "max-sm:sr-only" : undefined}>Udostępnij</span>;
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
@@ -62,7 +65,7 @@ export function ShareEventDialog({ url, eventName, slug, disabled }: ShareEventD
         >
           <Button variant="outline" size="sm" disabled className="pointer-events-none">
             <Share2 className="size-4" />
-            Udostępnij
+            {label}
           </Button>
         </span>
       ) : (
@@ -71,9 +74,10 @@ export function ShareEventDialog({ url, eventName, slug, disabled }: ShareEventD
           size="sm"
           onClick={() => setOpen(true)}
           className="shrink-0"
+          title="Udostępnij link do wydarzenia"
         >
           <Share2 className="size-4" />
-          Udostępnij
+          {label}
         </Button>
       )}
 
