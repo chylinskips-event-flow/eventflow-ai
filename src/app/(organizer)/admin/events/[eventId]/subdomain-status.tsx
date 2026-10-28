@@ -18,8 +18,8 @@ interface SubdomainStatusProps {
  * Główny adres to zawsze {rootDomain}/e/{slug} (buildEventApexUrl), więc
  * nieaktywna subdomena nie jest błędem strony, tylko brakiem drugiego adresu.
  *
- * "unknown" = subdomena celowo nieaktywna (szkic, brak funkcji w planie albo brak konfiguracji
- * Vercel) — wtedy tylko neutralne wyjaśnienie, bez statusu i bez „Ponów”, bo ponowienie nic nie da.
+ * "unknown" = subdomena celowo nieaktywna (szkic, brak funkcji w planie, brak konfiguracji
+ * Vercel albo domeny nie ma w projekcie Vercel — 404) — wtedy tylko neutralne wyjaśnienie, bez statusu i bez „Ponów”, bo ponowienie nic nie da.
  * "error" / "activating" — próba rejestracji była, więc „Ponów” ma sens.
  */
 export function SubdomainStatus({ eventId, slug, initialState }: SubdomainStatusProps) {

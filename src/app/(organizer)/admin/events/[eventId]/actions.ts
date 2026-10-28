@@ -373,7 +373,7 @@ export async function retrySubdomain(
   if (!addResult.ok) return "error";
 
   const status = await getDomainStatus(host);
-  return status?.verified ? "active" : "activating";
+  return status && status !== "missing" && status.verified ? "active" : "activating";
 }
 
 const ALLOWED_LOGO_TYPES = ["image/jpeg", "image/png", "image/webp"];

@@ -26,7 +26,8 @@ function projectPathV9(suffix = "") {
 }
 
 export type DomainResult = { ok: true; alreadyExists?: true } | { ok: false; error: string };
-export type DomainStatus = { verified: boolean; name: string } | null;
+/** "missing" = domeny nie ma w projekcie (404) — subdomena celowo nieaktywna, nie błąd. */
+export type DomainStatus = { verified: boolean; name: string } | "missing" | null;
 
 /** Rejestruje domenę w projekcie Vercel. Idempotentna — domain_already_in_use → ok. */
 export async function addDomain(host: string): Promise<DomainResult> {
@@ -82,7 +83,7 @@ export async function removeDomain(host: string): Promise<DomainResult> {
   }
 }
 
-/** Pobiera status domeny. Zwraca null przy błędzie lub braku konfiguracji. */
+/** Pobiera status domeny. "missing" przy 404 (brak domeny w projekcie), null przy błędzie lub braku konfiguracji. */
 export async function getDomainStatus(host: string): Promise<DomainStatus> {
   if (!process.env.VERCEL_API_TOKEN || !process.env.VERCEL_PROJECT_ID) {
     return null;
@@ -94,6 +95,7 @@ export async function getDomainStatus(host: string): Promise<DomainStatus> {
       // Nie cachujemy statusu — odpytujemy na żywo przy wejściu w panel.
       cache: "no-store",
     });
+    if (res.status === 404) return "missing";
     if (!res.ok) return null;
     const body = await res.json().catch(() => null);
     if (!body?.name) return null;
