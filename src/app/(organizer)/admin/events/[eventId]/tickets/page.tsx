@@ -148,7 +148,7 @@ export default async function TicketsPage({
           </div>
 
           {/* Desktop table (sm+) */}
-          <div className="hidden overflow-hidden rounded-lg border sm:block">
+          <div className="hidden overflow-x-auto rounded-lg border sm:block">
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/40">
                 <tr>
