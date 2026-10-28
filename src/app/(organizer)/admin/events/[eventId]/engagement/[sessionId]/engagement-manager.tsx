@@ -12,6 +12,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { TabbedSections } from "@/components/tabbed-sections";
+import { ENGAGEMENT_DEFAULT_TAB, engagementTabs, type EngagementTabKey } from "@/lib/organizer-tabs";
 import {
   createPoll,
   deletePoll,
@@ -34,10 +36,13 @@ export function EngagementManager({
   eventId,
   sessionId,
   engagement,
+  initialTab,
 }: {
   eventId: string;
   sessionId: string;
   engagement: OrganizerEngagement;
+  /** Zakładka z `?tab=` (resolveTabKey na serwerze). */
+  initialTab: EngagementTabKey;
 }) {
   const router = useRouter();
   useEffect(() => {
@@ -48,11 +53,20 @@ export function EngagementManager({
   }, [router]);
 
   return (
-    <div className="flex flex-col gap-6">
-      <PollsSection eventId={eventId} sessionId={sessionId} polls={engagement.polls} />
-      <QuestionsSection eventId={eventId} questions={engagement.questions} />
-      <RatingsSection engagement={engagement} />
-    </div>
+    <TabbedSections
+      tabs={engagementTabs({
+        visibleQuestions: engagement.questions.filter((q) => q.status !== "hidden").length,
+      })}
+      initialTab={initialTab}
+      defaultTab={ENGAGEMENT_DEFAULT_TAB}
+      idPrefix="engagement"
+      ariaLabel="Sekcje Q&A i ankiet"
+      panels={{
+        ankiety: <PollsSection eventId={eventId} sessionId={sessionId} polls={engagement.polls} />,
+        pytania: <QuestionsSection eventId={eventId} questions={engagement.questions} />,
+        oceny: <RatingsSection engagement={engagement} />,
+      }}
+    />
   );
 }
 

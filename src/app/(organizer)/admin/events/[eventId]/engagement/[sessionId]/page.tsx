@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, MonitorPlay } from "lucide-react";
+import { MonitorPlay } from "lucide-react";
 import { getOwnEvent } from "@/lib/events";
 import { featureGate } from "@/lib/entitlements";
 import { getEventSessionById } from "@/lib/sessions";
@@ -9,16 +8,21 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDay, formatTimeRange } from "@/lib/format";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
 import { Button } from "@/components/ui/button";
+import { PageShell } from "@/components/page-shell";
+import { resolveTabKey } from "@/lib/url-tabs";
+import { ENGAGEMENT_DEFAULT_TAB, ENGAGEMENT_TAB_KEYS } from "@/lib/organizer-tabs";
 import { EngagementManager } from "./engagement-manager";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function SessionEngagementPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string; sessionId: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
 }) {
-  const { eventId, sessionId } = await params;
+  const [{ eventId, sessionId }, { tab }] = await Promise.all([params, searchParams]);
   const event = await getOwnEvent(eventId);
   if (!event || !UUID.test(sessionId)) notFound();
   const gate = await featureGate(event.organization_id, "live_qa");
@@ -36,24 +40,17 @@ export default async function SessionEngagementPage({
   const projectorAvailable = event.status === "published" || event.status === "live";
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
-      <Link
-        href={`/admin/events/${eventId}/engagement`}
-        className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ChevronLeft className="size-4" />
-        Wszystkie sesje
-      </Link>
-
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">{session.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {session.starts_at ? `${formatDay(session.starts_at, event.timezone)}${time ? `, ${time}` : ""}` : "Bez daty"}
-            {session.room ? ` · ${session.room}` : ""}
-          </p>
-        </div>
-        {token && (
+    <PageShell
+      back={{ href: `/admin/events/${eventId}/engagement`, label: "Wszystkie sesje" }}
+      title={session.title}
+      description={
+        <>
+          {session.starts_at ? `${formatDay(session.starts_at, event.timezone)}${time ? `, ${time}` : ""}` : "Bez daty"}
+          {session.room ? ` · ${session.room}` : ""}
+        </>
+      }
+      actions={
+        token && (
           <div className="flex flex-col items-end gap-1">
             {projectorAvailable ? (
               <Button asChild variant="outline">
@@ -72,10 +69,15 @@ export default async function SessionEngagementPage({
               <span className="text-xs text-muted-foreground">Dostępny po opublikowaniu wydarzenia</span>
             )}
           </div>
-        )}
-      </div>
-
-      <EngagementManager eventId={eventId} sessionId={sessionId} engagement={engagement} />
-    </main>
+        )
+      }
+    >
+      <EngagementManager
+        eventId={eventId}
+        sessionId={sessionId}
+        engagement={engagement}
+        initialTab={resolveTabKey(tab, ENGAGEMENT_TAB_KEYS, ENGAGEMENT_DEFAULT_TAB)}
+      />
+    </PageShell>
   );
 }

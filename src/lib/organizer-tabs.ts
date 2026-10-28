@@ -82,3 +82,74 @@ export function attendeeTabs(counts: { pending: number; approved: number; reject
     defaultTab: counts.pending > 0 ? "oczekujacy" : "wszyscy",
   };
 }
+
+// ── Ekrany z podekranami (wspólna rama + zakładki w `?tab=`) ────────────────
+
+/** Business Mixer — szczegóły. „Plan” widoczny zawsze, w szkicu nieaktywny (nie ma jeszcze planu). */
+export type MixerTabKey = "uczestnicy" | "parametry" | "plan";
+export const MIXER_DEFAULT_TAB: MixerTabKey = "uczestnicy";
+
+export function mixerTabs(s: { status: string; activeCount: number }): TabBarItem<MixerTabKey>[] {
+  const draft = s.status === "draft";
+  return [
+    { key: "uczestnicy", label: `Uczestnicy (${s.activeCount})` },
+    { key: "parametry", label: "Parametry" },
+    {
+      key: "plan",
+      label: "Plan",
+      disabled: draft,
+      title: draft ? "Plan będzie dostępny po wygenerowaniu" : undefined,
+    },
+  ];
+}
+
+/** Klucze, które można otworzyć z `?tab=` (bez nieaktywnych). */
+export const enabledTabKeys = <K extends string>(tabs: TabBarItem<K>[]): K[] =>
+  tabs.filter((t) => !t.disabled).map((t) => t.key);
+
+/** Q&A i ankiety — szczegóły sesji. */
+export type EngagementTabKey = "ankiety" | "pytania" | "oceny";
+export const ENGAGEMENT_DEFAULT_TAB: EngagementTabKey = "ankiety";
+export const ENGAGEMENT_TAB_KEYS: EngagementTabKey[] = ["ankiety", "pytania", "oceny"];
+
+export function engagementTabs(s: { visibleQuestions: number }): TabBarItem<EngagementTabKey>[] {
+  return [
+    { key: "ankiety", label: "Ankiety" },
+    { key: "pytania", label: `Pytania (${s.visibleQuestions})` },
+    { key: "oceny", label: "Oceny sesji" },
+  ];
+}
+
+export const TICKETS_TABS = [
+  { key: "typy", label: "Typy biletów" },
+  { key: "kody", label: "Kody rabatowe" },
+] as const satisfies readonly TabBarItem[];
+export type TicketsTabKey = (typeof TICKETS_TABS)[number]["key"];
+export const TICKETS_DEFAULT_TAB: TicketsTabKey = "typy";
+export const TICKETS_TAB_KEYS = TICKETS_TABS.map((t) => t.key) as TicketsTabKey[];
+
+export const MODERATOR_TABS = [
+  { key: "linki", label: "Linki dla prowadzących" },
+  { key: "komunikaty", label: "Komunikaty do ogłoszenia" },
+  { key: "scenariusz", label: "Scenariusz i notatki" },
+] as const satisfies readonly TabBarItem[];
+export type ModeratorTabKey = (typeof MODERATOR_TABS)[number]["key"];
+export const MODERATOR_DEFAULT_TAB: ModeratorTabKey = "linki";
+export const MODERATOR_TAB_KEYS = MODERATOR_TABS.map((t) => t.key) as ModeratorTabKey[];
+
+export const CONTENT_TABS = [
+  { key: "opis", label: "Sekcje opisu" },
+  { key: "strona", label: "Sekcje strony" },
+] as const satisfies readonly TabBarItem[];
+export type ContentTabKey = (typeof CONTENT_TABS)[number]["key"];
+export const CONTENT_DEFAULT_TAB: ContentTabKey = "opis";
+export const CONTENT_TAB_KEYS = CONTENT_TABS.map((t) => t.key) as ContentTabKey[];
+
+export const LOGISTICS_TABS = [
+  { key: "zestawienie", label: "Zestawienie" },
+  { key: "stoiska", label: "Stoiska" },
+  { key: "ustawienia", label: "Terminy i katalog" },
+] as const satisfies readonly TabBarItem[];
+export type LogisticsTabKey = (typeof LOGISTICS_TABS)[number]["key"];
+export const LOGISTICS_DEFAULT_TAB: LogisticsTabKey = "zestawienie";
+export const LOGISTICS_TAB_KEYS = LOGISTICS_TABS.map((t) => t.key) as LogisticsTabKey[];

@@ -8,14 +8,19 @@ import { collectRooms } from "@/lib/moderator-core";
 import { getOrigin } from "@/lib/request-origin";
 import { formatDay, formatTimeRange } from "@/lib/format";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
+import { PageShell } from "@/components/page-shell";
+import { resolveTabKey } from "@/lib/url-tabs";
+import { MODERATOR_DEFAULT_TAB, MODERATOR_TAB_KEYS } from "@/lib/organizer-tabs";
 import { ModeratorAdmin } from "./moderator-admin";
 
 export default async function ModeratorAdminPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
 }) {
-  const { eventId } = await params;
+  const [{ eventId }, { tab }] = await Promise.all([params, searchParams]);
   const event = await getOwnEvent(eventId);
   if (!event) notFound();
   const gate = await featureGate(event.organization_id, "live_qa");
@@ -32,17 +37,18 @@ export default async function ModeratorAdminPage({
   const labelById = new Map(links.map((l) => [l.id, l.label]));
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Prowadzący</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+    <PageShell
+      title="Prowadzący"
+      description={
+        <>
           Panel dla prowadzących i moderatorów sal: agenda z prelegentami, Q&amp;A i ankiety,
           komunikaty do ogłoszenia, scenariusz oraz sponsorzy i partnerzy. Każdy prowadzący
           dostaje własny link — bez zakładania konta.
-        </p>
-      </div>
-
+        </>
+      }
+    >
       <ModeratorAdmin
+        initialTab={resolveTabKey(tab, MODERATOR_TAB_KEYS, MODERATOR_DEFAULT_TAB)}
         eventId={eventId}
         rooms={rooms}
         links={links.map((l) => ({
@@ -77,6 +83,6 @@ export default async function ModeratorAdminPage({
         })}
         timezone={event.timezone}
       />
-    </main>
+    </PageShell>
   );
 }
