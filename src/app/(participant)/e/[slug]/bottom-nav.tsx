@@ -15,6 +15,7 @@ import {
   Network,
   Trophy,
   Gift,
+  Images,
   User,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -26,11 +27,14 @@ export function BottomNav({
   slug,
   gamificationEnabled,
   hasMixer = false,
+  hasGallery = false,
   basePath,
 }: {
   slug: string;
   gamificationEnabled: boolean;
   hasMixer?: boolean;
+  /** Galeria opublikowana, a uczestnik ma check-in. */
+  hasGallery?: boolean;
   basePath: string;
 }) {
   const pathname = usePathname();
@@ -61,6 +65,9 @@ export function BottomNav({
       : []),
     ...(hasMixer
       ? [{ href: `${basePath}/mixer`, icon: Network, label: "Mixer" } as NavItem]
+      : []),
+    ...(hasGallery
+      ? [{ href: `${basePath}/zdjecia`, icon: Images, label: "Zdjęcia" } as NavItem]
       : []),
     { href: `${basePath}/profile`,   icon: User,      label: "Profil"      },
   ];

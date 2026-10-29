@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Eye, EyeOff, Loader2, Maximize2, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Eye, EyeOff, Flag, Loader2, Maximize2, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PhotoUploader } from "@/components/photo-uploader";
+import { SignedImage } from "@/components/photo-viewer";
 import { BUDGET_BLOCKED_MESSAGE, DEFAULT_GALLERY_INFO_TEXT, MAX_PHOTOS_PER_EVENT, formatBytes } from "@/lib/gallery-core";
 import { cn } from "@/lib/utils";
 import {
@@ -30,6 +31,7 @@ import {
   deleteGalleryPhotos,
   finalizeGalleryUpload,
   getGalleryPhotoPreview,
+  resolveGalleryReport,
   revokeGalleryUploadLink,
   saveGallerySettingsAction,
   setGalleryPhotosHidden,
@@ -40,7 +42,27 @@ import {
 
 const idle: GalleryAdminState = { status: "idle" };
 
-export type PhotoView = { id: string; thumbUrl: string | null; hidden: boolean; watermarked: boolean; source: string };
+export type PhotoView = {
+  id: string;
+  thumbUrl: string | null;
+  hidden: boolean;
+  watermarked: boolean;
+  source: string;
+  /** Otwarte zgłoszenie — zdjęcie niewidoczne dla uczestników do decyzji organizatora. */
+  reported: boolean;
+};
+
+export type ReportView = {
+  id: string;
+  photoId: string | null;
+  kindLabel: string;
+  message: string | null;
+  reporterName: string;
+  createdLabel: string;
+  resolvedLabel: string;
+  status: "pending" | "kept" | "removed";
+  thumbUrl: string | null;
+};
 
 export type UsageView = {
   count: number;
@@ -62,7 +84,17 @@ function FormMessage({ state }: { state: GalleryAdminState }) {
 
 // ── Zdjęcia ────────────────────────────────────────────────────────────────
 
-export function GalleryPhotosPanel({ eventId, photos, usage }: { eventId: string; photos: PhotoView[]; usage: UsageView }) {
+export function GalleryPhotosPanel({
+  eventId,
+  photos,
+  usage,
+  reports,
+}: {
+  eventId: string;
+  photos: PhotoView[];
+  usage: UsageView;
+  reports: { pending: ReportView[]; resolved: ReportView[] };
+}) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmIds, setConfirmIds] = useState<string[] | null>(null);
@@ -87,8 +119,17 @@ export function GalleryPhotosPanel({ eventId, photos, usage }: { eventId: string
 
   const budgetPct = Math.min(100, Math.round((usage.budgetUsedBytes / Math.max(1, usage.budgetBytes)) * 100));
 
+  const openPreview = (photoId: string | null) => {
+    const i = photoId ? photos.findIndex((p) => p.id === photoId) : -1;
+    if (i >= 0) setPreviewIndex(i);
+  };
+
   return (
     <div className="flex flex-col gap-6">
+      {(reports.pending.length > 0 || reports.resolved.length > 0) && (
+        <ReportsCard eventId={eventId} reports={reports} busy={isPending} onPreview={openPreview} run={run} />
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Wgraj zdjęcia</CardTitle>
@@ -195,6 +236,7 @@ export function GalleryPhotosPanel({ eventId, photos, usage }: { eventId: string
                       </span>
                     )}
                     {p.hidden && <Badge variant="secondary">Ukryte</Badge>}
+                    {p.reported && <Badge variant="destructive">Zgłoszone</Badge>}
                   </div>
                   <div className="flex items-center justify-between gap-1 border-t bg-background px-2 py-1">
                     <span className="truncate text-xs text-muted-foreground" title={p.source}>
@@ -275,6 +317,116 @@ export function GalleryPhotosPanel({ eventId, photos, usage }: { eventId: string
   );
 }
 
+/** „Zgłoszenia (N)” — otwarte zgłoszenia z decyzją Zostaw / Usuń; rozpatrzone zwinięte. */
+function ReportsCard({
+  eventId,
+  reports,
+  busy,
+  onPreview,
+  run,
+}: {
+  eventId: string;
+  reports: { pending: ReportView[]; resolved: ReportView[] };
+  busy: boolean;
+  onPreview: (photoId: string | null) => void;
+  run: (fn: () => Promise<GalleryAdminState>, after?: () => void) => void;
+}) {
+  const [confirmRemove, setConfirmRemove] = useState<ReportView | null>(null);
+  const decide = (r: ReportView, decision: "keep" | "remove") =>
+    run(
+      () => resolveGalleryReport(eventId, r.id, decision),
+      () => toast.success(decision === "keep" ? "Zdjęcie zostaje w galerii." : "Zdjęcie usunięte."),
+    );
+
+  return (
+    <Card className={cn(reports.pending.length > 0 && "border-destructive/40")}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Flag className="size-4" /> Zgłoszenia ({reports.pending.length})
+        </CardTitle>
+        <CardDescription>
+          Zgłoszone zdjęcie jest od razu ukryte przed uczestnikami. „Zostaw” przywraca je do galerii, „Usuń” kasuje
+          zdjęcie na stałe.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        {reports.pending.length === 0 && <p className="text-sm text-muted-foreground">Brak otwartych zgłoszeń.</p>}
+        {reports.pending.map((r) => (
+          <div key={r.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-start">
+            <button
+              type="button"
+              onClick={() => onPreview(r.photoId)}
+              className="block aspect-[4/3] w-full shrink-0 overflow-hidden rounded-md bg-muted sm:w-32"
+              aria-label="Powiększ zgłoszone zdjęcie"
+            >
+              {r.thumbUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- podpisany, krótkotrwały adres prywatnego bucketu
+                <img src={r.thumbUrl} alt="" className="size-full object-cover" />
+              )}
+            </button>
+            <div className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
+              <p className="font-medium">{r.kindLabel}</p>
+              {r.message && <p className="whitespace-pre-line break-words text-muted-foreground">„{r.message}”</p>}
+              <p className="text-xs text-muted-foreground">
+                {r.reporterName} · {r.createdLabel}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => decide(r, "keep")}>
+                Zostaw
+              </Button>
+              <Button size="sm" variant="destructive" disabled={busy} onClick={() => setConfirmRemove(r)}>
+                <Trash2 className="size-4" /> Usuń
+              </Button>
+            </div>
+          </div>
+        ))}
+
+        {reports.resolved.length > 0 && (
+          <details className="text-sm">
+            <summary className="cursor-pointer text-muted-foreground">Rozpatrzone ({reports.resolved.length})</summary>
+            <ul className="mt-2 flex flex-col divide-y">
+              {reports.resolved.map((r) => (
+                <li key={r.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+                  <span>
+                    {r.kindLabel} · <span className="text-muted-foreground">{r.reporterName}</span>
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {r.status === "kept" ? "Zostawione" : "Usunięte"} · {r.resolvedLabel}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </CardContent>
+
+      <AlertDialog open={confirmRemove !== null} onOpenChange={(o) => !o && setConfirmRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Usunąć zgłoszone zdjęcie?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Zdjęcie i jego pliki zostaną skasowane. Zgłoszenie zostanie w historii jako rozpatrzone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Anuluj</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const r = confirmRemove;
+                setConfirmRemove(null);
+                if (r) decide(r, "remove");
+              }}
+            >
+              Usuń
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
+}
+
 /**
  * Podgląd powiększony wersji display — tej samej, którą zobaczą uczestnicy (ze znakiem wodnym,
  * jeśli był włączony przy wgrywaniu). Adres podpisany pobierany dopiero po otwarciu.
@@ -332,8 +484,7 @@ function PhotoPreviewDialog({
         </DialogDescription>
         <div className="relative flex min-h-[40vh] items-center justify-center overflow-hidden rounded-md bg-muted">
           {typeof current === "string" ? (
-            // eslint-disable-next-line @next/next/no-img-element -- podpisany, krótkotrwały adres prywatnego bucketu
-            <img src={current} alt="" className="max-h-[calc(100dvh-10rem)] w-auto max-w-full object-contain" />
+            <SignedImage key={current} src={current} className="max-h-[calc(100dvh-10rem)] w-auto max-w-full object-contain" />
           ) : current ? (
             <p className="p-6 text-sm text-destructive">{current.error}</p>
           ) : (

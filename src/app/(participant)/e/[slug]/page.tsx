@@ -6,7 +6,7 @@ import { buildEventApexUrl, buildEventInternalPath } from "@/lib/event-url";
 import type { LucideIcon } from "lucide-react";
 import {
   Calendar, MapPin,
-  CalendarDays, Users, Handshake, Trophy, Gift, User, CalendarCheck, Network, ChevronRight, Building2,
+  CalendarDays, Users, Handshake, Trophy, Gift, User, CalendarCheck, Network, ChevronRight, Building2, Images,
 } from "lucide-react";
 import {
   getEventBySlugForRegistration,
@@ -16,6 +16,7 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { hasActiveMixerForAttendee } from "@/lib/mixer/participant";
+import { canSeeGallery } from "@/lib/gallery-participant";
 import { getEventSessions, getEventSessionsForParticipant } from "@/lib/sessions";
 import { getEventSpeakers, getEventSpeakersForParticipant } from "@/lib/speakers";
 import { getEventPartners, getEventPartnersForParticipant } from "@/lib/partners";
@@ -149,8 +150,9 @@ export default async function ParticipantEventPage({
     // Dane grywalizacji — tylko gdy włączona
     let gamificationBar: React.ReactNode = null;
     let hasRewards = false;
-    const [hasMixer, partnerCount] = await Promise.all([
+    const [hasMixer, hasGallery, partnerCount] = await Promise.all([
       hasActiveMixerForAttendee(attendee.id),
+      canSeeGallery(event, attendee),
       createAdminClient()
         .from("partners")
         .select("id", { count: "exact", head: true })
@@ -280,6 +282,7 @@ export default async function ParticipantEventPage({
       secondaryItems.push(              { href: buildEventInternalPath(slug, "/my-agenda",   origin), icon: CalendarCheck, label: "Moja agenda"  });
     }
     if (hasMixer) secondaryItems.push({ href: buildEventInternalPath(slug, "/mixer",   origin), icon: Network, label: "Mój mixer" });
+    if (hasGallery) secondaryItems.push({ href: buildEventInternalPath(slug, "/zdjecia", origin), icon: Images, label: "Zdjęcia" });
     if (partnerCount > 0) secondaryItems.push({ href: buildEventInternalPath(slug, "/partners", origin), icon: Building2, label: "Partnerzy" });
     secondaryItems.push({ href: buildEventInternalPath(slug, "/profile", origin), icon: User, label: "Mój profil" });
 
