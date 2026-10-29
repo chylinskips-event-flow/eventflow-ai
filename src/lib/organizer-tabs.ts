@@ -153,3 +153,12 @@ export const LOGISTICS_TABS = [
 export type LogisticsTabKey = (typeof LOGISTICS_TABS)[number]["key"];
 export const LOGISTICS_DEFAULT_TAB: LogisticsTabKey = "zestawienie";
 export const LOGISTICS_TAB_KEYS = LOGISTICS_TABS.map((t) => t.key) as LogisticsTabKey[];
+
+export const GALLERY_TABS = [
+  { key: "zdjecia", label: "Zdjęcia" },
+  { key: "fotograf", label: "Fotograf" },
+  { key: "ustawienia", label: "Ustawienia" },
+] as const satisfies readonly TabBarItem[];
+export type GalleryTabKey = (typeof GALLERY_TABS)[number]["key"];
+export const GALLERY_DEFAULT_TAB: GalleryTabKey = "zdjecia";
+export const GALLERY_TAB_KEYS = GALLERY_TABS.map((t) => t.key) as GalleryTabKey[];
