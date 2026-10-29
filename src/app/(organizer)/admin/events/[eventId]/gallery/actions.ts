@@ -10,6 +10,7 @@ import { validateUploadLinkInput } from "@/lib/gallery-core";
 import {
   deletePhotos,
   finalizePhotoUpload,
+  getPhotoDisplayUrl,
   isUuid,
   saveGallerySettings,
   setPhotosHidden,
@@ -61,6 +62,17 @@ export async function finalizeGalleryUpload(eventId: string, photoId: string): P
 }
 
 // ── Zdjęcia ────────────────────────────────────────────────────────────────
+
+/** Podgląd powiększony: wersja display (ta, którą zobaczą uczestnicy — ze znakiem wodnym). */
+export async function getGalleryPhotoPreview(
+  eventId: string,
+  photoId: string,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const ctx = await organizerContext(eventId);
+  if ("error" in ctx) return { ok: false, error: ctx.error ?? "Brak dostępu do wydarzenia." };
+  const url = await getPhotoDisplayUrl(eventId, photoId);
+  return url ? { ok: true, url } : { ok: false, error: "Nie udało się wczytać zdjęcia." };
+}
 
 export async function setGalleryPhotosHidden(eventId: string, ids: string[], hidden: boolean): Promise<GalleryAdminState> {
   const ctx = await organizerContext(eventId);

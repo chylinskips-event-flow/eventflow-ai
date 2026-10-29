@@ -381,6 +381,23 @@ export async function finalizePhotoUpload(event: GalleryEvent, photoId: string, 
 
 // ── Zarządzanie (organizator) ──────────────────────────────────────────────
 
+/** Podpisany adres wersji display (ze znakiem wodnym) — podgląd powiększony u organizatora. */
+export async function getPhotoDisplayUrl(eventId: string, photoId: string): Promise<string | null> {
+  if (!isUuid(photoId)) return null;
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("event_photos")
+    .select("display_path")
+    .eq("id", photoId)
+    .eq("event_id", eventId)
+    .eq("status", "ready")
+    .maybeSingle();
+  const path = (data as { display_path: string | null } | null)?.display_path;
+  if (!path) return null;
+  const { data: signed } = await admin.storage.from(GALLERY_BUCKET).createSignedUrl(path, SIGNED_VIEW_TTL_S);
+  return signed?.signedUrl ?? null;
+}
+
 export async function setPhotosHidden(eventId: string, ids: string[], hidden: boolean): Promise<boolean> {
   const valid = Array.isArray(ids) ? ids.filter(isUuid).slice(0, 500) : [];
   if (valid.length === 0) return false;

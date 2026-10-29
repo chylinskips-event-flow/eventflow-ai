@@ -18,6 +18,7 @@ const db = {
     upload: vi.fn(),
     remove: vi.fn(),
     createSignedUrls: vi.fn(),
+    createSignedUrl: vi.fn(),
   },
 };
 
@@ -276,5 +277,28 @@ describe("adresy plików", () => {
     const photos = await gallery.listOrganizerPhotos(EVENT);
     expect(db.storage.createSignedUrls).toHaveBeenCalledWith(["p/t.jpg"], 900);
     expect(photos[0].thumb_url).toBe("https://x/signed?token=t");
+  });
+});
+
+describe("podgląd powiększony (organizator)", () => {
+  it("wersja display przez podpisany adres 15 min, tylko gotowe zdjęcie z tego eventu", async () => {
+    db.tables.event_photos = () => ({ data: { display_path: `${EVENT}/${PHOTO}/display.jpg` } });
+    db.storage.createSignedUrl.mockResolvedValue({ data: { signedUrl: "https://x/display?token=t" }, error: null });
+    expect(await organizer.getGalleryPhotoPreview(EVENT, PHOTO)).toEqual({ ok: true, url: "https://x/display?token=t" });
+    expect(db.storage.createSignedUrl).toHaveBeenCalledWith(`${EVENT}/${PHOTO}/display.jpg`, 900);
+    const q = db.queries.find((x) => x.table === "event_photos");
+    expect(q?.filters).toEqual(expect.arrayContaining([["eq", "event_id", EVENT], ["eq", "status", "ready"]]));
+  });
+
+  it("zdjęcie nieprzetworzone / spoza eventu → bez adresu", async () => {
+    db.tables.event_photos = () => ({ data: null });
+    expect(await organizer.getGalleryPhotoPreview(EVENT, PHOTO)).toEqual({ ok: false, error: "Nie udało się wczytać zdjęcia." });
+    expect(db.storage.createSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it("cudzy event → brak dostępu", async () => {
+    own.event = null;
+    expect(await organizer.getGalleryPhotoPreview(EVENT, PHOTO)).toEqual({ ok: false, error: "Brak dostępu do wydarzenia." });
+    expect(db.queries).toHaveLength(0);
   });
 });

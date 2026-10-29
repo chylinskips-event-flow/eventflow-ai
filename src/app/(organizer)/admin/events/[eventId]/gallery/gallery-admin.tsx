@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, Copy, ExternalLink, Eye, EyeOff, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Eye, EyeOff, Loader2, Maximize2, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +29,7 @@ import {
   createGalleryUploadLink,
   deleteGalleryPhotos,
   finalizeGalleryUpload,
+  getGalleryPhotoPreview,
   revokeGalleryUploadLink,
   saveGallerySettingsAction,
   setGalleryPhotosHidden,
@@ -64,6 +66,7 @@ export function GalleryPhotosPanel({ eventId, photos, usage }: { eventId: string
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmIds, setConfirmIds] = useState<string[] | null>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const limitReached = usage.count >= MAX_PHOTOS_PER_EVENT;
@@ -202,6 +205,16 @@ export function GalleryPhotosPanel({ eventId, photos, usage }: { eventId: string
                         size="icon"
                         variant="ghost"
                         className="size-7"
+                        aria-label="Powiększ"
+                        title="Powiększ (wersja dla uczestników)"
+                        onClick={() => setPreviewIndex(photos.indexOf(p))}
+                      >
+                        <Maximize2 className="size-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-7"
                         disabled={isPending}
                         aria-label={p.hidden ? "Pokaż uczestnikom" : "Ukryj przed uczestnikami"}
                         title={p.hidden ? "Pokaż uczestnikom" : "Ukryj przed uczestnikami"}
@@ -229,6 +242,13 @@ export function GalleryPhotosPanel({ eventId, photos, usage }: { eventId: string
         </div>
       )}
 
+      <PhotoPreviewDialog
+        eventId={eventId}
+        photos={photos}
+        index={previewIndex}
+        onIndexChange={setPreviewIndex}
+      />
+
       <AlertDialog open={confirmIds !== null} onOpenChange={(o) => !o && setConfirmIds(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -252,6 +272,98 @@ export function GalleryPhotosPanel({ eventId, photos, usage }: { eventId: string
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/**
+ * Podgląd powiększony wersji display — tej samej, którą zobaczą uczestnicy (ze znakiem wodnym,
+ * jeśli był włączony przy wgrywaniu). Adres podpisany pobierany dopiero po otwarciu.
+ */
+function PhotoPreviewDialog({
+  eventId,
+  photos,
+  index,
+  onIndexChange,
+}: {
+  eventId: string;
+  photos: PhotoView[];
+  index: number | null;
+  onIndexChange: (i: number | null) => void;
+}) {
+  const photo = index !== null ? photos[index] : undefined;
+  const [urls, setUrls] = useState<Record<string, string | { error: string }>>({});
+  const current = photo ? urls[photo.id] : undefined;
+
+  // Pobranie adresu przy zmianie zdjęcia (wynik zapamiętany na czas otwartej strony).
+  const photoId = photo?.id;
+  const loaded = current !== undefined;
+  useEffect(() => {
+    if (!photoId || loaded) return;
+    let cancelled = false;
+    void getGalleryPhotoPreview(eventId, photoId).then((res) => {
+      if (!cancelled) setUrls((prev) => ({ ...prev, [photoId]: res.ok ? res.url : { error: res.error } }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, photoId, loaded]);
+
+  const go = (delta: number) => {
+    if (index === null || photos.length === 0) return;
+    onIndexChange((index + delta + photos.length) % photos.length);
+  };
+
+  return (
+    <Dialog open={!!photo} onOpenChange={(o) => !o && onIndexChange(null)}>
+      <DialogContent
+        className="max-h-[calc(100dvh-2rem)] gap-3 p-3 sm:max-w-5xl"
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight") go(1);
+          if (e.key === "ArrowLeft") go(-1);
+        }}
+      >
+        <DialogTitle className="pr-8 text-base">
+          Podgląd zdjęcia {index !== null ? `${index + 1} z ${photos.length}` : ""}
+        </DialogTitle>
+        <DialogDescription className="-mt-2 text-xs">
+          Tak zdjęcie zobaczą uczestnicy.{" "}
+          {photo?.watermarked ? "Ze znakiem wodnym (logo organizatora)." : "Bez znaku wodnego."}
+          {photo?.hidden ? " Zdjęcie jest ukryte przed uczestnikami." : ""}
+        </DialogDescription>
+        <div className="relative flex min-h-[40vh] items-center justify-center overflow-hidden rounded-md bg-muted">
+          {typeof current === "string" ? (
+            // eslint-disable-next-line @next/next/no-img-element -- podpisany, krótkotrwały adres prywatnego bucketu
+            <img src={current} alt="" className="max-h-[calc(100dvh-10rem)] w-auto max-w-full object-contain" />
+          ) : current ? (
+            <p className="p-6 text-sm text-destructive">{current.error}</p>
+          ) : (
+            <Loader2 className="size-6 animate-spin text-muted-foreground" aria-label="Wczytywanie" />
+          )}
+          {photos.length > 1 && (
+            <>
+              <Button
+                size="icon"
+                variant="secondary"
+                className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full"
+                aria-label="Poprzednie zdjęcie"
+                onClick={() => go(-1)}
+              >
+                <ChevronLeft className="size-5" />
+              </Button>
+              <Button
+                size="icon"
+                variant="secondary"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full"
+                aria-label="Następne zdjęcie"
+                onClick={() => go(1)}
+              >
+                <ChevronRight className="size-5" />
+              </Button>
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
