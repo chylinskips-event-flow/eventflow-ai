@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronLeft, Wand2, RotateCcw, Play, ChevronRight, Square, Info, ExternalLink, Lock, Unlock, AlertTriangle } from "lucide-react";
-import Link from "next/link";
+import { Wand2, RotateCcw, Play, ChevronRight, Square, Info, ExternalLink, Lock, Unlock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { PageShell } from "@/components/page-shell";
+import { TabbedSections } from "@/components/tabbed-sections";
+import { MIXER_DEFAULT_TAB, mixerTabs, type MixerTabKey } from "@/lib/organizer-tabs";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -32,6 +33,8 @@ type Props = {
   rounds: MixerRound[];
   allAttendees: AttendeeOption[];
   existingAttendeeIds: string[];
+  /** Zakładka z `?tab=` (resolveTabKey na serwerze). */
+  initialTab: MixerTabKey;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -140,7 +143,7 @@ function LiveControlPanel({
               <AlertDialogHeader>
                 <AlertDialogTitle>Zakończyć mixer?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Runda {activeRound?.round_number} zostanie oznaczona jako zakończona i mixer przejdzie do stanu „Zakończony". Możesz go zresetować do stanu gotowości przyciskiem Resetuj.
+                  Runda {activeRound?.round_number} zostanie oznaczona jako zakończona i mixer przejdzie do stanu „Zakończony”. Możesz go zresetować do stanu gotowości przyciskiem Resetuj.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -229,6 +232,7 @@ export function MixerDetail({
   rounds,
   allAttendees,
   existingAttendeeIds,
+  initialTab,
 }: Props) {
   const activeCount = participants.filter((p) => p.status === "active").length;
   const droppedCount = participants.filter((p) => p.status === "dropped").length;
@@ -282,184 +286,177 @@ export function MixerDetail({
     pendingCount >= 1;
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
-      {/* Back + header */}
-      <div>
-        <Link
-          href={`/admin/events/${eventId}/mixer`}
-          className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ChevronLeft className="size-4" />
-          Wszystkie mixery
-        </Link>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold">{mixer.name}</h1>
-            <Badge variant={STATUS_VARIANT[mixer.status] ?? "outline"}>
-              {STATUS_LABEL[mixer.status] ?? mixer.status}
-            </Badge>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Generuj + Przelicz — ukryte gdy mixer aktywny */}
-            {!isLive && (
-              <>
-                <Button
-                  onClick={handleGenerate}
-                  disabled={isGenerating || activeCount < 2}
-                  title={activeCount < 2 ? "Potrzeba co najmniej 2 aktywnych uczestników" : undefined}
-                >
-                  <Wand2 className="size-4" />
-                  {isGenerating ? "Generowanie..." : "Generuj plan"}
-                </Button>
-
-                {mixer.status !== "draft" && (
-                  <AlertDialog open={rerollOpen} onOpenChange={(o) => { if (!isRerolling) setRerollOpen(o); }}>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="outline" title="Wygeneruj nowy plan z innym ziarnem">
-                        <RotateCcw className="size-4" />
-                        Przelicz
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Przelicz plan?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Zostanie wygenerowany nowy plan z innym ziarnem losowości. Istniejący plan i edycje ice-breakerów zostaną zastąpione.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isRerolling}>Anuluj</AlertDialogCancel>
-                        <Button variant="destructive" onClick={handleReroll} disabled={isRerolling}>
-                          {isRerolling ? "Przeliczanie..." : "Przelicz ponownie"}
-                        </Button>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </>
-            )}
-
-            {/* Lock — visible gdy generated */}
-            {mixer.status === "generated" && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Lock className="size-4" />
-                    Zablokuj
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Zablokować plan?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Zablokowany plan nie może być edytowany — żadnych zamian uczestników, parametrów ani swapów. Możesz go odblokować w dowolnym momencie.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Anuluj</AlertDialogCancel>
-                    <Button
-                      onClick={() => startLockTransition(async () => { await lockMixer(eventId, mixer.id); })}
-                      disabled={isLocking}
-                    >
-                      {isLocking ? "Blokuję..." : "Zablokuj"}
-                    </Button>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-
-            {/* Unlock — visible gdy locked */}
-            {mixer.status === "locked" && (
+    <PageShell
+      back={{ href: `/admin/events/${eventId}/mixer`, label: "Wszystkie mixery" }}
+      title={mixer.name}
+      badge={
+        <Badge variant={STATUS_VARIANT[mixer.status] ?? "outline"}>
+          {STATUS_LABEL[mixer.status] ?? mixer.status}
+        </Badge>
+      }
+      actions={
+        <>
+          {/* Generuj + Przelicz — ukryte gdy mixer aktywny */}
+          {!isLive && (
+            <>
               <Button
-                variant="outline"
-                size="sm"
-                onClick={() => startUnlockTransition(async () => { await unlockMixer(eventId, mixer.id); })}
-                disabled={isUnlocking}
+                onClick={handleGenerate}
+                disabled={isGenerating || activeCount < 2}
+                title={activeCount < 2 ? "Potrzeba co najmniej 2 aktywnych uczestników" : undefined}
               >
-                <Unlock className="size-4" />
-                {isUnlocking ? "Odblokowuję..." : "Odblokuj"}
+                <Wand2 className="size-4" />
+                {isGenerating ? "Generowanie..." : "Generuj plan"}
               </Button>
-            )}
 
-            {/* Rzutnik — widoczny gdy plan wygenerowany lub mixer aktywny */}
-            {mixer.present_token && mixer.status !== "draft" && (
-              <Button variant="outline" size="sm" asChild>
-                <a href={`/p/${mixer.present_token}`} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="size-4" />
-                  Rzutnik
-                </a>
-              </Button>
-            )}
-
-            {/* Przelicz pozostałe rundy — widoczny gdy są rezygnacje i rundy pending */}
-            {showRecomputeButton && (
-              <AlertDialog open={recomputeOpen} onOpenChange={(o) => { if (!isRecomputing) setRecomputeOpen(o); }}>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <RotateCcw className="size-4" />
-                    Przelicz pozostałe
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Przeliczyć pozostałe rundy?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Zachowane rundy ({rounds.filter((r) => r.status === "done" || r.status === "active").length}) — w toku i zakończone — pozostają bez zmian.
-                      Zostaną przeliczone rundy jeszcze nierozegrane ({pendingCount}) dla {activeCount} aktywnych uczestników.
-                      Rezygnacje: {droppedCount}.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={isRecomputing}>Anuluj</AlertDialogCancel>
-                    <Button onClick={handleRecompute} disabled={isRecomputing}>
-                      {isRecomputing ? "Przeliczanie..." : "Przelicz"}
+              {mixer.status !== "draft" && (
+                <AlertDialog open={rerollOpen} onOpenChange={(o) => { if (!isRerolling) setRerollOpen(o); }}>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" title="Wygeneruj nowy plan z innym ziarnem">
+                      <RotateCcw className="size-4" />
+                      Przelicz
                     </Button>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Przelicz plan?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Zostanie wygenerowany nowy plan z innym ziarnem losowości. Istniejący plan i edycje ice-breakerów zostaną zastąpione.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isRerolling}>Anuluj</AlertDialogCancel>
+                      <Button variant="destructive" onClick={handleReroll} disabled={isRerolling}>
+                        {isRerolling ? "Przeliczanie..." : "Przelicz ponownie"}
+                      </Button>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </>
+          )}
 
-            {/* Live control panel */}
-            <LiveControlPanel mixer={mixer} rounds={rounds} eventId={eventId} />
-          </div>
-        </div>
+          {/* Lock — visible gdy generated */}
+          {mixer.status === "generated" && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Lock className="size-4" />
+                  Zablokuj
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Zablokować plan?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Zablokowany plan nie może być edytowany — żadnych zamian uczestników, parametrów ani swapów. Możesz go odblokować w dowolnym momencie.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Anuluj</AlertDialogCancel>
+                  <Button
+                    onClick={() => startLockTransition(async () => { await lockMixer(eventId, mixer.id); })}
+                    disabled={isLocking}
+                  >
+                    {isLocking ? "Blokuję..." : "Zablokuj"}
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
 
+          {/* Unlock — visible gdy locked */}
+          {mixer.status === "locked" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => startUnlockTransition(async () => { await unlockMixer(eventId, mixer.id); })}
+              disabled={isUnlocking}
+            >
+              <Unlock className="size-4" />
+              {isUnlocking ? "Odblokowuję..." : "Odblokuj"}
+            </Button>
+          )}
+
+          {/* Rzutnik — widoczny gdy plan wygenerowany lub mixer aktywny */}
+          {mixer.present_token && mixer.status !== "draft" && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={`/p/${mixer.present_token}`} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="size-4" />
+                Rzutnik
+              </a>
+            </Button>
+          )}
+
+          {/* Przelicz pozostałe rundy — widoczny gdy są rezygnacje i rundy pending */}
+          {showRecomputeButton && (
+            <AlertDialog open={recomputeOpen} onOpenChange={(o) => { if (!isRecomputing) setRecomputeOpen(o); }}>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <RotateCcw className="size-4" />
+                  Przelicz pozostałe
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Przeliczyć pozostałe rundy?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Zachowane rundy ({rounds.filter((r) => r.status === "done" || r.status === "active").length}) — w toku i zakończone — pozostają bez zmian.
+                    Zostaną przeliczone rundy jeszcze nierozegrane ({pendingCount}) dla {activeCount} aktywnych uczestników.
+                    Rezygnacje: {droppedCount}.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isRecomputing}>Anuluj</AlertDialogCancel>
+                  <Button onClick={handleRecompute} disabled={isRecomputing}>
+                    {isRecomputing ? "Przeliczanie..." : "Przelicz"}
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+
+          {/* Live control panel */}
+          <LiveControlPanel mixer={mixer} rounds={rounds} eventId={eventId} />
+        </>
+      }
+    >
+      {/* Komunikaty i banery stanu — puste nie zajmują miejsca */}
+      <div className="flex flex-col gap-3 empty:hidden">
         {generateError && (
-          <p className="mt-2 text-sm text-destructive">{generateError}</p>
+          <p className="text-sm text-destructive">{generateError}</p>
         )}
         {recomputeError && (
-          <p className="mt-2 text-sm text-destructive">{recomputeError}</p>
+          <p className="text-sm text-destructive">{recomputeError}</p>
         )}
         {recomputeActualTableCount !== null && (
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Przeliczono na {recomputeActualTableCount} stolikach (zmniejszono z powodu mniejszej liczby uczestników).
           </p>
         )}
 
         {/* Baner blokady */}
         {mixer.status === "locked" && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted/60 px-4 py-2.5 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-lg border bg-muted/60 px-4 py-2.5 text-sm text-muted-foreground">
             <Info className="size-4 shrink-0" />
-            Plan zablokowany — edycja wyłączona. Użyj „Odblokuj" aby przywrócić możliwość zmian.
+            Plan zablokowany — edycja wyłączona. Użyj „Odblokuj” aby przywrócić możliwość zmian.
           </div>
         )}
         {mixer.status === "running" && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted/60 px-4 py-2.5 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-lg border bg-muted/60 px-4 py-2.5 text-sm text-muted-foreground">
             <Info className="size-4 shrink-0" />
             Mixer w trakcie biegu — edycja planu, uczestników i parametrów jest zablokowana.
           </div>
         )}
         {mixer.status === "finished" && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted/60 px-4 py-2.5 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-lg border bg-muted/60 px-4 py-2.5 text-sm text-muted-foreground">
             <Info className="size-4 shrink-0" />
-            Mixer zakończony — edycja jest zablokowana. Użyj „Resetuj" aby wrócić do stanu gotowości.
+            Mixer zakończony — edycja jest zablokowana. Użyj „Resetuj” aby wrócić do stanu gotowości.
           </div>
         )}
 
         {/* Baner rezygnacji — pojawia się gdy są dropped i rundy pending */}
         {showRecomputeButton && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm text-foreground">
+          <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm text-foreground">
             <AlertTriangle className="size-4 shrink-0 text-warning" />
             {droppedCount} {droppedCount === 1 ? "uczestnik zrezygnował" : "uczestników zrezygnowało"} —
             rundy w toku i zakończone pozostają bez zmian; przelicz rundy jeszcze nierozegrane ({pendingCount}).
@@ -467,50 +464,44 @@ export function MixerDetail({
         )}
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="uczestnicy">
-        <TabsList>
-          <TabsTrigger value="uczestnicy">
-            Uczestnicy ({activeCount})
-          </TabsTrigger>
-          <TabsTrigger value="parametry">Parametry</TabsTrigger>
-          <TabsTrigger value="plan" disabled={mixer.status === "draft"}>
-            Plan
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="uczestnicy" className="mt-4">
-          <ParticipantsPanel
-            eventId={eventId}
-            mixerId={mixer.id}
-            participants={participants}
-            allAttendees={allAttendees}
-            existingAttendeeIds={existingAttendeeIds}
-            isLive={isLive}
-            mixerStatus={mixer.status}
-          />
-        </TabsContent>
-
-        <TabsContent value="parametry" className="mt-4">
-          <ParamsPanel
-            eventId={eventId}
-            mixer={mixer}
-            activeCount={activeCount}
-            isLive={isLive}
-          />
-        </TabsContent>
-
-        <TabsContent value="plan" className="mt-4">
-          <PlanPanel
-            eventId={eventId}
-            mixerId={mixer.id}
-            plan={plan}
-            quality={mixer.quality}
-            breakAfterRound={mixer.break_after_round}
-            mixerStatus={mixer.status}
-          />
-        </TabsContent>
-      </Tabs>
-    </main>
+      <TabbedSections
+        tabs={mixerTabs({ status: mixer.status, activeCount })}
+        initialTab={initialTab}
+        defaultTab={MIXER_DEFAULT_TAB}
+        idPrefix="mixer"
+        ariaLabel="Sekcje mixera"
+        panels={{
+          uczestnicy: (
+            <ParticipantsPanel
+              eventId={eventId}
+              mixerId={mixer.id}
+              participants={participants}
+              allAttendees={allAttendees}
+              existingAttendeeIds={existingAttendeeIds}
+              isLive={isLive}
+              mixerStatus={mixer.status}
+            />
+          ),
+          parametry: (
+            <ParamsPanel
+              eventId={eventId}
+              mixer={mixer}
+              activeCount={activeCount}
+              isLive={isLive}
+            />
+          ),
+          plan: (
+            <PlanPanel
+              eventId={eventId}
+              mixerId={mixer.id}
+              plan={plan}
+              quality={mixer.quality}
+              breakAfterRound={mixer.break_after_round}
+              mixerStatus={mixer.status}
+            />
+          ),
+        }}
+      />
+    </PageShell>
   );
 }

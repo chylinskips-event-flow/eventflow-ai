@@ -10,13 +10,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { MixerDetail } from "./mixer-detail";
 import { featureGate } from "@/lib/entitlements";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
+import { resolveTabKey } from "@/lib/url-tabs";
+import { MIXER_DEFAULT_TAB, enabledTabKeys, mixerTabs } from "@/lib/organizer-tabs";
 
 export default async function MixerDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string; mixerId: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
 }) {
-  const { eventId, mixerId } = await params;
+  const [{ eventId, mixerId }, { tab }] = await Promise.all([params, searchParams]);
 
   const [event, mixer, participants, plan, rounds] = await Promise.all([
     getOwnEvent(eventId),
@@ -56,8 +60,17 @@ export default async function MixerDetailPage({
     participants.map((p) => p.attendee_id).filter((id): id is string => id != null),
   );
 
+  // „Plan” w szkicu jest nieaktywny — `?tab=plan` otwiera wtedy domyślną zakładkę.
+  const activeCount = participants.filter((p) => p.status === "active").length;
+  const initialTab = resolveTabKey(
+    tab,
+    enabledTabKeys(mixerTabs({ status: mixer.status, activeCount })),
+    MIXER_DEFAULT_TAB,
+  );
+
   return (
     <MixerDetail
+      initialTab={initialTab}
       eventId={eventId}
       mixer={mixer}
       participants={participants}

@@ -39,7 +39,7 @@ export function TabbedSections<K extends string>({
   const keys = tabs.map((t) => t.key);
 
   function select(key: K) {
-    if (!keys.includes(key)) return;
+    if (!keys.includes(key) || tabs.find((t) => t.key === key)?.disabled) return;
     setActive(key);
     window.history.replaceState(window.history.state, "", urlForTab(window.location.href, key, defaultTab));
   }

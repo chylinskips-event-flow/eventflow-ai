@@ -12,6 +12,8 @@ export type TabBarItem<K extends string = string> = {
   mark?: TabMark | null;
   /** Podpowiedź po najechaniu (np. termin składania). */
   title?: string;
+  /** Zakładka widoczna, ale nieaktywna (np. „Plan” mixera w szkicu); pomijana przy strzałkach. */
+  disabled?: boolean;
 };
 
 /** Identyfikatory tab / tabpanel dla aria-controls i aria-labelledby (prefiks per ekran). */
@@ -64,14 +66,18 @@ export function TabBar<K extends string>({
   }, []);
 
   function onKeyDown(e: React.KeyboardEvent, index: number) {
-    const next =
-      e.key === "ArrowRight" ? (index + 1) % tabs.length
-      : e.key === "ArrowLeft" ? (index - 1 + tabs.length) % tabs.length
-      : e.key === "Home" ? 0
-      : e.key === "End" ? tabs.length - 1
+    // Kolejność przeszukiwania od pozycji docelowej; nieaktywne zakładki pomijamy.
+    const n = tabs.length;
+    const order =
+      e.key === "ArrowRight" ? Array.from({ length: n - 1 }, (_, i) => (index + 1 + i) % n)
+      : e.key === "ArrowLeft" ? Array.from({ length: n - 1 }, (_, i) => (index - 1 - i + n) % n)
+      : e.key === "Home" ? Array.from({ length: n }, (_, i) => i)
+      : e.key === "End" ? Array.from({ length: n }, (_, i) => n - 1 - i)
       : null;
-    if (next === null) return;
+    if (order === null) return;
     e.preventDefault();
+    const next = order.find((i) => !tabs[i].disabled);
+    if (next === undefined) return;
     const key = tabs[next].key;
     onSelect(key);
     refs.current.get(key)?.focus();
@@ -104,6 +110,8 @@ export function TabBar<K extends string>({
               aria-selected={selected}
               aria-controls={panelDomId(idPrefix, t.key)}
               tabIndex={selected ? 0 : -1}
+              disabled={t.disabled}
+              aria-disabled={t.disabled || undefined}
               title={t.title}
               onClick={() => onSelect(t.key)}
               onKeyDown={(e) => onKeyDown(e, i)}
@@ -112,6 +120,7 @@ export function TabBar<K extends string>({
                 // ring-inset: obrys fokusu mieści się w kontenerze z overflow-y: hidden.
                 "focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                 selected ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground",
               )}
             >
               {t.label}

@@ -10,13 +10,19 @@ import { SectionCard } from "./section-card";
 import { EventSectionsBuilder } from "./event-sections-builder";
 import { featureGate } from "@/lib/entitlements";
 import { UpgradeNotice } from "@/components/upgrade-notice";
+import { PageShell } from "@/components/page-shell";
+import { TabbedSections } from "@/components/tabbed-sections";
+import { resolveTabKey } from "@/lib/url-tabs";
+import { CONTENT_DEFAULT_TAB, CONTENT_TABS, CONTENT_TAB_KEYS } from "@/lib/organizer-tabs";
 
 export default async function EventContentPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
 }) {
-  const { eventId } = await params;
+  const [{ eventId }, { tab }] = await Promise.all([params, searchParams]);
   const event = await getOwnEvent(eventId);
 
   if (!event) {
@@ -30,12 +36,8 @@ export default async function EventContentPage({
     getEventSections(eventId),
   ]);
 
-  return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
-      <h1 className="text-2xl font-semibold">Treść</h1>
-
-      {!pageBuilderGate.ok && <UpgradeNotice message={pageBuilderGate.message} />}
-
+  const descriptionPanel = (
+    <>
       <BannerUpload eventId={eventId} bannerUrl={event.banner_url} />
 
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -67,13 +69,29 @@ export default async function EventContentPage({
           ))}
         </div>
       )}
+    </>
+  );
 
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t pt-6">
-        <h2 className="text-lg font-medium">Sekcje strony</h2>
-        <p className="text-xs text-muted-foreground">Widoczne po agendzie, przed rejestracją</p>
-      </div>
+  return (
+    <PageShell title="Treść" description="Baner, opis wydarzenia i dodatkowe sekcje strony publicznej.">
+      {!pageBuilderGate.ok && <UpgradeNotice message={pageBuilderGate.message} />}
 
-      <EventSectionsBuilder eventId={eventId} initialSections={eventSections} />
-    </main>
+      <TabbedSections
+        tabs={[...CONTENT_TABS]}
+        initialTab={resolveTabKey(tab, CONTENT_TAB_KEYS, CONTENT_DEFAULT_TAB)}
+        defaultTab={CONTENT_DEFAULT_TAB}
+        idPrefix="content"
+        ariaLabel="Sekcje treści"
+        panels={{
+          opis: descriptionPanel,
+          strona: (
+            <>
+              <p className="text-sm text-muted-foreground">Widoczne po agendzie, przed rejestracją.</p>
+              <EventSectionsBuilder eventId={eventId} initialSections={eventSections} />
+            </>
+          ),
+        }}
+      />
+    </PageShell>
   );
 }

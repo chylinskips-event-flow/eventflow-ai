@@ -8,6 +8,8 @@ import { formatDateTime } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { TabbedSections } from "@/components/tabbed-sections";
+import { MODERATOR_DEFAULT_TAB, MODERATOR_TABS, type ModeratorTabKey } from "@/lib/organizer-tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +46,7 @@ export function ModeratorAdmin({
   script,
   sessions,
   timezone,
+  initialTab,
 }: {
   eventId: string;
   rooms: string[];
@@ -52,13 +55,22 @@ export function ModeratorAdmin({
   script: string;
   sessions: SessionView[];
   timezone: string | null;
+  /** Zakładka z `?tab=` (resolveTabKey na serwerze). */
+  initialTab: ModeratorTabKey;
 }) {
   return (
-    <div className="flex flex-col gap-6">
-      <LinksSection eventId={eventId} rooms={rooms} links={links} />
-      <AlertsSection eventId={eventId} rooms={rooms} alerts={alerts} timezone={timezone} />
-      <NotesSection eventId={eventId} script={script} sessions={sessions} />
-    </div>
+    <TabbedSections
+      tabs={[...MODERATOR_TABS]}
+      initialTab={initialTab}
+      defaultTab={MODERATOR_DEFAULT_TAB}
+      idPrefix="moderator"
+      ariaLabel="Sekcje panelu prowadzących"
+      panels={{
+        linki: <LinksSection eventId={eventId} rooms={rooms} links={links} />,
+        komunikaty: <AlertsSection eventId={eventId} rooms={rooms} alerts={alerts} timezone={timezone} />,
+        scenariusz: <NotesSection eventId={eventId} script={script} sessions={sessions} />,
+      }}
+    />
   );
 }
 

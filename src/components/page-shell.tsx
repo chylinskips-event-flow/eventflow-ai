@@ -4,6 +4,7 @@ import { ChevronLeft } from "lucide-react";
 /**
  * Wspólna rama ekranu panelu organizatora: ta sama szerokość (max-w-3xl) i marginesy,
  * „Wróć” zawsze nad tytułem w tym samym miejscu, akcje po prawej od tytułu.
+ * `wide` (max-w-5xl) — dla ekranów z szerokimi tabelami (np. Bilety).
  */
 export function PageShell({
   back,
@@ -11,6 +12,7 @@ export function PageShell({
   badge,
   description,
   actions,
+  wide,
   children,
 }: {
   back?: { href: string; label: string };
@@ -18,10 +20,11 @@ export function PageShell({
   badge?: React.ReactNode;
   description?: React.ReactNode;
   actions?: React.ReactNode;
+  wide?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <main className="mx-auto flex w-full min-w-0 max-w-3xl flex-col gap-6 p-4 sm:p-6">
+    <main className={`mx-auto flex w-full min-w-0 ${wide ? "max-w-5xl" : "max-w-3xl"} flex-col gap-6 p-4 sm:p-6`}>
       <div className="flex flex-col gap-2">
         {back && (
           <Link
