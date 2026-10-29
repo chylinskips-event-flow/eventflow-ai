@@ -21,6 +21,7 @@ import {
   ShoppingBag,
   CreditCard,
   ChevronLeft,
+  Images,
   Menu,
   X,
 } from "lucide-react";
@@ -63,6 +64,7 @@ export function buildNavSections(
         { href: `${base}/moderator`,  icon: Presentation,          label: "Prowadzący"    },
         { href: `${base}/engagement`, icon: MessageCircleQuestion, label: "Q&A i ankiety" },
         { href: `${base}/messages`,   icon: Megaphone,             label: "Komunikaty"    },
+        { href: `${base}/gallery`,    icon: Images,                label: "Galeria"       },
       ],
     },
     {
