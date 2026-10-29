@@ -4,8 +4,9 @@ import { getOwnEvent } from "@/lib/events";
 import { featureGate } from "@/lib/entitlements";
 import { getOrigin } from "@/lib/request-origin";
 import { formatDateTime, getCurrentTimestamp } from "@/lib/format";
-import { uploadLinkState } from "@/lib/gallery-core";
+import { REPORT_KIND_LABELS, uploadLinkState } from "@/lib/gallery-core";
 import { getGallerySettings, getGalleryUsage, listOrganizerPhotos, listUploadLinks } from "@/lib/gallery";
+import { listPhotoReports, type PhotoReport } from "@/lib/gallery-participant";
 import { resolveTabKey } from "@/lib/url-tabs";
 import { GALLERY_DEFAULT_TAB, GALLERY_TABS, GALLERY_TAB_KEYS } from "@/lib/organizer-tabs";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
@@ -29,16 +30,35 @@ export default async function GalleryAdminPage({
   const gate = await featureGate(event.organization_id, "event_photos");
   if (!gate.ok) return <FeatureLockedPage title="Galeria" message={gate.message} />;
 
-  const [settings, photos, usage, links, origin] = await Promise.all([
+  const [settings, photos, usage, links, reports, origin] = await Promise.all([
     getGallerySettings(eventId),
     listOrganizerPhotos(eventId),
     getGalleryUsage(eventId),
     listUploadLinks(eventId),
+    listPhotoReports(eventId),
     headers().then(getOrigin),
   ]);
   const linkLabel = new Map(links.map((l) => [l.id, l.label]));
   const now = getCurrentTimestamp();
   const tz = event.timezone;
+  const reportedIds = new Set(reports.pending.map((r) => r.photoId));
+  const reportView = (r: PhotoReport) => ({
+    id: r.id,
+    photoId: r.photoId,
+    kindLabel: REPORT_KIND_LABELS[r.kind] ?? "Zgłoszenie",
+    message: r.message,
+    reporterName: r.reporterName,
+    createdLabel: formatDateTime(r.createdAt, tz) ?? "",
+    resolvedLabel: formatDateTime(r.resolvedAt, tz) ?? "",
+    status: r.status,
+    thumbUrl: r.thumbUrl,
+  });
+  // Znacznik przy zakładce „Zdjęcia”, gdy są otwarte zgłoszenia.
+  const tabs = GALLERY_TABS.map((t) =>
+    t.key === "zdjecia" && reports.pending.length > 0
+      ? { ...t, mark: { symbol: "●", label: `otwarte zgłoszenia: ${reports.pending.length}`, className: "text-destructive" } }
+      : { ...t },
+  );
 
   return (
     <PageShell
@@ -47,7 +67,7 @@ export default async function GalleryAdminPage({
       description="Zdjęcia z wydarzenia dla uczestników, którzy na nim byli. Bez publicznej galerii."
     >
       <TabbedSections
-        tabs={[...GALLERY_TABS]}
+        tabs={tabs}
         initialTab={resolveTabKey(tab, GALLERY_TAB_KEYS, GALLERY_DEFAULT_TAB)}
         defaultTab={GALLERY_DEFAULT_TAB}
         idPrefix="gallery"
@@ -62,7 +82,9 @@ export default async function GalleryAdminPage({
                 hidden: p.hidden,
                 watermarked: p.watermarked,
                 source: p.upload_link_id ? `Fotograf: ${linkLabel.get(p.upload_link_id) ?? "link"}` : "Organizator",
+                reported: reportedIds.has(p.id),
               }))}
+              reports={{ pending: reports.pending.map(reportView), resolved: reports.resolved.map(reportView) }}
               usage={{
                 count: usage.count,
                 eventBytes: usage.eventBytes,

@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { getEventBySlugForRegistration } from "@/lib/events";
 import { hasActiveMixerForAttendee } from "@/lib/mixer/participant";
+import { canSeeGallery } from "@/lib/gallery-participant";
 import { getOrigin } from "@/lib/request-origin";
 import { buildEventBasePath } from "@/lib/event-url";
 import { BottomNav } from "./bottom-nav";
@@ -27,6 +28,7 @@ export default async function ParticipantEventLayout({
     getEventBySlugForRegistration(slug),
     hasActiveMixerForAttendee(attendee.id),
   ]);
+  const hasGallery = await canSeeGallery(event, attendee);
 
   return (
     <>
@@ -37,6 +39,7 @@ export default async function ParticipantEventLayout({
         slug={slug}
         gamificationEnabled={event?.gamification_enabled ?? false}
         hasMixer={hasMixer}
+        hasGallery={hasGallery}
         basePath={basePath}
       />
     </>

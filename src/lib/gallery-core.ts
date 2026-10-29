@@ -163,3 +163,66 @@ export function watermarkBox(width: number, height: number) {
 }
 
 export const WATERMARK_OPACITY = 0.6;
+
+// ── Widok uczestnika ───────────────────────────────────────────────────────
+
+/** Miniatury w siatce uczestnika: tyle na stronę („Pokaż więcej”). */
+export const PARTICIPANT_PAGE_SIZE = 48;
+
+export type ParticipantGalleryState = "unavailable" | "not_checked_in" | "coming_soon" | "open";
+
+/**
+ * Stan galerii dla uczestnika. Kolejność ma znaczenie: uczestnik z innego eventu albo galeria
+ * wyłączona / plan bez funkcji → „unavailable” (404, bez zdradzania czegokolwiek); brak
+ * check-inu → komunikat bez liczby zdjęć; brak publikacji → „pojawi się wkrótce”.
+ */
+export function participantGalleryState(input: {
+  eventId: string;
+  attendeeEventId: string;
+  checkedInAt: string | null;
+  enabled: boolean;
+  publishedAt: string | null;
+  featureOn: boolean;
+}): ParticipantGalleryState {
+  if (input.attendeeEventId !== input.eventId) return "unavailable";
+  if (!input.featureOn || !input.enabled) return "unavailable";
+  if (!input.checkedInAt) return "not_checked_in";
+  if (!input.publishedAt) return "coming_soon";
+  return "open";
+}
+
+/** Nazwa pobieranego pliku: slug eventu + krótki identyfikator zdjęcia. */
+export function photoDownloadName(slug: string, photoId: string): string {
+  const base = slug.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "wydarzenie";
+  return `${base}-zdjecie-${photoId.replace(/[^0-9a-f]/gi, "").slice(0, 8)}.jpg`;
+}
+
+// ── Zgłoszenia zdjęć ───────────────────────────────────────────────────────
+
+export type ReportKind = "remove_me" | "other";
+export const REPORT_KIND_LABELS: Record<ReportKind, string> = {
+  remove_me: "Nie chcę być na tym zdjęciu",
+  other: "Inny powód",
+};
+export const REPORT_MESSAGE_MAX = 500;
+/** Limit zgłoszeń jednej osoby w oknie 24 h (ochrona przed masowym ukrywaniem galerii). */
+export const REPORT_RATE_MAX = 20;
+export const REPORT_RATE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+export function validateReportInput(
+  kind: unknown,
+  message: unknown,
+): { ok: true; value: { kind: ReportKind; message: string | null } } | { ok: false; error: string } {
+  if (kind !== "remove_me" && kind !== "other") return { ok: false, error: "Wybierz powód zgłoszenia." };
+  const m = typeof message === "string" ? message.trim() : "";
+  if (m.length > REPORT_MESSAGE_MAX) return { ok: false, error: `Wiadomość może mieć do ${REPORT_MESSAGE_MAX} znaków.` };
+  if (kind === "other" && !m) return { ok: false, error: "Opisz krótko powód zgłoszenia." };
+  return { ok: true, value: { kind, message: m || null } };
+}
+
+export const REPORT_MESSAGES = {
+  done: "Dziękujemy — zdjęcie zostało ukryte do decyzji organizatora.",
+  already: "To zdjęcie jest już zgłoszone — czeka na decyzję organizatora.",
+  resolved: "To zdjęcie było już zgłoszone i organizator zdecydował, że zostaje.",
+  limit: "Osiągnięto limit zgłoszeń na dziś. Jeśli potrzebujesz pomocy, skontaktuj się z organizatorem.",
+} as const;

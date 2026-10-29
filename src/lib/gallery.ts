@@ -103,7 +103,7 @@ export async function listOrganizerPhotos(eventId: string): Promise<GalleryPhoto
   return rows.map(({ thumb_path, ...r }) => ({ ...r, size_bytes: Number(r.size_bytes), thumb_url: urls.get(thumb_path) ?? null }));
 }
 
-async function signedUrls(paths: string[], ttl: number): Promise<Map<string, string>> {
+export async function signedUrls(paths: string[], ttl: number): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (paths.length === 0) return out;
   const { data } = await createAdminClient().storage.from(GALLERY_BUCKET).createSignedUrls(paths, ttl);
@@ -350,8 +350,8 @@ export async function finalizePhotoUpload(event: GalleryEvent, photoId: string, 
   const paths = photoPaths(event.id, row.id, "jpg" as PhotoExt);
   const bucket = admin.storage.from(GALLERY_BUCKET);
   const [d, t] = await Promise.all([
-    bucket.upload(paths.display, processed.display, { contentType: "image/jpeg", upsert: true }),
-    bucket.upload(paths.thumb, processed.thumb, { contentType: "image/jpeg", upsert: true }),
+    bucket.upload(paths.display, processed.display, { contentType: "image/jpeg", upsert: true, cacheControl: String(SIGNED_VIEW_TTL_S) }),
+    bucket.upload(paths.thumb, processed.thumb, { contentType: "image/jpeg", upsert: true, cacheControl: String(SIGNED_VIEW_TTL_S) }),
   ]);
   if (d.error || t.error) {
     await bucket.remove([paths.display, paths.thumb]);
@@ -416,6 +416,14 @@ export async function deletePhotos(eventId: string, ids: string[]): Promise<bool
     .in("id", valid);
   const rows = (data ?? []) as { id: string; original_path: string | null; display_path: string | null; thumb_path: string | null }[];
   if (rows.length === 0) return false;
+  // Otwarte zgłoszenia usuwanych zdjęć zamykamy jako „removed” (zostają jako ślad decyzji;
+  // po usunięciu wiersza photo_id w zgłoszeniu staje się NULL).
+  await admin
+    .from("event_photo_reports")
+    .update({ status: "removed", resolved_at: new Date().toISOString() })
+    .eq("event_id", eventId)
+    .eq("status", "pending")
+    .in("photo_id", rows.map((r) => r.id));
   const paths = rows.flatMap((r) => [r.original_path, r.display_path, r.thumb_path]).filter((p): p is string => !!p);
   if (paths.length) await admin.storage.from(GALLERY_BUCKET).remove(paths);
   const { error } = await admin.from("event_photos").delete().eq("event_id", eventId).in("id", rows.map((r) => r.id));
