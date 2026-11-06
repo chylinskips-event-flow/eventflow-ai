@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Copy, Check, RefreshCw, ShieldOff, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { buildEventApexUrl } from "@/lib/event-url";
 import {
   organizerGenerateReceptionToken,
   organizerRevokeReceptionToken,
@@ -18,11 +19,7 @@ interface ReceptionTokenSectionProps {
 }
 
 function buildReceptionUrl(slug: string, origin: string, token: string): string {
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
-  if (rootDomain) {
-    return `https://${slug}.${rootDomain}/recepcja/${token}`;
-  }
-  return `${origin}/e/${slug}/recepcja/${token}`;
+  return `${buildEventApexUrl(slug, origin)}/recepcja/${token}`;
 }
 
 export function ReceptionTokenSection({
