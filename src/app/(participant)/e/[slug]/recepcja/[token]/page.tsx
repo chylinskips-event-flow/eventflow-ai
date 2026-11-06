@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { getEventByReceptionToken, getReceptionList } from "@/lib/reception";
+import { hasFeature } from "@/lib/entitlements";
 import { ReceptionPanel } from "@/components/reception-panel";
-import { staffCheckInByQr, staffCheckInById, staffUndoCheckIn } from "./actions";
+import { staffBadgeLabel, staffCheckInByQr, staffCheckInById, staffUndoCheckIn } from "./actions";
 
 export default async function StaffReceptionPage({
   params,
@@ -24,11 +25,15 @@ export default async function StaffReceptionPage({
     );
   }
 
-  const attendees = await getReceptionList(event.id);
+  const [attendees, badgesEnabled] = await Promise.all([
+    getReceptionList(event.id),
+    hasFeature(event.organization_id, "badges"),
+  ]);
 
   const checkInByQr = staffCheckInByQr.bind(null, token);
   const checkInById = staffCheckInById.bind(null, token);
   const undoCheckIn = staffUndoCheckIn.bind(null, token);
+  const badgeLabel = staffBadgeLabel.bind(null, token);
 
   return (
     <main>
@@ -45,6 +50,7 @@ export default async function StaffReceptionPage({
         checkInByQrAction={checkInByQr}
         checkInByIdAction={checkInById}
         undoCheckInAction={undoCheckIn}
+        badgeLabelAction={badgesEnabled ? badgeLabel : undefined}
         stickyTopClass="top-0"
       />
     </main>
