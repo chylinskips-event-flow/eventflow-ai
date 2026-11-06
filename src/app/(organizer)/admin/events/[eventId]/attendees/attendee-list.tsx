@@ -10,6 +10,7 @@ import { urlForTab } from "@/lib/url-tabs";
 import { AttendeeActions } from "./attendee-actions";
 import { DeleteAttendeeButton } from "./delete-attendee-button";
 import { EditAttendeeButton } from "./edit-attendee-button";
+import { SendTicketButton } from "./send-ticket-button";
 
 const STATUS_LABELS: Record<Attendee["status"], string> = {
   pending: "Oczekuje",
@@ -82,6 +83,13 @@ export function AttendeeList({
                     </Badge>
                     {attendee.status === "pending" && (
                       <AttendeeActions eventId={eventId} attendeeId={attendee.id} />
+                    )}
+                    {attendee.status === "approved" && attendee.email && (
+                      <SendTicketButton
+                        eventId={eventId}
+                        attendeeId={attendee.id}
+                        sentAt={attendee.ticket_sent_at ?? null}
+                      />
                     )}
                     <EditAttendeeButton eventId={eventId} attendee={attendee} />
                     <DeleteAttendeeButton
