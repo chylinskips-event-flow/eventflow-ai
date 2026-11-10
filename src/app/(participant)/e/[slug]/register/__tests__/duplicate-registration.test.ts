@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Ponowna rejestracja na ten sam adres w tym samym wydarzeniu: bez nowego rekordu, link do panelu.
 
 type Row = { id: string; event_id: string; email: string; status: string };
-const db = { attendees: [] as Row[], events: [] as { id: string; slug: string; requires_approval: boolean }[] };
+type EventRow = { id: string; slug: string; requires_approval: boolean; status: string; registration_open: boolean; deleted_at: string | null };
+const db = { attendees: [] as Row[], events: [] as EventRow[] };
 const inserted: Row[] = [];
 const requestAccessLinkForEmail = vi.fn<(p: { slug: string; email: unknown }) => Promise<{ status: "sent" }>>(
   async () => ({ status: "sent" }),
@@ -23,6 +24,7 @@ vi.mock("@/lib/supabase/admin", () => ({
         select: () => b,
         eq: (col: string, val: unknown) => (filters.push((r) => r[col] === val), b),
         in: (col: string, vals: unknown[]) => (filters.push((r) => vals.includes(r[col])), b),
+        is: (col: string, val: unknown) => (filters.push((r) => (r[col] ?? null) === val), b),
         ilike: (col: string, pattern: string) => (
           filters.push((r) => String(r[col]).toLowerCase() === unescapeLike(pattern).toLowerCase()), b
         ),
@@ -83,8 +85,8 @@ async function register(eventId: string, slug: string, email: string) {
 
 beforeEach(() => {
   db.events = [
-    { id: "ev1", slug: "expo", requires_approval: false },
-    { id: "ev2", slug: "inne", requires_approval: false },
+    { id: "ev1", slug: "expo", requires_approval: false, status: "published", registration_open: true, deleted_at: null },
+    { id: "ev2", slug: "inne", requires_approval: false, status: "live", registration_open: true, deleted_at: null },
   ];
   db.attendees = [{ id: "a0", event_id: "ev1", email: "ania@example.com", status: "approved" }];
   inserted.length = 0;
@@ -134,5 +136,18 @@ describe("rejestracja — duplikaty adresu w jednym wydarzeniu", () => {
     db.attendees = [{ id: "a0", event_id: "ev1", email: "a_b@example.com", status: "approved" }];
     expect((await register("ev1", "expo", "a%b@example.com")).status).toBe("redirect");
     expect(inserted).toHaveLength(1);
+  });
+});
+
+describe("rejestracja — serwer sam sprawdza, czy zapisy są otwarte", () => {
+  it.each([
+    ["szkic", { status: "draft" }, "Wydarzenie nie zostało jeszcze opublikowane."],
+    ["zamknięta rejestracja", { registration_open: false }, "Rejestracja na to wydarzenie jest obecnie zamknięta."],
+    ["usunięte wydarzenie", { deleted_at: "2026-11-01T00:00:00Z" }, "Nie udało się zarejestrować. Spróbuj ponownie."],
+  ])("%s: bez rekordu i bez maila", async (_label, patch, message) => {
+    Object.assign(db.events[0], patch);
+    expect(await register("ev1", "expo", "jan@example.com")).toEqual({ status: "error", message });
+    expect(inserted).toHaveLength(0);
+    expect(requestAccessLinkForEmail).not.toHaveBeenCalled();
   });
 });

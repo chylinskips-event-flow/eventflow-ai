@@ -10,7 +10,7 @@ import {
   ATTENDEE_TOKEN_COOKIE,
   ATTENDEE_TOKEN_MAX_AGE_SECONDS,
 } from "@/lib/attendee-session";
-import type { Event } from "@/lib/events";
+import { getRegistrationUnavailableReason, type Event } from "@/lib/events";
 import { getPaymentConfig, registerTransaction, getP24BaseUrl } from "@/lib/p24";
 import { randomUUID } from "crypto";
 import { ATTENDEE_LIMIT_MESSAGE, hasFeature, isAttendeeLimitReached } from "@/lib/entitlements";
@@ -52,10 +52,13 @@ export async function completeFreeCheckout(
     .from("events")
     .select("*")
     .eq("id", eventId)
+    .is("deleted_at", null)
     .maybeSingle<Event>();
 
   if (!event)
     return { status: "error", message: "Wydarzenie nie istnieje." };
+  const freeUnavailable = getRegistrationUnavailableReason(event);
+  if (freeUnavailable) return { status: "error", message: freeUnavailable };
 
   // Bilet darmowy = rejestracja bez płatności: ten sam adres już zarejestrowany w tym
   // wydarzeniu → bez nowego rekordu i bez rezerwacji puli, link do panelu (jak „Wejdź ponownie”).
@@ -199,7 +202,7 @@ export async function completeFreeCheckout(
   // 8. Set cookie
   const cookieStore = await cookies();
   cookieStore.set(ATTENDEE_TOKEN_COOKIE, attendee.qr_code_token, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
@@ -208,7 +211,7 @@ export async function completeFreeCheckout(
 
   redirect(buildEventInternalPath(
     slug,
-    `/checkout/success?name=${encodeURIComponent(trimmedFirst)}&email=${encodeURIComponent(trimmedEmail)}`,
+    `/checkout/success?name=${encodeURIComponent(trimmedFirst)}`,
     origin,
   ));
 }
@@ -292,8 +295,11 @@ export async function startPaidCheckout(
     .from("events")
     .select("*")
     .eq("id", eventId)
+    .is("deleted_at", null)
     .maybeSingle<Event>();
   if (!event) return { status: "error", message: "Wydarzenie nie istnieje." };
+  const paidUnavailable = getRegistrationUnavailableReason(event);
+  if (paidUnavailable) return { status: "error", message: paidUnavailable };
   if (!(await hasFeature(event.organization_id, "tickets_paid")))
     return { status: "error", message: "Sprzedaż biletów płatnych jest niedostępna dla tego wydarzenia." };
   if (await isAttendeeLimitReached(event))
