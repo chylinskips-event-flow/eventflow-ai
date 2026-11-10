@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CreateMixerDialog } from "./create-mixer-dialog";
-import { SeedAttendeesButton } from "./seed-attendees-button";
 import { featureGate } from "@/lib/entitlements";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
 
@@ -93,7 +92,6 @@ export default async function MixerListPage({
         </div>
       )}
 
-      <SeedAttendeesButton eventId={eventId} />
     </main>
   );
 }

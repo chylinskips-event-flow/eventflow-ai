@@ -11,13 +11,12 @@ export default async function CheckoutSuccessPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ name?: string; email?: string }>;
+  searchParams: Promise<{ name?: string }>;
 }) {
   const { slug } = await params;
-  const { name, email } = await searchParams;
+  const { name } = await searchParams;
   const origin = getOrigin(await headers());
   const firstName = name ? decodeURIComponent(name) : null;
-  const emailDecoded = email ? decodeURIComponent(email) : null;
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-8 sm:px-8">
@@ -27,10 +26,7 @@ export default async function CheckoutSuccessPage({
           {firstName ? `Gotowe, ${firstName}!` : "Rejestracja zakończona!"}
         </h1>
         <p className="max-w-sm text-muted-foreground">
-          Twój bilet jest gotowy.{" "}
-          {emailDecoded
-            ? `Wyślemy potwierdzenie na adres ${emailDecoded}.`
-            : "Wyślemy potwierdzenie na podany adres email."}
+          Twój bilet jest gotowy. Wyślemy potwierdzenie na podany adres email.
         </p>
       </div>
 
