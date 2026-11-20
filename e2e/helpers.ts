@@ -89,5 +89,11 @@ export async function loginWithMagicLink(page: Page, loginPath: string, email: s
   await page.getByLabel(/e-?mail/i).fill(email);
   await page.getByRole("button", { name: /wyślij|link/i }).click();
   await expect(page.getByText(/sprawdź|wysłaliśmy|wysłano/i).first()).toBeVisible();
-  await page.goto(await latestAuthLink(email, sent));
+  const link = await latestAuthLink(email, sent);
+  if (process.env.E2E_DEBUG) {
+    console.log("[e2e] auth link:", link);
+    page.on("framenavigated", (f) => f === page.mainFrame() && console.log("[e2e] ->", f.url()));
+    page.on("response", (r) => r.status() >= 300 && r.status() < 400 && console.log("[e2e] redirect", r.status(), r.url(), "=>", r.headers()["location"]));
+  }
+  await page.goto(link);
 }

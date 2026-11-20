@@ -42,5 +42,7 @@ export function localSupabase(): LocalSupabase {
 
 export const APP_PORT = 3100;
 export const MAIL_PORT = 3199;
-export const APP_URL = `http://127.0.0.1:${APP_PORT}`;
+// localhost, nie 127.0.0.1: serwer deweloperski Next podaje w request.nextUrl host „localhost”,
+// a zmiana hosta w trakcie logowania gubi ciasteczka sesji.
+export const APP_URL = `http://localhost:${APP_PORT}`;
 export const FAKE_RESEND_URL = `http://127.0.0.1:${MAIL_PORT}`;

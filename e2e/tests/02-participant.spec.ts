@@ -47,7 +47,7 @@ test("ponowna rejestracja tym samym adresem: bez duplikatu, z linkiem do panelu"
   await register(page, events.open.slug, { first: "Jan", last: "Duplikat", email });
   await expect(page).toHaveURL(/\/welcome/);
   await register(page, events.open.slug, { first: "Jan", last: "Duplikat", email: "JAN.Duplikat@e2e.test" });
-  await expect(page.getByText(/już zarejestrowany/i)).toBeVisible();
+  await expect(page.getByText(/już zarejestrowany/i).first()).toBeVisible();
   const { data } = await admin().from("attendees").select("id").eq("event_id", events.open.id).ilike("email", email);
   expect(data).toHaveLength(1);
 });

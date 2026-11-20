@@ -15,6 +15,9 @@ async function addAttendee(eventId: string, first: string, status: "approved" | 
 
 test.describe.configure({ mode: "serial" });
 
+// Obsługa recepcji i partner otwierają linki w czystej przeglądarce, bez sesji organizatora.
+const NO_SESSION = { storageState: { cookies: [], origins: [] } };
+
 test("logowanie organizatora i lista wydarzeń", async ({ page }) => {
   const { organizerEmail, events } = state();
   await loginWithMagicLink(page, "/login", organizerEmail);
@@ -54,7 +57,7 @@ test.describe("zalogowany organizator", () => {
     await addAttendee(events.open.id, "Kasia", "approved");
     const token = crypto.randomUUID();
     await admin().from("events").update({ reception_token: token }).eq("id", events.open.id);
-    const staff = await browser.newContext();
+    const staff = await browser.newContext(NO_SESSION);
     const s = await staff.newPage();
     await s.goto(`/e/${events.open.slug}/recepcja/${token}`);
     const row = s.locator("div.rounded-lg.border", { hasText: "Kasia Testowy" });
@@ -69,14 +72,14 @@ test.describe("zalogowany organizator", () => {
 
   test("zaproszenie partnera: mail z linkiem i panel partnera", async ({ page, browser }) => {
     const { events, partnerId, partnerEmail } = state();
-    await page.goto(`/admin/events/${events.open.id}/partners/${partnerId}`);
+    await page.goto(`/admin/events/${events.open.id}/partners/${partnerId}?tab=dostep`);
     await page.locator("#invite-email").fill(partnerEmail);
     await page.getByRole("button", { name: "Zaproś" }).click();
     const mail = await waitForAppMail(partnerEmail, /.*/);
     const invite = [...mail.html.matchAll(/href="([^"]+partner\/invite\/[^"]+)"/g)].map((m) => m[1])[0];
     expect(invite, "link zaproszenia w mailu").toBeTruthy();
 
-    const partnerCtx = await browser.newContext();
+    const partnerCtx = await browser.newContext(NO_SESSION);
     const p = await partnerCtx.newPage();
     await p.goto(invite.replace(/&amp;/g, "&"));
     const { latestAuthLink } = await import("../helpers");

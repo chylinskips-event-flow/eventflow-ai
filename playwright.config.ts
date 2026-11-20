@@ -28,7 +28,7 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: `npx next dev --port ${APP_PORT} --hostname 127.0.0.1`,
+      command: `npx next dev --port ${APP_PORT} --hostname localhost`,
       url: `${APP_URL}/login`,
       timeout: 240_000,
       reuseExistingServer: false,
