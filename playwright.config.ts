@@ -28,9 +28,11 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: `npx next dev --port ${APP_PORT} --hostname localhost`,
+      // Build produkcyjny, nie next dev: dev pomija middleware.ts z katalogu głównego przy src/app,
+      // więc testy na dev nie widziałyby przekierowań i blokad, które działają na produkcji.
+      command: `npx next build && npx next start --port ${APP_PORT} --hostname localhost`,
       url: `${APP_URL}/login`,
-      timeout: 240_000,
+      timeout: 420_000,
       reuseExistingServer: false,
       // Każda zmienna z .env.local jest tu nadpisana niepustą wartością lokalną
       // (Next nie nadpisuje zmiennych ustawionych w procesie, ale zastępuje puste).
