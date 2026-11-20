@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 type Row = { id: string; event_id: string; email: string; status: string };
 type EventRow = { id: string; slug: string; requires_approval: boolean; status: string; registration_open: boolean; deleted_at: string | null };
-const db = { attendees: [] as Row[], events: [] as EventRow[] };
+const db = { attendees: [] as Row[], events: [] as EventRow[], ticket_types: [] as { event_id: string; enabled: boolean }[] };
 const inserted: Row[] = [];
 const requestAccessLinkForEmail = vi.fn<(p: { slug: string; email: unknown }) => Promise<{ status: "sent" }>>(
   async () => ({ status: "sent" }),
@@ -16,7 +16,7 @@ function unescapeLike(pattern: string) {
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
-    from: (table: "attendees" | "events") => {
+    from: (table: "attendees" | "events" | "ticket_types") => {
       const filters: ((r: Record<string, unknown>) => boolean)[] = [];
       let insertRow: Row | null = null;
       const rows = () => (db[table] as Record<string, unknown>[]).filter((r) => filters.every((f) => f(r)));
@@ -89,6 +89,7 @@ beforeEach(() => {
     { id: "ev2", slug: "inne", requires_approval: false, status: "live", registration_open: true, deleted_at: null },
   ];
   db.attendees = [{ id: "a0", event_id: "ev1", email: "ania@example.com", status: "approved" }];
+  db.ticket_types = [];
   inserted.length = 0;
   requestAccessLinkForEmail.mockClear();
 });
@@ -149,5 +150,19 @@ describe("rejestracja — serwer sam sprawdza, czy zapisy są otwarte", () => {
     expect(await register("ev1", "expo", "jan@example.com")).toEqual({ status: "error", message });
     expect(inserted).toHaveLength(0);
     expect(requestAccessLinkForEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("rejestracja — wydarzenie z biletami", () => {
+  it("włączony typ biletu zamyka darmową rejestrację (bez rekordu)", async () => {
+    db.ticket_types = [{ event_id: "ev1", enabled: true }];
+    const res = await register("ev1", "expo", "jan@example.com");
+    expect(res).toEqual({ status: "error", message: "Na to wydarzenie obowiązują bilety. Wybierz bilet na stronie wydarzenia." });
+    expect(inserted).toHaveLength(0);
+  });
+
+  it("wyłączone typy biletów i bilety innego wydarzenia nie blokują", async () => {
+    db.ticket_types = [{ event_id: "ev1", enabled: false }, { event_id: "ev2", enabled: true }];
+    expect((await register("ev1", "expo", "jan@example.com")).status).toBe("redirect");
   });
 });

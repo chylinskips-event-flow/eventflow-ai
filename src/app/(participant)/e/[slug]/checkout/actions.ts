@@ -15,6 +15,7 @@ import { getPaymentConfig, registerTransaction, getP24BaseUrl } from "@/lib/p24"
 import { randomUUID } from "crypto";
 import { ATTENDEE_LIMIT_MESSAGE, hasFeature, isAttendeeLimitReached } from "@/lib/entitlements";
 import { handleDuplicateRegistration } from "@/lib/duplicate-registration";
+import { escapeLike } from "@/lib/access-link";
 
 export type FreeCheckoutState = {
   status: "idle" | "error" | "already_registered";
@@ -240,7 +241,7 @@ async function validateDiscountCode(
     .from("discount_codes")
     .select("*")
     .eq("event_id", eventId)
-    .ilike("code", code)
+    .ilike("code", escapeLike(code.trim()))
     .eq("enabled", true)
     .maybeSingle();
 

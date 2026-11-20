@@ -16,6 +16,7 @@ import {
 import { getRegistrationUnavailableReason, type Event } from "@/lib/events";
 import { ATTENDEE_LIMIT_MESSAGE, isAttendeeLimitReached } from "@/lib/entitlements";
 import { handleDuplicateRegistration } from "@/lib/duplicate-registration";
+import { eventUsesTickets, TICKETS_ONLY_MESSAGE } from "@/lib/tickets";
 
 export type RegisterAttendeeState = {
   status: "idle" | "error" | "already_registered";
@@ -83,6 +84,7 @@ export async function registerAttendee(
   // Strona rejestracji sprawdza to samo, ale akcję da się wywołać z pominięciem strony.
   const unavailable = getRegistrationUnavailableReason(event);
   if (unavailable) return { status: "error", message: unavailable };
+  if (await eventUsesTickets(event.id)) return { status: "error", message: TICKETS_ONLY_MESSAGE };
 
   // Ten sam adres już zarejestrowany w tym wydarzeniu → bez nowego rekordu, link do panelu.
   const duplicateMessage = await handleDuplicateRegistration({

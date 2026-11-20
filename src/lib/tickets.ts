@@ -135,6 +135,23 @@ export async function getTicketTypes(eventId: string): Promise<TicketType[]> {
   return (data ?? []) as TicketType[];
 }
 
+/**
+ * Czy wydarzenie prowadzi zapisy przez bilety (choć jeden włączony typ, bez względu na okno
+ * sprzedaży). Wtedy darmowa rejestracja /register jest zamknięta — inaczej omijałaby płatność
+ * i pulę miejsc.
+ */
+export async function eventUsesTickets(eventId: string): Promise<boolean> {
+  const { count } = await createAdminClient()
+    .from("ticket_types")
+    .select("id", { count: "exact", head: true })
+    .eq("event_id", eventId)
+    .eq("enabled", true);
+  return (count ?? 0) > 0;
+}
+
+export const TICKETS_ONLY_MESSAGE =
+  "Na to wydarzenie obowiązują bilety. Wybierz bilet na stronie wydarzenia.";
+
 /** Enabled types within their sale window — for public display. Includes paid/pending breakdown. */
 export async function getPublicTicketTypes(eventId: string): Promise<TicketType[]> {
   const supabase = createAdminClient();

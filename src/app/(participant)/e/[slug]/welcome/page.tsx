@@ -4,7 +4,7 @@ import { CheckCircle2, Clock } from "lucide-react";
 import { getOrigin } from "@/lib/request-origin";
 import { buildEventInternalPath } from "@/lib/event-url";
 import { getEventBySlugForRegistration } from "@/lib/events";
-import { getTemplate, applyVariables } from "@/lib/message-templates";
+import { getTemplate, applyVariables, templateToPlainText } from "@/lib/message-templates";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,10 +26,12 @@ export default async function WelcomePage({
 
   const templateType = isPending ? "welcome_pending" : "welcome_approved";
   const template = await getTemplate(event?.id ?? "", templateType);
-  const body = applyVariables(template.body, {
-    imię: name ?? "",
-    nazwa_eventu: eventName,
-  });
+  const body = templateToPlainText(
+    applyVariables(template.body, {
+      imię: name ?? "",
+      nazwa_eventu: eventName,
+    }),
+  );
 
   return (
     <main className="flex flex-col items-center px-4 py-12 md:py-20">
@@ -56,10 +58,7 @@ export default async function WelcomePage({
           )}
         </CardHeader>
         <CardContent className="space-y-6 text-center">
-          <p
-            className="text-base leading-relaxed text-foreground"
-            dangerouslySetInnerHTML={{ __html: body }}
-          />
+          <p className="whitespace-pre-line text-base leading-relaxed text-foreground">{body}</p>
           <Button asChild variant="default" className="w-full">
             <Link href={buildEventInternalPath(slug, "", origin) || "/"}>Wróć do strony wydarzenia</Link>
           </Button>

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getOwnEvent } from "@/lib/events";
 import { getEventPartners } from "@/lib/partners";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { QuestFormDialog, type QuestForEdit } from "./quest-form-dialog";
@@ -29,7 +29,8 @@ export default async function QuestsPage({
   const gate = await featureGate(event.organization_id, "gamification");
   if (!gate.ok) return <FeatureLockedPage title="Questy" message={gate.message} />;
 
-  const supabase = await createClient();
+  // Po getOwnEvent — service_role (questy nie mają polityki dla organizatora).
+  const supabase = createAdminClient();
   const { data: rawQuests } = await supabase
     .from("quests")
     .select("id, type, title, description, points_value, partner_id, target_value, is_active, config")
