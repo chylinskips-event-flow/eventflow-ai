@@ -15,7 +15,6 @@ import { getPaymentConfig, registerTransaction, getP24BaseUrl } from "@/lib/p24"
 import { randomUUID } from "crypto";
 import { ATTENDEE_LIMIT_MESSAGE, hasFeature, isAttendeeLimitReached } from "@/lib/entitlements";
 import { handleDuplicateRegistration } from "@/lib/duplicate-registration";
-import { escapeLike } from "@/lib/access-link";
 
 export type FreeCheckoutState = {
   status: "idle" | "error" | "already_registered";
@@ -241,7 +240,9 @@ async function validateDiscountCode(
     .from("discount_codes")
     .select("*")
     .eq("event_id", eventId)
-    .ilike("code", escapeLike(code.trim()))
+    // Dokładne porównanie: kody są zapisywane wielkimi literami. Bez LIKE, bo PostgREST
+    // traktuje „*” jak „%”, a symbol wieloznaczny pozwalał użyć kodu bez jego znajomości.
+    .eq("code", code.trim().toUpperCase())
     .eq("enabled", true)
     .maybeSingle();
 
