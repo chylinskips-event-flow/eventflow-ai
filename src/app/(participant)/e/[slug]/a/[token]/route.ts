@@ -38,7 +38,7 @@ export async function GET(
   // tutaj na nowo, niezależnie od tego, czy już istnieje.
   const response = NextResponse.redirect(eventPath(""));
   response.cookies.set(ATTENDEE_TOKEN_COOKIE, token, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",

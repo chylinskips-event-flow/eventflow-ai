@@ -153,7 +153,7 @@ export function computeNotifySign(
 
 // ---- API calls -------------------------------------------------------------
 
-type P24Result<T> = { ok: true; data: T } | { ok: false; error: string };
+type P24Result<T> = { ok: true; data: T } | { ok: false; error: string; retryable?: boolean };
 
 export async function registerTransaction(
   cfg: P24Config,
@@ -253,11 +253,13 @@ export async function verifyTransaction(
       body: JSON.stringify(body),
       cache: "no-store",
     });
-    if (!res.ok) return { ok: false, error: `P24 HTTP ${res.status}` };
+    if (!res.ok) {
+      return { ok: false, error: `P24 HTTP ${res.status}`, retryable: res.status >= 500 || res.status === 429 };
+    }
     const json = await res.json() as { data?: { status?: string } };
     return { ok: true, data: { status: json.data?.status ?? "unknown" } };
   } catch {
-    return { ok: false, error: "P24 verify request failed" };
+    return { ok: false, error: "P24 verify request failed", retryable: true };
   }
 }
 
