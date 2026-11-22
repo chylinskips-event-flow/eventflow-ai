@@ -6,6 +6,7 @@ export async function getPaidOrderCount(eventId: string): Promise<number> {
     .from("orders")
     .select("id", { count: "exact", head: true })
     .eq("event_id", eventId)
-    .eq("status", "paid");
+    .eq("status", "paid")
+    .gt("total_amount", 0);
   return count ?? 0;
 }
