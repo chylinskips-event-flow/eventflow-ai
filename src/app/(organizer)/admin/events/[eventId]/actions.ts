@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { parseLines } from "@/lib/events";
+import { getOwnEvent, parseLines } from "@/lib/events";
 import { parseDateTimeLocal } from "@/lib/format";
 import { slugify, validateSlug } from "@/lib/slug";
 import { checkEventSlug, suggestEventSlug, takenSlugMessage } from "@/lib/event-slug";
@@ -31,6 +31,7 @@ export async function updateEvent(
   _prevState: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
+  if (!(await getOwnEvent(eventId))) return { status: "error", message: "Event nie znaleziony." };
   const name = formData.get("name");
   const rawSlug = formData.get("slug");
   // Końcowy myślnik z wpisywania na bieżąco porządkujemy tu (slugify jest idempotentny).
@@ -184,6 +185,7 @@ export async function updateEvent(
 }
 
 export async function publishEvent(eventId: string) {
+  if (!(await getOwnEvent(eventId))) throw new Error("Brak dostępu do wydarzenia.");
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("events")
@@ -219,6 +221,7 @@ export async function publishEvent(eventId: string) {
 }
 
 export async function startEvent(eventId: string) {
+  if (!(await getOwnEvent(eventId))) throw new Error("Brak dostępu do wydarzenia.");
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("events")
@@ -242,6 +245,7 @@ export async function startEvent(eventId: string) {
 }
 
 export async function completeEvent(eventId: string) {
+  if (!(await getOwnEvent(eventId))) throw new Error("Brak dostępu do wydarzenia.");
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("events")
@@ -265,6 +269,7 @@ export async function completeEvent(eventId: string) {
 }
 
 export async function unpublishEvent(eventId: string): Promise<EventDangerState> {
+  if (!(await getOwnEvent(eventId))) return { status: "error", message: "Event nie istnieje." };
   const supabase = await createClient();
 
   const { data: event } = await supabase
@@ -305,6 +310,7 @@ export async function softDeleteEvent(
   eventId: string,
   confirmedName: string,
 ): Promise<EventDangerState> {
+  if (!(await getOwnEvent(eventId))) return { status: "error", message: "Event nie istnieje." };
   const supabase = await createClient();
 
   const { data: event } = await supabase
@@ -357,6 +363,7 @@ export async function softDeleteEvent(
 export async function retrySubdomain(
   eventId: string,
 ): Promise<"active" | "activating" | "error"> {
+  if (!(await getOwnEvent(eventId))) return "error";
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
@@ -384,6 +391,7 @@ export async function uploadEventLogo(
   _prevState: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
+  if (!(await getOwnEvent(eventId))) return { status: "error", message: "Event nie znaleziony." };
   const file = formData.get("logo");
 
   if (!(file instanceof File) || file.size === 0) {
@@ -444,6 +452,7 @@ export async function uploadEventBadgeBg(
   _prevState: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
+  if (!(await getOwnEvent(eventId))) return { status: "error", message: "Event nie znaleziony." };
   const file = formData.get("badge_bg");
 
   if (!(file instanceof File) || file.size === 0) {

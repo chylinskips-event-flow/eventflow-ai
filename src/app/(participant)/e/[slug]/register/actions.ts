@@ -13,9 +13,10 @@ import {
   ATTENDEE_TOKEN_COOKIE,
   ATTENDEE_TOKEN_MAX_AGE_SECONDS,
 } from "@/lib/attendee-session";
-import type { Event } from "@/lib/events";
+import { getRegistrationUnavailableReason, type Event } from "@/lib/events";
 import { ATTENDEE_LIMIT_MESSAGE, isAttendeeLimitReached } from "@/lib/entitlements";
 import { handleDuplicateRegistration } from "@/lib/duplicate-registration";
+import { eventUsesTickets, TICKETS_ONLY_MESSAGE } from "@/lib/tickets";
 
 export type RegisterAttendeeState = {
   status: "idle" | "error" | "already_registered";
@@ -70,6 +71,7 @@ export async function registerAttendee(
     .from("events")
     .select("*")
     .eq("id", eventId)
+    .is("deleted_at", null)
     .maybeSingle<Event>();
 
   if (!event) {
@@ -78,6 +80,11 @@ export async function registerAttendee(
       message: "Nie udało się zarejestrować. Spróbuj ponownie.",
     };
   }
+
+  // Strona rejestracji sprawdza to samo, ale akcję da się wywołać z pominięciem strony.
+  const unavailable = getRegistrationUnavailableReason(event);
+  if (unavailable) return { status: "error", message: unavailable };
+  if (await eventUsesTickets(event.id)) return { status: "error", message: TICKETS_ONLY_MESSAGE };
 
   // Ten sam adres już zarejestrowany w tym wydarzeniu → bez nowego rekordu, link do panelu.
   const duplicateMessage = await handleDuplicateRegistration({
@@ -146,7 +153,7 @@ export async function registerAttendee(
 
   const cookieStore = await cookies();
   cookieStore.set(ATTENDEE_TOKEN_COOKIE, attendee.qr_code_token, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",

@@ -6,7 +6,8 @@ export default defineConfig({
     environment: "node",
     globals: true,
     // Worktree'y sesji (.claude/worktrees/*) mają własne kopie testów — nie uruchamiamy ich tutaj.
-    exclude: [...configDefaults.exclude, ".claude/**"],
+    // e2e/ to testy Playwright (npm run e2e), nie vitest.
+    exclude: [...configDefaults.exclude, ".claude/**", "e2e/**"],
   },
   resolve: {
     alias: {

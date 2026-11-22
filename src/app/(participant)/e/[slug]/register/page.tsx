@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RegisterForm } from "./register-form";
+import { eventUsesTickets, TICKETS_ONLY_MESSAGE } from "@/lib/tickets";
 import { getOrigin } from "@/lib/request-origin";
 import { ReturnAccessLink } from "../return-access-link";
 import { isDraftEvent, NEUTRAL_EVENT_METADATA, NEUTRAL_EVENT_TITLE } from "@/lib/event-metadata";
@@ -43,7 +44,9 @@ export default async function RegisterPage({
     );
   }
 
-  const unavailableReason = getRegistrationUnavailableReason(event);
+  const unavailableReason =
+    getRegistrationUnavailableReason(event) ??
+    ((await eventUsesTickets(event.id)) ? TICKETS_ONLY_MESSAGE : null);
 
   if (unavailableReason) {
     return (
