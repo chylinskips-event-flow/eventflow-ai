@@ -127,6 +127,24 @@ export function buildStructuredHtml(
   return renderAttendeeEmail({ eventName: "{nazwa_eventu}", heading: headingHtml, contentHtml: mainHtml });
 }
 
+/**
+ * Treść szablonu jako zwykły tekst (do wyświetlenia w aplikacji, nie w mailu): znaczniki
+ * usunięte, <br> i akapity jako nowe linie, encje z applyVariables zamienione z powrotem.
+ * React escapuje wynik, więc HTML organizatora nie wykona się na stronie platformy.
+ */
+export function templateToPlainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6]|li)>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function applyVariables(
   template: string,
   vars: Record<string, string>,

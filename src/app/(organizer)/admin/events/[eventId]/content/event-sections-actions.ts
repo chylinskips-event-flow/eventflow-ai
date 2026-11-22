@@ -232,6 +232,9 @@ export async function removeGaleriaImage(
     ? ((section.content as Record<string, unknown>).images as { storage_path: string }[])
     : [];
 
+  // storagePath przychodzi od klienta: kasujemy tylko plik zapisany w tej sekcji tego wydarzenia.
+  if (!images.some((img) => img.storage_path === storagePath)) return;
+  if (!storagePath.startsWith(`${eventId}/${sectionId}/`)) return;
   const filtered = images.filter((img) => img.storage_path !== storagePath);
 
   await supabase

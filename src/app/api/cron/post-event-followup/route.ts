@@ -63,8 +63,8 @@ export async function GET(request: NextRequest) {
         // może przerwać wysyłki do pozostałych. Logujemy i liczymy.
         emailsFailed += 1;
         console.error(
-          `[post-event-followup] mail do ${recipient.email} (event ${event.id}):`,
-          error,
+          `[post-event-followup] mail nie wyszedł (event ${event.id}):`,
+          error instanceof Error ? error.message : "unknown",
         );
       }
     }

@@ -269,16 +269,12 @@ export async function issueRewardByToken(
   const token = checkInToken.trim();
 
   const event = await getOwnEvent(eventId);
-  // TODO(debug): remove after diagnosing scan bug
-  if (!event) {
-    console.error("[issueRewardByToken] getOwnEvent returned null", { eventId });
-    return { ok: false, error: "not_found" };
-  }
+  if (!event) return { ok: false, error: "not_found" };
 
   const supabase = createAdminClient();
 
   // Lookup attendee by check_in_token scoped to this event
-  const { data: attendee, error: attendeeError } = await supabase
+  const { data: attendee } = await supabase
     .from("attendees")
     .select("id, first_name, last_name, points, status")
     .eq("event_id", eventId)
@@ -290,18 +286,6 @@ export async function issueRewardByToken(
       points: number;
       status: string;
     }>();
-
-  // TODO(debug): remove after diagnosing scan bug
-  console.error("[issueRewardByToken] scan lookup", {
-    eventId,
-    rewardId,
-    tokenRaw: JSON.stringify(checkInToken),
-    tokenTrimmed: JSON.stringify(token),
-    tokenLength: token.length,
-    attendeeFound: !!attendee,
-    attendeeStatus: attendee?.status ?? null,
-    dbError: attendeeError?.message ?? null,
-  });
 
   if (!attendee) return { ok: false, error: "not_found" };
   if (attendee.status !== "approved") return { ok: false, error: "not_found" };
