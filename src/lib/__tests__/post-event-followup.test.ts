@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Follow-up po wydarzeniu: kwalifikacja po ends_at (18–42 h), bez usuniętych/zawieszonych,
+// Follow-up po wydarzeniu: kwalifikacja po ends_at (18 h – 7 dni), bez usuniętych/zawieszonych,
 // jednokrotność przez followup_sent_at. Bez bazy: atrapa klienta z filtrami jak w PostgREST.
 
 type Row = Record<string, unknown>;
@@ -78,16 +78,24 @@ describe("kwalifikacja", () => {
     expect(sent.map((s) => s.to).sort()).toEqual(["a@done.pl", "a@live.pl", "a@pub.pl"]);
   });
 
-  it("okno 18–42 h od ends_at: za wcześnie i za późno nic nie wychodzi", async () => {
+  it("okno 18 h – 7 dni od ends_at: za wcześnie i za późno nic nie wychodzi", async () => {
     db.tables.events = [
       ev("fresh", { ends_at: hoursAgo(17) }),
-      ev("old", { ends_at: hoursAgo(43) }),
+      ev("old", { ends_at: hoursAgo(7 * 24 + 1) }),
       ev("edge-min", { ends_at: hoursAgo(18) }),
-      ev("edge-max", { ends_at: hoursAgo(42) }),
+      ev("edge-max", { ends_at: hoursAgo(7 * 24) }),
     ];
     await runPostEventFollowup(NOW);
     expect(sent.map((s) => s.to).sort()).toEqual(["a@edge-max.pl", "a@edge-min.pl"]);
     expect(db.tables.events.find((e) => e.id === "fresh")?.followup_sent_at).toBeNull();
+    expect(db.tables.events.find((e) => e.id === "old")?.followup_sent_at).toBeNull();
+  });
+
+  it("nadrabia event zakończony kilka dni temu (pominięty cron) i wysyła go tylko raz", async () => {
+    db.tables.events = [ev("late", { ends_at: hoursAgo(5 * 24) })];
+    expect(await runPostEventFollowup(NOW)).toEqual({ events: 1, emails: 1, failed: 0 });
+    expect(await runPostEventFollowup(NOW + 24 * 3600_000)).toEqual({ events: 0, emails: 0, failed: 0 });
+    expect(sent).toHaveLength(1);
   });
 
   it("szkic, archiwum i usunięty event są pomijane", async () => {

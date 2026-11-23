@@ -2,12 +2,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getEventFollowupRecipients } from "@/lib/contact-requests";
 import { sendPostEventFollowupEmail } from "@/lib/email/post-event-followup";
 
-// Okno wyboru eventów: ends_at między 42h a 18h temu. Cron chodzi codziennie
-// o 08:00 UTC, więc każdy zakończony event trafia w to okno dokładnie raz.
+// Okno wyboru eventów: ends_at między 7 dniami a 18h temu. Cron chodzi codziennie
+// o 08:00 UTC; szerokie okno nadrabia pominięte uruchomienia crona i eventy
+// zakończone tuż przed wdrożeniem tej reguły. Jednokrotność zapewnia
+// followup_sent_at (filtr + warunkowa rezerwacja), nie szerokość okna.
 // O kwalifikacji decyduje godzina zakończenia z harmonogramu, nie ręczna zmiana
 // statusu przez organizatora (event po terminie często zostaje „live”).
 export const WINDOW_MIN_HOURS = 18;
-export const WINDOW_MAX_HOURS = 42;
+export const WINDOW_MAX_HOURS = 7 * 24;
 const HOUR_MS = 60 * 60 * 1000;
 
 /** Statusy, przy których event się odbył. Szkic i archiwum pomijamy. */
