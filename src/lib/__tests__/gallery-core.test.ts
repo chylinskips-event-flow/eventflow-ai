@@ -3,11 +3,15 @@ import {
   DEFAULT_BUDGET_MB,
   MAX_PHOTO_BYTES,
   budgetState,
+  comparePhotosNewestFirst,
+  decodePhotoCursor,
+  encodePhotoCursor,
   galleryBudgetMb,
   isSha256Hex,
   participantGalleryState,
   photoDownloadName,
   photoPaths,
+  photoTimeKey,
   uploadLinkState,
   validatePhotoFile,
   validateReportInput,
@@ -127,6 +131,30 @@ describe("widok uczestnika i zgłoszenia", () => {
     expect(validateReportInput("other", "")).toMatchObject({ ok: false });
     expect(validateReportInput("x", "a")).toMatchObject({ ok: false });
     expect(validateReportInput("remove_me", "a".repeat(501))).toMatchObject({ ok: false });
+  });
+
+  it("klucz czasu: mikrosekundy z Postgresa, brak daty → 0", () => {
+    const base = Date.parse("2026-11-20T10:00:00Z") * 1000;
+    expect(photoTimeKey("2026-11-20T10:00:00+00:00")).toBe(base);
+    expect(photoTimeKey("2026-11-20T10:00:00.1+00:00")).toBe(base + 100_000);
+    expect(photoTimeKey("2026-11-20T10:00:00.123456+00:00")).toBe(base + 123_456);
+    expect(photoTimeKey("2026-11-20T10:00:00.123457+00:00")).toBeGreaterThan(photoTimeKey("2026-11-20T10:00:00.123456+00:00"));
+    expect(photoTimeKey(null)).toBe(0);
+    expect(photoTimeKey("nie-data")).toBe(0);
+  });
+
+  it("kursor „Pokaż więcej”: zapis, odczyt, odrzucenie złych wartości, kolejność", () => {
+    const id = "44444444-4444-4444-8444-444444444444";
+    const c = { t: 1795000000000123, id };
+    expect(decodePhotoCursor(encodePhotoCursor(c))).toEqual(c);
+    expect(decodePhotoCursor(`12_${id.toUpperCase()}`)).toEqual({ t: 12, id });
+    for (const bad of [null, undefined, "", "12", "abc_" + id, "12_nie-uuid", "-1_" + id, "1".repeat(18) + "_" + id, 12]) {
+      expect(decodePhotoCursor(bad)).toBeNull();
+    }
+    const a = { t: 2, id: "b" };
+    const b = { t: 1, id: "c" };
+    const c2 = { t: 1, id: "a" };
+    expect([c2, a, b].sort(comparePhotosNewestFirst)).toEqual([a, b, c2]);
   });
 
   it("nazwa pobieranego pliku", () => {

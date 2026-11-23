@@ -25,13 +25,13 @@ async function openContext(slug: string) {
 
 export async function loadParticipantPhotos(
   slug: string,
-  opts: { mine?: boolean; offset?: number },
+  opts: { mine?: boolean; cursor?: string | null },
 ): Promise<{ ok: true; page: ParticipantPhotoPage } | { ok: false; error: string }> {
   const ctx = await openContext(slug);
   if (!ctx) return { ok: false, error: NO_ACCESS };
   const page = await listParticipantPhotos(ctx.event.id, ctx.attendee.id, {
     mine: opts?.mine === true,
-    offset: Number(opts?.offset) || 0,
+    cursor: typeof opts?.cursor === "string" ? opts.cursor : null,
   });
   return { ok: true, page };
 }

@@ -169,6 +169,43 @@ export const WATERMARK_OPACITY = 0.6;
 /** Miniatury w siatce uczestnika: tyle na stronę („Pokaż więcej”). */
 export const PARTICIPANT_PAGE_SIZE = 48;
 
+/**
+ * Klucz sortowania znacznika czasu z bazy w mikrosekundach (Date.parse ma tylko milisekundy,
+ * a Postgres zapisuje mikrosekundy). Brak / nieczytelna data → 0.
+ */
+export function photoTimeKey(createdAt: string | null | undefined): number {
+  const text = String(createdAt ?? "");
+  const ms = Date.parse(text);
+  if (!Number.isFinite(ms)) return 0;
+  const frac = /:\d{2}\.(\d+)/.exec(text)?.[1] ?? "";
+  return ms * 1000 + Number((frac + "000000").slice(3, 6));
+}
+
+/** Kolejność siatki uczestnika: od najnowszych, przy równym czasie malejąco po id (stabilnie). */
+export function comparePhotosNewestFirst(a: { t: number; id: string }, b: { t: number; id: string }): number {
+  if (a.t !== b.t) return b.t - a.t;
+  return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+}
+
+/**
+ * Kursor „Pokaż więcej”: czas i id ostatniego pokazanego zdjęcia. Następna strona to zdjęcia
+ * starsze od kursora — zgłoszenia, odznaczenia „To ja” i nowe zdjęcia w międzyczasie nie
+ * przesuwają stron (przesunięcie liczbowe gubiło albo dublowało zdjęcia).
+ */
+export type PhotoCursor = { t: number; id: string };
+
+export function encodePhotoCursor(cursor: PhotoCursor): string {
+  return `${cursor.t}_${cursor.id}`;
+}
+
+/** Kursor z przeglądarki; zły format → null (lista od początku). */
+export function decodePhotoCursor(raw: unknown): PhotoCursor | null {
+  const m = /^(\d{1,17})_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(String(raw ?? ""));
+  if (!m) return null;
+  const t = Number(m[1]);
+  return Number.isSafeInteger(t) ? { t, id: m[2].toLowerCase() } : null;
+}
+
 export type ParticipantGalleryState = "unavailable" | "not_checked_in" | "coming_soon" | "open";
 
 /**

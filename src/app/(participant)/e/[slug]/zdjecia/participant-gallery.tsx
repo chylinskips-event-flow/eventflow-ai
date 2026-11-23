@@ -4,6 +4,7 @@ import { useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Download, Flag, Loader2, UserCheck, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Toaster } from "@/components/ui/sonner";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
@@ -24,24 +25,29 @@ type Filter = "all" | "mine";
 export function ParticipantGallery({ slug, initial }: { slug: string; initial: ParticipantPhotoPage }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [photos, setPhotos] = useState<ParticipantPhoto[]>(initial.photos);
-  const [nextOffset, setNextOffset] = useState<number | null>(initial.nextOffset);
+  const [nextCursor, setNextCursor] = useState<string | null>(initial.nextCursor);
   const [totals, setTotals] = useState({ total: initial.total, mine: initial.mineTotal });
   const [viewIndex, setViewIndex] = useState<number | null>(null);
   const [reporting, setReporting] = useState<ParticipantPhoto | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const load = (nextFilter: Filter, offset: number) =>
+  /** cursor = null → lista od początku (zmiana filtra); inaczej dopisanie następnej strony. */
+  const load = (nextFilter: Filter, cursor: string | null) =>
     startTransition(async () => {
-      const res = await loadParticipantPhotos(slug, { mine: nextFilter === "mine", offset });
+      const res = await loadParticipantPhotos(slug, { mine: nextFilter === "mine", cursor });
       if (!res.ok) {
         toast.error(res.error);
         return;
       }
       setFilter(nextFilter);
-      setPhotos((prev) => (offset === 0 ? res.page.photos : [...prev, ...res.page.photos]));
-      setNextOffset(res.page.nextOffset);
+      setPhotos((prev) => {
+        if (cursor === null) return res.page.photos;
+        const shown = new Set(prev.map((p) => p.id));
+        return [...prev, ...res.page.photos.filter((p) => !shown.has(p.id))];
+      });
+      setNextCursor(res.page.nextCursor);
       setTotals({ total: res.page.total, mine: res.page.mineTotal });
-      if (offset === 0) setViewIndex(null);
+      if (cursor === null) setViewIndex(null);
     });
 
   const loadUrl = useCallback((photoId: string) => getParticipantPhotoView(slug, photoId), [slug]);
@@ -98,6 +104,8 @@ export function ParticipantGallery({ slug, initial }: { slug: string; initial: P
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Panel uczestnika nie ma wspólnego Toastera — bez niego komunikaty galerii były niewidoczne. */}
+      <Toaster position="top-center" />
       <div role="radiogroup" aria-label="Filtr zdjęć" className="flex gap-2">
         {(
           [
@@ -112,7 +120,7 @@ export function ParticipantGallery({ slug, initial }: { slug: string; initial: P
             size="sm"
             variant={filter === key ? "default" : "outline"}
             disabled={pending}
-            onClick={() => filter !== key && load(key, 0)}
+            onClick={() => filter !== key && load(key, null)}
           >
             {label}
           </Button>
@@ -150,8 +158,8 @@ export function ParticipantGallery({ slug, initial }: { slug: string; initial: P
         </ul>
       )}
 
-      {nextOffset !== null && (
-        <Button variant="outline" className="self-center" disabled={pending} onClick={() => load(filter, nextOffset)}>
+      {nextCursor !== null && (
+        <Button variant="outline" className="self-center" disabled={pending} onClick={() => load(filter, nextCursor)}>
           {pending && <Loader2 className="size-4 animate-spin" />} Pokaż więcej
         </Button>
       )}

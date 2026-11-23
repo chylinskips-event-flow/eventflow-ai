@@ -272,15 +272,66 @@ describe("siatka i adresy podpisane", () => {
     expect(db.storage.createSignedUrl).not.toHaveBeenCalled();
   });
 
-  it("stronicowanie po 48", async () => {
-    const many = Array.from({ length: 50 }, (_, i) => photo(`44444444-4444-4444-8444-${String(i).padStart(12, "0")}`));
+  /** n zdjęć, od najnowszego: i = 0 najnowsze (czas malejąco co sekundę). */
+  const manyPhotos = (n: number, from = 0) =>
+    Array.from({ length: n }, (_, k) => {
+      const i = from + k;
+      return {
+        ...photo(`44444444-4444-4444-8444-${String(i).padStart(12, "0")}`),
+        created_at: new Date(Date.UTC(2026, 10, 20, 12, 0, 0) - i * 1000).toISOString(),
+      };
+    });
+
+  it("stronicowanie po 48 kursorem, od najnowszych", async () => {
+    const many = manyPhotos(50);
+    seed({ photos: [...many].reverse() });
+    const first = await lib.listParticipantPhotos(EVENT_A, ATT_A);
+    expect(first.photos.map((p) => p.id)).toEqual(many.slice(0, 48).map((p) => p.id));
+    expect(first.nextCursor).not.toBeNull();
+    const second = await lib.listParticipantPhotos(EVENT_A, ATT_A, { cursor: first.nextCursor });
+    expect(second.photos.map((p) => p.id)).toEqual(many.slice(48).map((p) => p.id));
+    expect(second.nextCursor).toBeNull();
+  });
+
+  it("zgłoszenie zdjęcia z 1. strony nie gubi zdjęcia na granicy stron", async () => {
+    const many = manyPhotos(50);
     seed({ photos: many });
     const first = await lib.listParticipantPhotos(EVENT_A, ATT_A);
-    expect(first.photos).toHaveLength(48);
-    expect(first.nextOffset).toBe(48);
-    const second = await lib.listParticipantPhotos(EVENT_A, ATT_A, { offset: 48 });
-    expect(second.photos).toHaveLength(2);
-    expect(second.nextOffset).toBeNull();
+    seed({
+      photos: many,
+      reports: [{ id: REPORT, event_id: EVENT_A, photo_id: many[3].id, attendee_id: ATT_A, status: "pending" }],
+    });
+    const second = await lib.listParticipantPhotos(EVENT_A, ATT_A, { cursor: first.nextCursor });
+    expect(second.photos.map((p) => p.id)).toEqual(many.slice(48).map((p) => p.id));
+  });
+
+  it("nowe zdjęcia dodane w międzyczasie nie dublują się na następnej stronie", async () => {
+    const many = manyPhotos(50, 5);
+    seed({ photos: many });
+    const first = await lib.listParticipantPhotos(EVENT_A, ATT_A);
+    seed({ photos: [...manyPhotos(5), ...many] });
+    const second = await lib.listParticipantPhotos(EVENT_A, ATT_A, { cursor: first.nextCursor });
+    const shown = new Set(first.photos.map((p) => p.id));
+    expect(second.photos.map((p) => p.id)).toEqual(many.slice(48).map((p) => p.id));
+    expect(second.photos.some((p) => shown.has(p.id))).toBe(false);
+  });
+
+  it("„Moje zdjęcia”: odznaczenie na 1. stronie nie gubi zdjęcia na 2. stronie", async () => {
+    const many = manyPhotos(50);
+    const tags = many.map((p) => ({ photo_id: p.id, attendee_id: ATT_A }));
+    seed({ photos: many, tags });
+    const first = await lib.listParticipantPhotos(EVENT_A, ATT_A, { mine: true });
+    seed({ photos: many, tags: tags.slice(1) });
+    const second = await lib.listParticipantPhotos(EVENT_A, ATT_A, { mine: true, cursor: first.nextCursor });
+    expect(second.photos.map((p) => p.id)).toEqual(many.slice(48).map((p) => p.id));
+  });
+
+  it("zły kursor z przeglądarki → lista od początku", async () => {
+    const many = manyPhotos(3);
+    seed({ photos: many });
+    const page = await lib.listParticipantPhotos(EVENT_A, ATT_A, { cursor: "x'; drop table" });
+    expect(page.photos.map((p) => p.id)).toEqual(many.map((p) => p.id));
+    expect(page.nextCursor).toBeNull();
   });
 });
 

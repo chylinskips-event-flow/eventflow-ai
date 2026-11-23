@@ -12,6 +12,10 @@ import type { Event } from "@/lib/events";
 import {
   GALLERY_BUCKET,
   PARTICIPANT_PAGE_SIZE,
+  comparePhotosNewestFirst,
+  decodePhotoCursor,
+  encodePhotoCursor,
+  photoTimeKey,
   REPORT_MESSAGES,
   REPORT_RATE_MAX,
   REPORT_RATE_WINDOW_MS,
@@ -70,7 +74,7 @@ export async function canSeeGallery(event: Event | null, attendee: Attendee): Pr
 
 // ── Widoczne zdjęcia ───────────────────────────────────────────────────────
 
-type VisibleRow = { id: string; thumb_path: string; width: number | null; height: number | null };
+type VisibleRow = { id: string; thumb_path: string; width: number | null; height: number | null; created_at: string | null };
 
 /** Gotowe, nieukryte, bez otwartego zgłoszenia — od najnowszych. */
 async function visiblePhotoRows(eventId: string): Promise<VisibleRow[]> {
@@ -78,7 +82,7 @@ async function visiblePhotoRows(eventId: string): Promise<VisibleRow[]> {
   const [{ data: photos }, { data: pending }] = await Promise.all([
     admin
       .from("event_photos")
-      .select("id, thumb_path, width, height")
+      .select("id, thumb_path, width, height, created_at")
       .eq("event_id", eventId)
       .eq("status", "ready")
       .eq("hidden", false)
@@ -119,12 +123,18 @@ export type ParticipantPhoto = {
   reportable: boolean;
 };
 
-export type ParticipantPhotoPage = { photos: ParticipantPhoto[]; total: number; mineTotal: number; nextOffset: number | null };
+export type ParticipantPhotoPage = {
+  photos: ParticipantPhoto[];
+  total: number;
+  mineTotal: number;
+  /** Kursor następnej strony („Pokaż więcej”) albo null, gdy to koniec listy. */
+  nextCursor: string | null;
+};
 
 export async function listParticipantPhotos(
   eventId: string,
   attendeeId: string,
-  opts: { mine?: boolean; offset?: number } = {},
+  opts: { mine?: boolean; cursor?: string | null } = {},
 ): Promise<ParticipantPhotoPage> {
   const admin = createAdminClient();
   const [rows, { data: tags }, { data: reports }] = await Promise.all([
@@ -135,10 +145,15 @@ export async function listParticipantPhotos(
   const tagged = new Set(((tags ?? []) as { photo_id: string }[]).map((t) => t.photo_id));
   const reported = new Set(((reports ?? []) as { photo_id: string | null }[]).map((r) => r.photo_id));
   const mineRows = rows.filter((r) => tagged.has(r.id));
-  const list = opts.mine ? mineRows : rows;
+  const list = (opts.mine ? mineRows : rows)
+    .map((r) => ({ row: r, key: { t: photoTimeKey(r.created_at), id: r.id.toLowerCase() } }))
+    .sort((a, b) => comparePhotosNewestFirst(a.key, b.key));
 
-  const offset = Math.max(0, Math.floor(Number(opts.offset) || 0));
-  const page = list.slice(offset, offset + PARTICIPANT_PAGE_SIZE);
+  const cursor = decodePhotoCursor(opts.cursor);
+  const rest = cursor ? list.filter((x) => comparePhotosNewestFirst(cursor, x.key) < 0) : list;
+  const slice = rest.slice(0, PARTICIPANT_PAGE_SIZE);
+  const page = slice.map((x) => x.row);
+  const last = slice[slice.length - 1];
   const urls = await signedUrls(page.map((r) => r.thumb_path), SIGNED_VIEW_TTL_S);
   return {
     photos: page.map((r) => ({
@@ -151,7 +166,7 @@ export async function listParticipantPhotos(
     })),
     total: rows.length,
     mineTotal: mineRows.length,
-    nextOffset: offset + PARTICIPANT_PAGE_SIZE < list.length ? offset + PARTICIPANT_PAGE_SIZE : null,
+    nextCursor: rest.length > PARTICIPANT_PAGE_SIZE && last ? encodePhotoCursor(last.key) : null,
   };
 }
 

@@ -605,7 +605,6 @@ test("spreparowane wywołania akcji: cudze i ukryte zdjęcie — brak oznaczenia
 });
 
 test("komunikat o błędzie „To ja” jest widoczny dla uczestnika (toast)", async ({ browser }) => {
-  test.fail(true, "BŁĄD APLIKACJI: panel uczestnika nie renderuje <Toaster /> — komunikaty toast galerii (błąd „To ja”, „Dziękujemy” po zgłoszeniu, błąd pobierania) są niewidoczne");
   const event = need("event");
   const ids = need("uploadedIds");
   const { context, page } = await participant(browser, event.slug, need("ola"));
@@ -621,6 +620,144 @@ test("komunikat o błędzie „To ja” jest widoczny dla uczestnika (toast)", a
   } finally {
     await context.close();
   }
+});
+
+/** Gotowe, nieukryte zdjęcia wstawione hurtem (jedna miniatura na zdjęcie w LOKALNYM Storage). */
+async function insertReadyPhotos(eventId: string, createdAt: Date[]): Promise<{ ids: string[]; paths: string[] }> {
+  const jpeg = await makeJpeg(64, 48);
+  const bucket = admin().storage.from("event-photos");
+  const rows = createdAt.map((d) => {
+    const id = crypto.randomUUID();
+    return { id, path: `${eventId}/${id}/thumb.jpg`, created_at: d.toISOString() };
+  });
+  for (let i = 0; i < rows.length; i += 10) {
+    await Promise.all(
+      rows.slice(i, i + 10).map(async (r) => {
+        const { error } = await bucket.upload(r.path, jpeg, { contentType: "image/jpeg", upsert: true });
+        if (error) throw new Error(`[15] storage ${r.path}: ${error.message}`);
+      }),
+    );
+  }
+  const { error } = await admin()
+    .from("event_photos")
+    .insert(
+      rows.map((r) => ({
+        id: r.id,
+        event_id: eventId,
+        status: "ready",
+        display_path: r.path,
+        thumb_path: r.path,
+        width: 64,
+        height: 48,
+        original_bytes: 1000,
+        size_bytes: 2000,
+        content_hash: crypto.randomBytes(32).toString("hex"),
+        processed_at: r.created_at,
+        created_at: r.created_at,
+      })),
+    );
+  if (error) throw new Error(`[15] zdjęcia hurtem: ${error.message}`);
+  return { ids: rows.map((r) => r.id), paths: rows.map((r) => r.path) };
+}
+
+/** Identyfikatory zdjęć w siatce (z podpisanych adresów miniatur), w kolejności wyświetlania. */
+async function gridPhotoIds(page: Page): Promise<string[]> {
+  const srcs = await page.locator("main ul img").evaluateAll((els) => els.map((e) => e.getAttribute("src") ?? ""));
+  return srcs.map((src) => /\/([0-9a-f-]{36})\/thumb\.jpg/.exec(src)?.[1] ?? `?${src.slice(0, 40)}`);
+}
+
+test("„Pokaż więcej” (kursor): bez pominięcia po zgłoszeniu i bez duplikatów po nowych zdjęciach", async ({ browser }) => {
+  const event = need("event");
+  const ids = need("uploadedIds");
+  const ola = need("ola");
+  const PAGE = 48;
+  const EXTRA = 52;
+  const created: string[] = [];
+  const paths: string[] = [];
+  const { context, page } = await participant(browser, event.slug, ola);
+  try {
+    // 52 starsze zdjęcia (różne created_at) → razem 56 widocznych: strona 48 + 8.
+    const base = Date.now() - 60 * 60 * 1000;
+    const extra = await insertReadyPhotos(
+      event.id,
+      Array.from({ length: EXTRA }, (_, i) => new Date(base - i * 1000)),
+    );
+    created.push(...extra.ids);
+    paths.push(...extra.paths);
+
+    const { data: ordered } = await admin()
+      .from("event_photos")
+      .select("id")
+      .eq("event_id", event.id)
+      .eq("status", "ready")
+      .eq("hidden", false)
+      .order("created_at", { ascending: false });
+    const before = ((ordered ?? []) as { id: string }[]).map((r) => r.id);
+    expect(before).toHaveLength(UPLOADED + EXTRA);
+    expect(before.slice(0, UPLOADED)).toEqual(ids);
+
+    await openGallery(page, event.slug);
+    const total = UPLOADED + EXTRA;
+    await expect(filterButton(page, "Wszystkie")).toHaveText(`Wszystkie (${total})`);
+    const thumbs = page.locator("main ul img");
+    await expect(thumbs).toHaveCount(PAGE);
+    const more = page.getByRole("button", { name: "Pokaż więcej" });
+    await expect(more).toBeVisible();
+    expect(await gridPhotoIds(page)).toEqual(before.slice(0, PAGE));
+    for (const i of [0, UPLOADED, PAGE - 1]) {
+      const img = thumbs.nth(i);
+      await img.scrollIntoViewIfNeeded();
+      await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0), { message: `miniatura ${i + 1}` }).toBe(true);
+    }
+
+    // (a) Zgłoszenie zdjęcia z pierwszej strony przez UI — z widocznym komunikatem (toast).
+    const reportedId = before[9];
+    await page.getByRole("button", { name: "Otwórz zdjęcie 10", exact: true }).click();
+    await viewer(page).getByRole("button", { name: "Zgłoś zdjęcie" }).click();
+    const dialog = page.getByRole("dialog", { name: "Zgłoś zdjęcie" });
+    await dialog.getByRole("button", { name: "Wyślij zgłoszenie" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText("Dziękujemy — zdjęcie zostało ukryte do decyzji organizatora.")).toBeVisible();
+    await viewer(page).getByRole("button", { name: "Zamknij podgląd" }).click();
+    await expect(viewer(page)).toHaveCount(0);
+    await expect.poll(async () => (await admin().from("event_photo_reports").select("photo_id").eq("attendee_id", ola.id).eq("status", "pending")).data?.map((r) => r.photo_id)).toEqual([reportedId]);
+    await expect(filterButton(page, "Wszystkie")).toHaveText(`Wszystkie (${total - 1})`);
+    await expect(thumbs).toHaveCount(PAGE - 1);
+
+    // (b) W międzyczasie 3 nowsze zdjęcia (na początku listy po stronie serwera).
+    const now = Date.now();
+    const newer = await insertReadyPhotos(event.id, [0, 1, 2].map((i) => new Date(now - i * 1000)));
+    created.push(...newer.ids);
+    paths.push(...newer.paths);
+
+    await more.click();
+    await expect(more).toHaveCount(0);
+    const expected = before.filter((id) => id !== reportedId);
+    await expect.poll(() => gridPhotoIds(page)).toEqual(expected);
+    const grid = await gridPhotoIds(page);
+    expect(new Set(grid).size, "brak duplikatów w siatce").toBe(grid.length);
+    expect(grid.includes(before[PAGE - 1]), "ostatnie zdjęcie pierwszej strony").toBe(true);
+    expect(grid.includes(before[PAGE]), "pierwsze zdjęcie za granicą strony (dawniej pomijane)").toBe(true);
+    for (const id of newer.ids) expect(grid.includes(id), "nowe zdjęcie nie dubluje się w dopisanej stronie").toBe(false);
+    expect(grid.includes(reportedId)).toBe(false);
+    await expect(filterButton(page, "Wszystkie")).toHaveText(`Wszystkie (${total - 1 + newer.ids.length})`);
+
+    // Po przeładowaniu nowe zdjęcia są na początku.
+    await page.reload();
+    await expect(thumbs).toHaveCount(PAGE);
+    expect((await gridPhotoIds(page)).slice(0, newer.ids.length)).toEqual(newer.ids);
+  } finally {
+    await context.close();
+    if (created.length > 0) {
+      const { error: rErr } = await admin().from("event_photo_reports").delete().in("photo_id", created);
+      if (rErr) throw new Error(`[15] sprzątanie zgłoszeń: ${rErr.message}`);
+      const { error: pErr } = await admin().from("event_photos").delete().in("id", created);
+      if (pErr) throw new Error(`[15] sprzątanie zdjęć: ${pErr.message}`);
+    }
+    if (paths.length > 0) await admin().storage.from("event-photos").remove(paths);
+  }
+  const { count } = await admin().from("event_photos").select("id", { count: "exact", head: true }).eq("event_id", event.id).eq("status", "ready").eq("hidden", false);
+  expect(count).toBe(UPLOADED);
 });
 
 // ─── Zgłoszenia ──────────────────────────────────────────────────────────────
@@ -648,6 +785,7 @@ test("zgłoszenie zdjęcia: walidacja, zapis w bazie, zdjęcie znika dla wszystk
   await dialog.getByLabel(/Wiadomość do organizatora/).fill(REPORT_TEXT);
   await dialog.getByRole("button", { name: "Wyślij zgłoszenie" }).click();
   await expect(dialog).toHaveCount(0);
+  await expect(page.getByText("Dziękujemy — zdjęcie zostało ukryte do decyzji organizatora.")).toBeVisible();
   // Podgląd zostaje otwarty na kolejnym zdjęciu; zgłoszone zniknęło z listy.
   await expect(viewer(page).getByText(`Zdjęcie · 2 z ${UPLOADED - 1}`)).toBeVisible();
   expect(await viewedPhotoId(page)).toBe(ids[2]);
