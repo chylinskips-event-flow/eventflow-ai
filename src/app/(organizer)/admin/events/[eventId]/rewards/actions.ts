@@ -7,6 +7,7 @@ import { getOwnEvent } from "@/lib/events";
 import { validateImageFile, MB } from "@/lib/upload-validation";
 import type { CheckInResult } from "@/lib/reception";
 import { featureGate } from "@/lib/entitlements";
+import { changeRewardStock } from "@/lib/reward-stock";
 
 export type RewardFormState = {
   status: "idle" | "success" | "error";
@@ -213,41 +214,36 @@ export async function redeemReward(
   if (readErr || !rewardRow)
     return { status: "error", message: "Nagroda nie znaleziona." };
 
+  // 2. Już odebrana → odmowa bez dotykania magazynu
+  const { data: existingRedemption } = await supabase
+    .from("reward_redemptions")
+    .select("reward_id")
+    .eq("reward_id", rewardId)
+    .eq("attendee_id", attendeeId)
+    .maybeSingle();
+  if (existingRedemption)
+    return { status: "error", message: "Uczestnik już odebrał tę nagrodę." };
+
   const currentStock = (rewardRow as { id: string; stock: number | null }).stock;
   if (currentStock !== null && currentStock <= 0)
     return { status: "error", message: "Brak nagrody w magazynie." };
 
-  // 2. Dekrementuj stock (tylko gdy skończony) — UPDATE ... WHERE stock > 0
-  //    Jeśli inny proces wyścignie, affected rows = 0 → błąd
+  // 3. Dekrementuj stock (tylko gdy skończony) — compare-and-set względem aktualnego stanu
   let stockDecremented = false;
   if (currentStock !== null) {
-    const { data: decremented } = await supabase
-      .from("rewards")
-      .update({ stock: currentStock - 1 })
-      .eq("id", rewardId)
-      .eq("event_id", eventId)
-      .gt("stock", 0)
-      .select("id");
-
-    if (!decremented || (decremented as unknown[]).length === 0)
-      return { status: "error", message: "Brak nagrody w magazynie." };
-    stockDecremented = true;
+    const taken = await changeRewardStock(supabase, rewardId, eventId, -1);
+    if (!taken.ok) return { status: "error", message: "Brak nagrody w magazynie." };
+    stockDecremented = taken.stock !== null;
   }
 
-  // 3. INSERT reward_redemptions (PK = UNIQUE guard)
+  // 4. INSERT reward_redemptions (PK = UNIQUE guard)
   const { error: insertError } = await supabase
     .from("reward_redemptions")
     .insert({ reward_id: rewardId, attendee_id: attendeeId });
 
   if (insertError) {
-    // Cofnij dekrementację stock
-    if (stockDecremented) {
-      await supabase
-        .from("rewards")
-        .update({ stock: (currentStock as number) + 1 })
-        .eq("id", rewardId)
-        .eq("event_id", eventId);
-    }
+    // Zwróć pobraną sztukę: +1 do AKTUALNEGO stanu (nie do stanu odczytanego wcześniej)
+    if (stockDecremented) await changeRewardStock(supabase, rewardId, eventId, 1);
     if (insertError.code === "23505")
       return { status: "error", message: "Uczestnik już odebrał tę nagrodę." };
     return { status: "error", message: "Nie udało się wydać nagrody." };
@@ -304,25 +300,35 @@ export async function issueRewardByToken(
     [attendee.first_name, attendee.last_name].filter(Boolean).join(" ") || "Uczestnik";
   const displayName = `${reward.name} → ${attendeeName}`;
 
+  // Already redeemed — amber feedback z czasem odbioru
+  const findRedemption = async () => {
+    const { data: existing } = await supabase
+      .from("reward_redemptions")
+      .select("redeemed_at")
+      .eq("reward_id", rewardId)
+      .eq("attendee_id", attendee.id)
+      .maybeSingle<{ redeemed_at: string }>();
+    return existing;
+  };
+
+  // Ponowny skan osoby, która już odebrała — bez dotykania magazynu
+  const before = await findRedemption();
+  if (before) {
+    return { ok: true, name: displayName, alreadyCheckedIn: true, checkedInAt: before.redeemed_at };
+  }
+
   // Points check
   if (attendee.points < reward.points_required) return { ok: false, error: "not_approved" };
 
   // Stock check
   if (reward.stock !== null && reward.stock <= 0) return { ok: false, error: "not_approved" };
 
-  // Decrement stock atomically (race-safe)
+  // Decrement stock (compare-and-set względem aktualnego stanu)
   let stockDecremented = false;
   if (reward.stock !== null) {
-    const { data: decremented } = await supabase
-      .from("rewards")
-      .update({ stock: reward.stock - 1 })
-      .eq("id", rewardId)
-      .eq("event_id", eventId)
-      .gt("stock", 0)
-      .select("id");
-    if (!decremented || (decremented as unknown[]).length === 0)
-      return { ok: false, error: "not_approved" };
-    stockDecremented = true;
+    const taken = await changeRewardStock(supabase, rewardId, eventId, -1);
+    if (!taken.ok) return { ok: false, error: "not_approved" };
+    stockDecremented = taken.stock !== null;
   }
 
   // Insert redemption — PK (reward_id, attendee_id) guards against duplicate
@@ -331,22 +337,10 @@ export async function issueRewardByToken(
     .insert({ reward_id: rewardId, attendee_id: attendee.id });
 
   if (insertError) {
-    // Rollback stock on failure
-    if (stockDecremented) {
-      await supabase
-        .from("rewards")
-        .update({ stock: reward.stock! + 1 })
-        .eq("id", rewardId)
-        .eq("event_id", eventId);
-    }
+    // Zwróć pobraną sztukę: +1 do AKTUALNEGO stanu (nie do stanu odczytanego wcześniej)
+    if (stockDecremented) await changeRewardStock(supabase, rewardId, eventId, 1);
     if (insertError.code === "23505") {
-      // Already redeemed — fetch timestamp for amber feedback
-      const { data: existing } = await supabase
-        .from("reward_redemptions")
-        .select("redeemed_at")
-        .eq("reward_id", rewardId)
-        .eq("attendee_id", attendee.id)
-        .maybeSingle<{ redeemed_at: string }>();
+      const existing = await findRedemption();
       return {
         ok: true,
         name: displayName,

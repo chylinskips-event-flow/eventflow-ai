@@ -34,6 +34,7 @@ export function createDbMock() {
       order: () => b,
       limit: () => b,
       not: () => b,
+      or: () => b,
       eq: filter,
       is: filter,
       in: filter,

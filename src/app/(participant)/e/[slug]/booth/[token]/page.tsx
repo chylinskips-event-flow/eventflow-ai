@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getActiveConsent, getPartnerQuestions, isPartnerLeadsEnabled } from "@/lib/partner-leads";
 import { leadCardState } from "@/lib/partner-leads-core";
 import { alreadyVisitedPointsLabel } from "@/lib/booth-visit";
+import { getCurrentBoothQuest } from "@/lib/booth-quest";
 import { BoothClient, type BoothQuestForClient } from "./booth-client";
 import { PartnerLeadCard } from "./partner-lead-card";
 import { ReturnAccessLink } from "../../return-access-link";
@@ -113,14 +114,13 @@ export default async function BoothPage({
 
   const supabase = createAdminClient();
 
-  // Pobierz questa (pełny config — correct_id / password nie wychodzą do klienta)
-  const { data: questRaw } = await supabase
-    .from("quests")
-    .select("id, type, title, points_value, config")
-    .eq("partner_id", partner.id)
-    .eq("event_id", event.id)
-    .eq("is_active", true)
-    .maybeSingle();
+  // Bieżący quest (pełny config — correct_id / password nie wychodzą do klienta)
+  const questRaw = await getCurrentBoothQuest({
+    eventId: event.id,
+    partnerId: partner.id,
+    attendeeId: attendee.id,
+    gamificationEnabled: event.gamification_enabled,
+  });
 
   // Sprawdź, czy quest jest już zaliczony
   const questId = questRaw?.id as string | undefined;
