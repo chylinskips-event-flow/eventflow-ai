@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { stripImageMetadata } from "@/lib/image-sanitize";
+import { ORGANIZER_IMAGE_MAX_BYTES } from "@/lib/upload-validation";
 
 export type ContentFormState = {
   status: "idle" | "error" | "success";
@@ -11,7 +12,7 @@ export type ContentFormState = {
 };
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+const MAX_IMAGE_SIZE_BYTES = ORGANIZER_IMAGE_MAX_BYTES;
 
 type ImageUploadResult =
   | "ok"
@@ -82,7 +83,7 @@ export async function uploadEventBanner(
   }
 
   if (result === "too_large") {
-    return { status: "error", message: "Baner nie może być większy niż 5MB." };
+    return { status: "error", message: "Baner nie może być większy niż 4 MB." };
   }
 
   if (result === "upload_error" || !publicUrl) {
@@ -179,7 +180,7 @@ export async function createSection(
         result === "invalid_type"
           ? "Sekcja dodana, ale zdjęcie nie zostało zapisane – dozwolone formaty: JPEG, PNG, WebP."
           : result === "too_large"
-            ? "Sekcja dodana, ale zdjęcie nie zostało zapisane – plik jest większy niż 5MB."
+            ? "Sekcja dodana, ale zdjęcie nie zostało zapisane – plik jest większy niż 4 MB."
             : "Sekcja dodana, ale nie udało się zapisać zdjęcia – możesz dodać je później w edycji.";
       return { status: "success", warning: true, message };
     }
@@ -251,7 +252,7 @@ export async function uploadSectionImage(
   }
 
   if (result === "too_large") {
-    return { status: "error", message: "Zdjęcie nie może być większe niż 5MB." };
+    return { status: "error", message: "Zdjęcie nie może być większe niż 4 MB." };
   }
 
   if (result === "upload_error" || !publicUrl) {

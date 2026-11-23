@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { stripImageMetadata } from "@/lib/image-sanitize";
 import { getOwnEvent } from "@/lib/events";
 import { PARTNER_TIERS } from "@/lib/partner-options";
+import { ORGANIZER_IMAGE_MAX_BYTES } from "@/lib/upload-validation";
 
 export type PartnerFormState = {
   status: "idle" | "error" | "success";
@@ -49,7 +50,7 @@ function readPartnerFields(formData: FormData) {
 }
 
 const ALLOWED_LOGO_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+const MAX_LOGO_SIZE_BYTES = ORGANIZER_IMAGE_MAX_BYTES;
 
 type LogoUploadResult =
   | "ok"
@@ -141,7 +142,7 @@ export async function createPartner(
         result === "invalid_type"
           ? "Partner dodany, ale logo nie zostało zapisane – dozwolone formaty: JPEG, PNG, WebP."
           : result === "too_large"
-            ? "Partner dodany, ale logo nie zostało zapisane – plik jest większy niż 5MB."
+            ? "Partner dodany, ale logo nie zostało zapisane – plik jest większy niż 4 MB."
             : "Partner dodany, ale nie udało się zapisać logo – możesz dodać je później w edycji.";
       return { status: "success", warning: true, message };
     }
@@ -208,7 +209,7 @@ export async function uploadPartnerLogo(
   }
 
   if (result === "too_large") {
-    return { status: "error", message: "Logo nie może być większe niż 5MB." };
+    return { status: "error", message: "Logo nie może być większe niż 4 MB." };
   }
 
   if (result === "upload_error") {

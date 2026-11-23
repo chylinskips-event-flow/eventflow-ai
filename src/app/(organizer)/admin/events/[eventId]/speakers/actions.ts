@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { stripImageMetadata } from "@/lib/image-sanitize";
+import { ORGANIZER_IMAGE_MAX_BYTES } from "@/lib/upload-validation";
 
 export type SpeakerFormState = {
   status: "idle" | "error" | "success";
@@ -36,7 +37,7 @@ function readSpeakerFields(formData: FormData) {
 }
 
 const ALLOWED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+const MAX_PHOTO_SIZE_BYTES = ORGANIZER_IMAGE_MAX_BYTES;
 
 type PhotoUploadResult =
   | "ok"
@@ -128,7 +129,7 @@ export async function createSpeaker(
         result === "invalid_type"
           ? "Prelegent dodany, ale zdjęcie nie zostało zapisane – dozwolone formaty: JPEG, PNG, WebP."
           : result === "too_large"
-            ? "Prelegent dodany, ale zdjęcie nie zostało zapisane – plik jest większy niż 5MB."
+            ? "Prelegent dodany, ale zdjęcie nie zostało zapisane – plik jest większy niż 4 MB."
             : "Prelegent dodany, ale nie udało się zapisać zdjęcia – możesz dodać je później w edycji.";
       return { status: "success", warning: true, message };
     }
@@ -197,7 +198,7 @@ export async function uploadSpeakerPhoto(
   if (result === "too_large") {
     return {
       status: "error",
-      message: "Zdjęcie nie może być większe niż 5MB.",
+      message: "Zdjęcie nie może być większe niż 4 MB.",
     };
   }
 

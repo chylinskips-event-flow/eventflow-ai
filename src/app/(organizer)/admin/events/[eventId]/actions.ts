@@ -11,6 +11,7 @@ import { addDomain, removeDomain, getDomainStatus } from "@/lib/vercel-domains";
 import { getPaidOrderCount } from "@/lib/orders";
 import { featureGate, hasFeature } from "@/lib/entitlements";
 import { IMAGE_SANITIZE_ERROR, stripImageMetadata } from "@/lib/image-sanitize";
+import { ORGANIZER_IMAGE_MAX_BYTES } from "@/lib/upload-validation";
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? "eventro.pl";
 const hasVercelConfig = () =>
@@ -385,7 +386,7 @@ export async function retrySubdomain(
 }
 
 const ALLOWED_LOGO_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_LOGO_SIZE_BYTES = ORGANIZER_IMAGE_MAX_BYTES;
 
 export async function uploadEventLogo(
   eventId: string,
@@ -409,7 +410,7 @@ export async function uploadEventLogo(
   if (file.size > MAX_LOGO_SIZE_BYTES) {
     return {
       status: "error",
-      message: "Logo nie może być większe niż 5MB.",
+      message: "Logo nie może być większe niż 4 MB.",
     };
   }
 
@@ -473,7 +474,7 @@ export async function uploadEventBadgeBg(
   if (file.size > MAX_LOGO_SIZE_BYTES) {
     return {
       status: "error",
-      message: "Plik tła nie może być większy niż 5MB.",
+      message: "Plik tła nie może być większy niż 4 MB.",
     };
   }
 

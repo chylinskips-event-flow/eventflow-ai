@@ -7,6 +7,10 @@
 
 export const MB = 1024 * 1024;
 
+// Obrazy organizatora idą w body Server Action, a funkcje platformy przyjmują najwyżej
+// ~4,5 MB żądania — większy plik zostałby odrzucony, zanim akcja zwróci komunikat.
+export const ORGANIZER_IMAGE_MAX_BYTES = 4 * MB;
+
 export const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 // Zwraca komunikat błędu, albo null gdy plik jest OK.
