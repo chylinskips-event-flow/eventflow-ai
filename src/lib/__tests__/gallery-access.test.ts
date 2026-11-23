@@ -27,7 +27,8 @@ function builder(table: string) {
   const q: Query = { table, op: "select", filters: [] };
   const run = () => {
     db.queries.push(q);
-    return Promise.resolve({ data: null, error: null, ...(db.tables[table]?.(q) ?? {}) });
+    // Jak PostgREST z .select() po update: domyślnie jeden zmieniony wiersz.
+    return Promise.resolve({ data: q.op === "update" ? [{ id: "row-id" }] : null, error: null, ...(db.tables[table]?.(q) ?? {}) });
   };
   const b: Record<string, unknown> = {
     select: () => b,
@@ -294,6 +295,74 @@ describe("przetworzenie", () => {
     expect(processPhoto).toHaveBeenCalledWith(expect.any(Buffer), { watermark: false, logo: null });
     expect(db.queries.find((q) => q.op === "update")?.payload).toMatchObject({ status: "ready", original_path: null, size_bytes: 2 });
     expect(db.storage.remove).toHaveBeenLastCalledWith([`${EVENT}/${PHOTO}/original.jpg`]);
+  });
+});
+
+describe("rezerwacja w toku a sprzątanie porzuconych", () => {
+  const organizerActor = { kind: "organizer" as const, userId: "user-1" };
+  const event = { id: EVENT, organization_id: "org", name: "Next Stop", logo_url: null };
+  const uploadUpdate = () => db.queries.find((q) => q.table === "event_photos" && q.op === "update");
+
+  it("wznowienie przerwanej wysyłki odświeża created_at (sprzątanie nie usunie wiersza)", async () => {
+    db.rpc.mockResolvedValue({ data: [{ photo_id: null, result: "duplicate" }], error: null });
+    db.tables.event_photos = (q) =>
+      q.op === "select" && q.filters.some((f) => f[0] === "eq" && f[1] === "content_hash") ? { data: { id: PHOTO } } : {};
+    const before = Date.now();
+    const res = await gallery.startPhotoUpload(EVENT, organizerActor, meta);
+    expect(res.ok).toBe(true);
+    const up = uploadUpdate();
+    const payload = up?.payload as { created_at?: string };
+    expect(new Date(payload.created_at ?? 0).getTime()).toBeGreaterThanOrEqual(before - 1000);
+    expect(up?.filters).toContainEqual(["eq", "status", "uploading"]);
+  });
+
+  it("nowa rezerwacja nie nadpisuje created_at", async () => {
+    db.rpc.mockResolvedValue({ data: [{ photo_id: PHOTO, result: "ok" }], error: null });
+    await gallery.startPhotoUpload(EVENT, organizerActor, meta);
+    expect(uploadUpdate()?.payload).not.toHaveProperty("created_at");
+  });
+
+  it("rezerwacja zniknęła przed wydaniem adresu → błąd, bez podpisanego adresu", async () => {
+    db.rpc.mockResolvedValue({ data: [{ photo_id: PHOTO, result: "ok" }], error: null });
+    db.tables.event_photos = (q) => (q.op === "update" ? { data: [] } : {});
+    const res = await gallery.startPhotoUpload(EVENT, organizerActor, meta);
+    expect(res.ok).toBe(false);
+    expect(db.storage.createSignedUploadUrl).not.toHaveBeenCalled();
+  });
+
+  it("sprzątanie usuwa tylko wiersze wciąż w toku i nadal przeterminowane", async () => {
+    db.tables.event_photos = (q) =>
+      q.op === "select" && q.filters.some((f) => f[0] === "lt") ? { data: [{ id: "stale-1", original_path: null }] } : {};
+    await gallery.sweepStaleUploads();
+    const del = db.queries.find((q) => q.table === "event_photos" && q.op === "delete");
+    expect(del?.filters).toContainEqual(["eq", "status", "uploading"]);
+    expect(del?.filters.some((f) => f[0] === "lt" && f[1] === "created_at")).toBe(true);
+  });
+
+  it("finalizacja wiersza usuniętego w trakcie → błąd i sprzątnięte pliki", async () => {
+    const original = `${EVENT}/${PHOTO}/original.jpg`;
+    db.tables.event_photos = (q) =>
+      q.op === "select"
+        ? {
+            data: {
+              id: PHOTO,
+              event_id: EVENT,
+              status: "uploading",
+              original_path: original,
+              content_hash: createHash("sha256").update(Buffer.from("plik")).digest("hex"),
+              upload_link_id: null,
+              uploaded_by: "user-1",
+            },
+          }
+        : { data: [] };
+    db.storage.download.mockResolvedValue({ data: new Blob([Buffer.from("plik")]), error: null });
+    db.storage.upload.mockResolvedValue({ data: {}, error: null });
+    processPhoto.mockResolvedValue({ display: Buffer.from("d"), thumb: Buffer.from("t"), width: 10, height: 10, watermarked: false });
+
+    const res = await gallery.finalizePhotoUpload(event, PHOTO, organizerActor);
+    expect(res.ok).toBe(false);
+    expect(uploadUpdate()?.filters).toContainEqual(["eq", "status", "uploading"]);
+    expect(db.storage.remove).toHaveBeenLastCalledWith([`${EVENT}/${PHOTO}/display.jpg`, `${EVENT}/${PHOTO}/thumb.jpg`, original]);
   });
 });
 

@@ -213,7 +213,13 @@ export async function sweepStaleUploads(): Promise<void> {
   if (rows.length === 0) return;
   const paths = rows.map((r) => r.original_path).filter((p): p is string => !!p);
   if (paths.length) await admin.storage.from(GALLERY_BUCKET).remove(paths);
-  await admin.from("event_photos").delete().in("id", rows.map((r) => r.id));
+  // Tylko wiersze wciąż w toku i nadal przeterminowane — rezerwacja mogła zostać w międzyczasie wznowiona lub zakończona.
+  await admin
+    .from("event_photos")
+    .delete()
+    .in("id", rows.map((r) => r.id))
+    .eq("status", "uploading")
+    .lt("created_at", cutoff);
 }
 
 export async function startPhotoUpload(eventId: string, actor: UploadActor, input: PhotoMeta): Promise<StartUploadResult> {
@@ -259,16 +265,30 @@ export async function startPhotoUpload(eventId: string, actor: UploadActor, inpu
   if (!row) return { ok: false, error: "Nie udało się przygotować wysyłki. Spróbuj ponownie." };
 
   let photoId = row.photo_id;
+  let resumed = false;
   if (row.result === "duplicate") {
     // Ponowienie przerwanego uploadu tego samego pliku przez tego samego wgrywającego.
     photoId = await findResumableUpload(eventId, meta.hash, actor);
     if (!photoId) return { ok: false, error: RESERVE_MESSAGES.duplicate, skipped: true };
+    resumed = true;
   } else if (row.result !== "ok" || !photoId) {
     return { ok: false, error: RESERVE_MESSAGES[row.result as Exclude<ReserveResult, "ok">] ?? "Nie udało się przygotować wysyłki." };
   }
 
   const path = photoPaths(eventId, photoId, file.ext).original;
-  await admin.from("event_photos").update({ original_path: path, original_bytes: meta.size }).eq("id", photoId);
+  // Wznowienie odświeża created_at, żeby sprzątanie porzuconych rezerwacji nie usunęło
+  // wiersza w trakcie ponownej wysyłki.
+  const patch: Record<string, unknown> = { original_path: path, original_bytes: meta.size };
+  if (resumed) patch.created_at = new Date().toISOString();
+  const { data: reserved } = await admin
+    .from("event_photos")
+    .update(patch)
+    .eq("id", photoId)
+    .eq("status", "uploading")
+    .select("id");
+  if (!Array.isArray(reserved) || reserved.length === 0) {
+    return { ok: false, error: "Nie udało się przygotować wysyłki. Spróbuj ponownie." };
+  }
 
   const { data: signed, error: signError } = await admin.storage.from(GALLERY_BUCKET).createSignedUploadUrl(path, { upsert: true });
   if (signError || !signed) return { ok: false, error: "Nie udało się przygotować wysyłki. Spróbuj ponownie." };
@@ -371,7 +391,7 @@ export async function finalizePhotoUpload(event: GalleryEvent, photoId: string, 
     return { ok: false, error: "Nie udało się zapisać zdjęcia. Spróbuj ponownie." };
   }
 
-  const { error: upError } = await admin
+  const { data: updated, error: upError } = await admin
     .from("event_photos")
     .update({
       status: "ready",
@@ -384,8 +404,14 @@ export async function finalizePhotoUpload(event: GalleryEvent, photoId: string, 
       original_path: null,
       processed_at: new Date().toISOString(),
     })
-    .eq("id", row.id);
-  if (upError) return { ok: false, error: "Nie udało się zapisać zdjęcia. Spróbuj ponownie." };
+    .eq("id", row.id)
+    .eq("status", "uploading")
+    .select("id");
+  if (upError || !Array.isArray(updated) || updated.length === 0) {
+    // Rezerwacja zniknęła (np. sprzątnięta jako porzucona) — nie zostawiamy plików bez wiersza.
+    await bucket.remove([paths.display, paths.thumb, row.original_path]);
+    return { ok: false, error: "Nie udało się zapisać zdjęcia. Spróbuj ponownie." };
+  }
 
   // Oryginału nie przechowujemy po przetworzeniu.
   await bucket.remove([row.original_path]);
