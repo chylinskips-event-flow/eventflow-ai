@@ -32,6 +32,13 @@ export function QrScanner({ onScan, onClose, title, successLabel, alreadyLabel, 
   const lastScanTimeRef = useRef<number>(0);
   const [feedback, setFeedback] = useState<ScanFeedback>({ type: "idle" });
 
+  // Po każdym skanie strona się odświeża i akcja dostaje nową referencję. Trzymamy ją w refie,
+  // żeby kamera nie startowała od nowa i nie kasowała komunikatu o wyniku skanu.
+  const onScanRef = useRef(onScan);
+  useEffect(() => {
+    onScanRef.current = onScan;
+  }, [onScan]);
+
   const stopCamera = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -110,7 +117,7 @@ export function QrScanner({ onScan, onClose, title, successLabel, alreadyLabel, 
 
     async function handleToken(token: string) {
       try {
-        const result = await onScan(token);
+        const result = await onScanRef.current(token);
         if (result.ok) {
           if (result.alreadyCheckedIn) {
             setFeedback({ type: "already", name: result.name, checkedInAt: result.checkedInAt });
@@ -135,7 +142,7 @@ export function QrScanner({ onScan, onClose, title, successLabel, alreadyLabel, 
       cancelAnimationFrame(rafRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
-  }, [onScan]);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
