@@ -46,8 +46,30 @@ beforeEach(() => {
 });
 
 describe("partner z cofniętym dostępem", () => {
-  it("/onboarding (np. z /admin przez middleware) nie pokazuje onboardingu — przekierowuje na /partner", async () => {
-    expect(await redirectOf(() => OnboardingPage())).toBe("/partner");
+  // /onboarding nie przekierowuje już na /partner (z /partner link „panel organizatora” wracał
+  // przez /admin na /onboarding — pętla). Zamiast formularza: wybór panel partnera / organizacja.
+  it("/onboarding (np. z /admin przez middleware) pokazuje wybór zamiast formularza — bez pętli", async () => {
+    expect(await redirectOf(() => OnboardingPage())).toBeNull();
+    const html = renderToStaticMarkup(await OnboardingPage());
+    expect(html).toContain("cofnięty");
+    expect(html).toContain('href="/partner"');
+    expect(html).toContain('href="/onboarding?as=organizer"');
+    expect(html).not.toContain("Skonfiguruj swoją organizację");
+  });
+
+  it("/onboarding?as=organizer → formularz organizacji także dla dawnego partnera", async () => {
+    const html = renderToStaticMarkup(
+      await OnboardingPage({ searchParams: Promise.resolve({ as: "organizer" }) }),
+    );
+    expect(html).toContain("Skonfiguruj swoją organizację");
+  });
+
+  it("aktywny partner → ten sam wybór (dostęp partnera nienaruszony)", async () => {
+    ctx.status = "active";
+    const html = renderToStaticMarkup(await OnboardingPage());
+    expect(html).toContain("ma dostęp do panelu partnera");
+    expect(html).toContain('href="/partner"');
+    expect(html).not.toContain("Skonfiguruj swoją organizację");
   });
 
   it("/partner pokazuje „Dostęp cofnięty” i „Wyloguj”, bez onboardingu", async () => {
