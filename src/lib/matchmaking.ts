@@ -163,23 +163,59 @@ export async function getCachedMatches(
   const { data: profiles } = await supabase
     .from("attendees")
     .select("*")
-    .in("id", ids);
+    .in("id", ids)
+    .eq("event_id", eventId)
+    .eq("status", "approved")
+    .eq("networking_visible", true);
+
+  return joinCachedMatches(
+    rows as CachedMatchRow[],
+    (profiles ?? []) as Attendee[],
+    eventId,
+    attendeeId,
+  );
+}
+
+export type CachedMatchRow = {
+  suggested_attendee_id: string;
+  score: number;
+  reason: string | null;
+  first_question: string | null;
+};
+
+/**
+ * Łączy wiersze cache z AKTUALNYMI profilami. Cache jest liczony w przeszłości,
+ * więc przy odczycie odrzucamy osoby, które od tego czasu przestały spełniać
+ * warunki getTopMatches: usunięte, nie-approved (odrzucone/anulowane), z
+ * ukrytym profilem (networking_visible=false) lub z innego eventu.
+ */
+export function joinCachedMatches(
+  rows: CachedMatchRow[],
+  profiles: Attendee[],
+  eventId: string,
+  attendeeId: string,
+): CachedMatch[] {
   const byId = new Map(
-    (profiles ?? []).map((profile) => [
-      profile.id as string,
-      profile as Attendee,
-    ]),
+    profiles
+      .filter(
+        (p) =>
+          p.event_id === eventId &&
+          p.status === "approved" &&
+          p.networking_visible === true &&
+          p.id !== attendeeId,
+      )
+      .map((p) => [p.id, p]),
   );
 
   return rows
     .map((row) => {
-      const suggested = byId.get(row.suggested_attendee_id as string);
+      const suggested = byId.get(row.suggested_attendee_id);
       return suggested
         ? {
             attendee: suggested,
-            score: row.score as number,
-            reason: row.reason as string | null,
-            first_question: row.first_question as string | null,
+            score: row.score,
+            reason: row.reason,
+            first_question: row.first_question,
           }
         : null;
     })
