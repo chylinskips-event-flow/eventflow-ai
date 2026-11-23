@@ -19,6 +19,7 @@ import {
   Presentation,
   ScanLine,
   ShoppingBag,
+  UtensilsCrossed,
   CreditCard,
   ChevronLeft,
   Images,
@@ -61,6 +62,7 @@ export function buildNavSections(
       label: "Dzień eventu",
       items: [
         { href: `${base}/reception`,  icon: ScanLine,              label: "Recepcja"      },
+        { href: `${base}/meals`,      icon: UtensilsCrossed,       label: "Posiłki"       },
         { href: `${base}/moderator`,  icon: Presentation,          label: "Prowadzący"    },
         { href: `${base}/engagement`, icon: MessageCircleQuestion, label: "Q&A i ankiety" },
         { href: `${base}/messages`,   icon: Megaphone,             label: "Komunikaty"    },

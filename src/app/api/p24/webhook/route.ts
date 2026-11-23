@@ -115,6 +115,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     amount,
   });
 
+  // Weryfikacja nie doszła do skutku (sieć, 5xx, 429): nie wiemy, czy płatność przeszła.
+  // Zamówienie zostaje oczekujące, a kod 503 sprawia, że P24 ponowi powiadomienie.
+  if (!verifyResult.ok && verifyResult.retryable) {
+    console.error("[p24-webhook] verify retryable failure:", verifyResult.error);
+    return NextResponse.json({ error: "Verify unavailable" }, { status: 503 });
+  }
+
   // P24 can call urlStatus for failed/cancelled payments too.
   // If verify fails → mark order cancelled and release the reserved pool.
   if (!verifyResult.ok || verifyResult.data.status !== "success") {

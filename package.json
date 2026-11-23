@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "supabase db reset && playwright test",
+    "e2e:start": "supabase start",
+    "e2e:stop": "supabase stop"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",
@@ -46,6 +49,7 @@
     "unified": "^11.0.5"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",

@@ -1,10 +1,13 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Upload } from "lucide-react";
 import { getOwnEvent } from "@/lib/events";
 import { getEventAttendees } from "@/lib/attendees";
 import { AttendeeList } from "./attendee-list";
 import { BadgesButton } from "../badges/badges-button";
 import { featureGate } from "@/lib/entitlements";
 import { PageShell } from "@/components/page-shell";
+import { buttonVariants } from "@/components/ui/button";
 import { attendeeTabs } from "@/lib/organizer-tabs";
 import { resolveTabKey } from "@/lib/url-tabs";
 
@@ -37,7 +40,18 @@ export default async function EventAttendeesPage({
   });
 
   return (
-    <PageShell title="Uczestnicy" actions={badgesGate.ok && <BadgesButton eventId={eventId} />}>
+    <PageShell
+      title="Uczestnicy"
+      actions={
+        <>
+          <Link href={`/admin/events/${eventId}/attendees/import`} className={buttonVariants({ variant: "outline" })}>
+            <Upload className="mr-1.5 size-4" />
+            Import gości
+          </Link>
+          {badgesGate.ok && <BadgesButton eventId={eventId} />}
+        </>
+      }
+    >
       <AttendeeList
         eventId={eventId}
         attendees={attendees}

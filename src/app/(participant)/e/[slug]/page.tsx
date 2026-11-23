@@ -16,17 +16,22 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { hasActiveMixerForAttendee } from "@/lib/mixer/participant";
-import { getEventSessions, getEventSessionsForParticipant } from "@/lib/sessions";
-import { getEventSpeakers, getEventSpeakersForParticipant } from "@/lib/speakers";
-import { getEventPartners, getEventPartnersForParticipant } from "@/lib/partners";
+import { getEventSessionsForParticipant } from "@/lib/sessions";
+import { getEventSpeakersForParticipant } from "@/lib/speakers";
+import { getEventPartnersForParticipant } from "@/lib/partners";
 import { getAttendeeAgendaSessionIds } from "@/lib/agenda-items";
 import {
-  getEventContentSections,
   getEventContentSectionsForPreview,
 } from "@/lib/event-content";
 import { getEnabledEventSections } from "@/lib/event-sections";
 import { EventSectionsRenderer } from "@/components/event-sections";
-import { getPublicTicketTypes, formatPrice, isTicketTypeSoldOut, availableQuantity } from "@/lib/tickets";
+import {
+  eventUsesTickets,
+  getPublicTicketTypes,
+  formatPrice,
+  isTicketTypeSoldOut,
+  availableQuantity,
+} from "@/lib/tickets";
 import { computeLevel, computeNextLevelThreshold, LEVEL_LABELS } from "@/lib/gamification";
 import { formatDate, formatDateTimeRange, pluralizePl } from "@/lib/format";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -413,35 +418,29 @@ export default async function ParticipantEventPage({
     );
   }
 
-  // W trybie podglądu (własność potwierdzona) czytamy przez service_role —
-  // publiczne polityki RLS ujawniają te dane tylko dla published/live, więc
-  // draft inaczej dałby pustą stronę bez agendy/prelegentów/sekcji.
-  const [sections, sessions, speakers, eventSections, publicTicketTypes, partners] = previewMode
-    ? await Promise.all([
-        getEventContentSectionsForPreview(event.id),
-        getEventSessionsForParticipant(event.id),
-        getEventSpeakersForParticipant(event.id),
-        getEnabledEventSections(event.id),
-        getPublicTicketTypes(event.id),
-        getEventPartnersForParticipant(event.id),
-      ])
-    : await Promise.all([
-        getEventContentSections(event.id),
-        getEventSessions(event.id),
-        getEventSpeakers(event.id),
-        getEnabledEventSections(event.id),
-        getPublicTicketTypes(event.id),
-        getEventPartners(event.id),
-      ]);
+  // Zawsze service_role: dostęp jest już ustalony wyżej (published/live albo podgląd właściciela).
+  // Publicznych polityk RLS na tych tabelach nie ma — wystawiały kolumny z tokenami.
+  const [sections, sessions, speakers, eventSections, publicTicketTypes, partners, usesTickets] =
+    await Promise.all([
+      getEventContentSectionsForPreview(event.id),
+      getEventSessionsForParticipant(event.id),
+      getEventSpeakersForParticipant(event.id),
+      getEnabledEventSections(event.id),
+      getPublicTicketTypes(event.id),
+      getEventPartnersForParticipant(event.id),
+      eventUsesTickets(event.id),
+    ]);
 
   const hasTickets = publicTicketTypes.length > 0;
+  // Wydarzenie z biletami nie ma darmowej rejestracji, także po zamknięciu sprzedaży.
+  const registerHref = usesTickets ? "#register" : buildEventInternalPath(slug, "/register", origin);
 
   const navLinks = [
     sections.length > 0 ? { href: "#about", label: "O wydarzeniu" } : null,
     speakers.length > 0 ? { href: "#speakers", label: "Prelegenci" } : null,
     sessions.length > 0 ? { href: "#agenda", label: "Agenda" } : null,
     partners.length > 0 ? { href: "#partners", label: "Partnerzy" } : null,
-    { href: "#register", label: hasTickets ? "Bilety" : "Rejestracja" },
+    { href: "#register", label: usesTickets ? "Bilety" : "Rejestracja" },
   ].filter((link): link is { href: string; label: string } => link !== null);
 
   const showPreviewBanner =
@@ -504,7 +503,7 @@ export default async function ParticipantEventPage({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="flex gap-3">
               <Button asChild size="lg" className="flex-1 sm:flex-none">
-                <Link href={buildEventInternalPath(slug, "/register", origin)}>Zarejestruj się →</Link>
+                <Link href={registerHref}>{usesTickets ? "Bilety →" : "Zarejestruj się →"}</Link>
               </Button>
               {sessions.length > 0 && (
                 <Button asChild size="lg" variant="outline" className="flex-1 sm:flex-none">
@@ -655,6 +654,14 @@ export default async function ParticipantEventPage({
                 <ReturnAccessLink slug={slug} origin={origin} />
               </div>
             )}
+          </div>
+        </div>
+      ) : usesTickets ? (
+        <div id="register" className="bg-secondary">
+          <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-3 p-8 text-center">
+            <h2 className="text-2xl font-bold">Bilety</h2>
+            <p className="text-muted-foreground">Sprzedaż biletów jest zamknięta.</p>
+            {!previewMode && <ReturnAccessLink slug={slug} origin={origin} />}
           </div>
         </div>
       ) : (
