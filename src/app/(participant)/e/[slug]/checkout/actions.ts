@@ -118,7 +118,8 @@ export async function completeFreeCheckout(
 /**
  * Zamówienie bez płatności (bilet darmowy albo rabat 100%): rezerwacja puli, uczestnik, zamówienie
  * opłacone na 0 zł, bilet, mail, ciasteczko i przekierowanie. Status uczestnika jak przy zwykłej
- * rejestracji: przy wydarzeniu z zatwierdzaniem — „pending” i mail o oczekiwaniu.
+ * rejestracji: przy wydarzeniu z zatwierdzaniem — „pending” i mail o oczekiwaniu. Odrzucenie
+ * zgłoszenia zwalnia miejsce w puli i użycie kodu (release_rejected_attendee_tickets).
  * Wywoływać po walidacji wydarzenia, typu biletu, duplikatu i limitu uczestników.
  */
 async function issueFreeTicket(params: {
@@ -309,7 +310,8 @@ async function validateDiscountCode(
     return "Kod nie dotyczy wybranego typu biletu.";
 
   // Limit użyć: potwierdzone użycia (uses_count rośnie dopiero po płatności) + trwające płatności
-  // z tym kodem, żeby równoległe zakupy nie przekroczyły max_uses.
+  // z tym kodem. To wczesna, czytelna odpowiedź; wiążące sprawdzenie odbywa się atomowo przy
+  // tworzeniu zamówienia (create_pending_order_with_discount / try_use_discount_code).
   if (dc.max_uses !== null) {
     const cutoff = new Date(Date.now() - PENDING_ORDER_TTL_MINUTES * 60 * 1000).toISOString();
     const { count } = await supabase
@@ -439,23 +441,50 @@ export async function startPaidCheckout(
 
   // 7. Create pending order (imię, nazwisko i zgoda marketingowa trafią na bilet po płatności)
   const sessionId = `p24_${randomUUID()}`;
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .insert({
-      event_id: eventId,
-      buyer_name: `${trimmedFirst} ${trimmedLast}`,
-      buyer_first_name: trimmedFirst,
-      buyer_last_name: trimmedLast,
-      buyer_email: trimmedEmail,
-      marketing_consent: marketingConsent,
-      status: "pending",
-      total_amount: totalAmount,
-      currency: "PLN",
-      p24_session_id: sessionId,
-      discount_code_id: discountCodeId,
-    })
-    .select("id")
-    .single();
+  let order: { id: string } | null = null;
+  let orderError: unknown = null;
+  if (discountCodeId) {
+    // Z kodem: limit max_uses sprawdzany i zamówienie tworzone w jednej transakcji (blokada
+    // wiersza kodu), więc równoległe zakupy nie przekroczą limitu. NULL = kod wyczerpany.
+    const { data: orderId, error } = await supabase.rpc("create_pending_order_with_discount", {
+      p_event_id: eventId,
+      p_discount_code_id: discountCodeId,
+      p_buyer_first_name: trimmedFirst,
+      p_buyer_last_name: trimmedLast,
+      p_buyer_email: trimmedEmail,
+      p_marketing_consent: marketingConsent,
+      p_total_amount: totalAmount,
+      p_p24_session_id: sessionId,
+    });
+    if (!error && !orderId) {
+      if (tt.quantity_total !== null) {
+        await supabase.rpc("unreserve_ticket_quantity", { p_ticket_type_id: ticketTypeId, p_quantity: 1 });
+      }
+      return { status: "error", message: "Kod rabatowy wyczerpany." };
+    }
+    order = typeof orderId === "string" ? { id: orderId } : null;
+    orderError = error;
+  } else {
+    const inserted = await supabase
+      .from("orders")
+      .insert({
+        event_id: eventId,
+        buyer_name: `${trimmedFirst} ${trimmedLast}`,
+        buyer_first_name: trimmedFirst,
+        buyer_last_name: trimmedLast,
+        buyer_email: trimmedEmail,
+        marketing_consent: marketingConsent,
+        status: "pending",
+        total_amount: totalAmount,
+        currency: "PLN",
+        p24_session_id: sessionId,
+        discount_code_id: null,
+      })
+      .select("id")
+      .single();
+    order = inserted.data;
+    orderError = inserted.error;
+  }
 
   if (orderError || !order) {
     if (tt.quantity_total !== null) {

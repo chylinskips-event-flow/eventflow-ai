@@ -165,6 +165,7 @@ describe("bilet płatny przez Przelewy24", () => {
   beforeEach(() => {
     ticketType = { id: "tt1", price: 4999, quantity_total: 10, sales_start: null, sales_end: null };
     discountCode = { id: "dc1", kind: "percent", value: 20, max_uses: 5, uses_count: 0, ticket_type_id: null, valid_from: null, valid_until: null };
+    db.rpcResults.create_pending_order_with_discount = () => ({ data: "order-1", error: null });
   });
 
   it("start płatności nie zwiększa licznika kodu; zamówienie ma imię, nazwisko i zgodę", async () => {
@@ -174,14 +175,41 @@ describe("bilet płatny przez Przelewy24", () => {
     expect(url).toContain("/trnRequest/tok");
     expect(db.calls.filter((c) => c.table === "discount_codes" && c.op === "update")).toHaveLength(0);
     expect(db.rpcCalls.map((c) => c.fn)).not.toContain("try_use_discount_code");
-    expect(db.inserts("orders")[0]).toMatchObject({
-      status: "pending",
-      total_amount: 4000,
-      discount_code_id: "dc1",
-      buyer_first_name: "Anna Maria",
-      buyer_last_name: "Kowalska-Nowak",
-      marketing_consent: true,
+    // Zamówienie z kodem powstaje atomowo z kontrolą limitu (jedna transakcja w SQL).
+    expect(db.inserts("orders")).toHaveLength(0);
+    expect(db.rpcCalls.find((c) => c.fn === "create_pending_order_with_discount")?.args).toEqual({
+      p_event_id: "ev1",
+      p_discount_code_id: "dc1",
+      p_buyer_first_name: "Anna Maria",
+      p_buyer_last_name: "Kowalska-Nowak",
+      p_buyer_email: "anna@example.com",
+      p_marketing_consent: true,
+      p_total_amount: 4000,
+      p_p24_session_id: expect.stringMatching(/^p24_/),
     });
+    expect(db.inserts("order_items")[0]).toMatchObject({ order_id: "order-1", line_total: 4000 });
+  });
+
+  it("kod wyczerpany przy tworzeniu zamówienia (równoległy zakup): błąd, miejsce oddane, bez płatności", async () => {
+    db.rpcResults.create_pending_order_with_discount = () => ({ data: null, error: null });
+    const { result } = await catchRedirect(
+      startPaidCheckout("ev1", "konf", "tt1", { status: "idle" }, form({ discount_code: "lato" })),
+    );
+    expect(result).toEqual({ status: "error", message: "Kod rabatowy wyczerpany." });
+    expect(db.rpcCalls.map((c) => c.fn)).toEqual([
+      "try_reserve_ticket_quantity",
+      "create_pending_order_with_discount",
+      "unreserve_ticket_quantity",
+    ]);
+    expect(db.inserts("order_items")).toHaveLength(0);
+    expect(p24.registerTransaction).not.toHaveBeenCalled();
+  });
+
+  it("bez kodu: zamówienie oczekujące wstawiane bezpośrednio, bez funkcji rezerwującej kod", async () => {
+    const { url } = await catchRedirect(startPaidCheckout("ev1", "konf", "tt1", { status: "idle" }, form()));
+    expect(url).toContain("/trnRequest/tok");
+    expect(db.rpcCalls.map((c) => c.fn)).not.toContain("create_pending_order_with_discount");
+    expect(db.inserts("orders")[0]).toMatchObject({ status: "pending", total_amount: 4999, discount_code_id: null });
   });
 
   it("limit kodu uwzględnia trwające płatności z tym kodem", async () => {
