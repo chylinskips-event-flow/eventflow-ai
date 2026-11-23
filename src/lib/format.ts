@@ -125,6 +125,29 @@ export function parseDateTimeLocal(
   return new Date(guess - offset2).toISOString();
 }
 
+const DATETIME_LOCAL_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/;
+
+/**
+ * Opcjonalne pole datetime-local z formularza (godzina w strefie wydarzenia) -> ISO UTC.
+ * Puste pole -> null, wartość w złym formacie -> undefined (wywołujący zgłasza błąd).
+ * Bez tej konwersji baza czytałaby wpisaną godzinę jak UTC (przesunięcie o 1–2 h w Polsce).
+ */
+export function parseOptionalDateTimeLocal(
+  value: FormDataEntryValue | null,
+  timeZone: string | null,
+): string | null | undefined {
+  if (value === null) return null;
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const m = DATETIME_LOCAL_PATTERN.exec(trimmed);
+  if (!m) return undefined;
+  const [y, mo, d, h, mi] = m.slice(1, 6).map(Number);
+  const daysInMonth = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  if (mo < 1 || mo > 12 || d < 1 || d > daysInMonth || h > 23 || mi > 59) return undefined;
+  return parseDateTimeLocal(trimmed.slice(0, 16), timeZone);
+}
+
 /**
  * ISO/timestamp z bazy -> "YYYY-MM-DDTHH:mm" w strefie eventu, do wstawienia
  * jako wartość pola <input type="datetime-local">.

@@ -5,7 +5,10 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrigin } from "@/lib/request-origin";
 import { buildEventApexUrl, buildEventInternalPath } from "@/lib/event-url";
-import { sendAttendeeConfirmationEmail } from "@/lib/email/attendee-confirmation";
+import {
+  sendAttendeeConfirmationEmail,
+  sendAttendeePendingApprovalEmail,
+} from "@/lib/email/attendee-confirmation";
 import {
   ATTENDEE_TOKEN_COOKIE,
   ATTENDEE_TOKEN_MAX_AGE_SECONDS,
@@ -15,6 +18,14 @@ import { getPaymentConfig, registerTransaction, getP24BaseUrl } from "@/lib/p24"
 import { randomUUID } from "crypto";
 import { ATTENDEE_LIMIT_MESSAGE, hasFeature, isAttendeeLimitReached } from "@/lib/entitlements";
 import { handleDuplicateRegistration } from "@/lib/duplicate-registration";
+import {
+  PENDING_ORDER_TTL_MINUTES,
+  computeDiscountAmount,
+  hasDiscountUsesLeft,
+  initialAttendeeStatus,
+  isWithinWindow,
+  totalAfterDiscount,
+} from "@/lib/checkout-core";
 
 export type FreeCheckoutState = {
   status: "idle" | "error" | "already_registered";
@@ -86,11 +97,50 @@ export async function completeFreeCheckout(
   if (tt.price !== 0)
     return { status: "error", message: "Ten bilet wymaga płatności." };
 
-  const now = new Date().toISOString();
-  if (tt.sales_start && tt.sales_start > now)
+  const salesWindow = isWithinWindow(tt.sales_start, tt.sales_end);
+  if (salesWindow === "before")
     return { status: "error", message: "Sprzedaż jeszcze nie rozpoczęta." };
-  if (tt.sales_end && tt.sales_end < now)
+  if (salesWindow === "after")
     return { status: "error", message: "Sprzedaż zakończona." };
+
+  return issueFreeTicket({
+    event,
+    slug,
+    ticketType: tt,
+    firstName: firstName.trim(),
+    lastName: lastName.trim(),
+    email: email.trim(),
+    marketingConsent,
+    discountCodeId: null,
+  });
+}
+
+/**
+ * Zamówienie bez płatności (bilet darmowy albo rabat 100%): rezerwacja puli, uczestnik, zamówienie
+ * opłacone na 0 zł, bilet, mail, ciasteczko i przekierowanie. Status uczestnika jak przy zwykłej
+ * rejestracji: przy wydarzeniu z zatwierdzaniem — „pending” i mail o oczekiwaniu. Odrzucenie
+ * zgłoszenia zwalnia miejsce w puli i użycie kodu (release_rejected_attendee_tickets).
+ * Wywoływać po walidacji wydarzenia, typu biletu, duplikatu i limitu uczestników.
+ */
+async function issueFreeTicket(params: {
+  event: Event;
+  slug: string;
+  ticketType: { id: string; price: number; quantity_total: number | null };
+  firstName: string;
+  lastName: string;
+  email: string;
+  marketingConsent: boolean;
+  discountCodeId: string | null;
+}): Promise<FreeCheckoutState> {
+  const { event, slug, ticketType: tt, marketingConsent, discountCodeId } = params;
+  const supabase = createAdminClient();
+  const eventId = event.id;
+  const ticketTypeId = tt.id;
+  const trimmedEmail = params.email;
+  const trimmedFirst = params.firstName;
+  const trimmedLast = params.lastName;
+  const now = new Date().toISOString();
+  const attendeeStatus = initialAttendeeStatus(event.requires_approval);
 
   // 2. Atomic quantity reservation (prevents oversell)
   if (tt.quantity_total !== null) {
@@ -103,10 +153,6 @@ export async function completeFreeCheckout(
       return { status: "error", message: "Brak dostępnych miejsc." };
   }
 
-  const trimmedEmail = email.trim();
-  const trimmedFirst = firstName.trim();
-  const trimmedLast = lastName.trim();
-
   // 3. Create attendee
   const { data: attendee, error: attError } = await supabase
     .from("attendees")
@@ -117,7 +163,7 @@ export async function completeFreeCheckout(
       email: trimmedEmail,
       gdpr_consent_at: now,
       marketing_consent: marketingConsent,
-      status: "approved",
+      status: attendeeStatus,
     })
     .select("id, qr_code_token, check_in_token")
     .single();
@@ -140,12 +186,16 @@ export async function completeFreeCheckout(
     .insert({
       event_id: eventId,
       buyer_name: `${trimmedFirst} ${trimmedLast}`,
+      buyer_first_name: trimmedFirst,
+      buyer_last_name: trimmedLast,
       buyer_email: trimmedEmail,
+      marketing_consent: marketingConsent,
       status: "paid",
       total_amount: 0,
       currency: "PLN",
       p24_session_id: sessionId,
       paid_at: now,
+      discount_code_id: discountCodeId,
     })
     .select("id")
     .single();
@@ -167,7 +217,7 @@ export async function completeFreeCheckout(
     order_id: order.id,
     ticket_type_id: ticketTypeId,
     quantity: 1,
-    unit_price: 0,
+    unit_price: tt.price,
     line_total: 0,
   });
 
@@ -183,18 +233,22 @@ export async function completeFreeCheckout(
     status: "valid",
   });
 
-  // 7. Send confirmation email (best-effort)
+  // 7. Send confirmation email (best-effort) — przy zatwierdzaniu: mail o oczekiwaniu, bez QR.
   const headersList = await headers();
   const origin = getOrigin(headersList);
   try {
-    await sendAttendeeConfirmationEmail({
-      to: trimmedEmail,
-      firstName: trimmedFirst,
-      event,
-      qrCodeToken: attendee.qr_code_token,
-      checkInToken: attendee.check_in_token,
-      origin,
-    });
+    if (attendeeStatus === "pending") {
+      await sendAttendeePendingApprovalEmail({ to: trimmedEmail, firstName: trimmedFirst, event });
+    } else {
+      await sendAttendeeConfirmationEmail({
+        to: trimmedEmail,
+        firstName: trimmedFirst,
+        event,
+        qrCodeToken: attendee.qr_code_token,
+        checkInToken: attendee.check_in_token,
+        origin,
+      });
+    }
   } catch (err) {
     console.error("Failed to send ticket confirmation email:", err);
   }
@@ -209,9 +263,12 @@ export async function completeFreeCheckout(
     maxAge: ATTENDEE_TOKEN_MAX_AGE_SECONDS,
   });
 
+  // Oczekujący na zatwierdzenie: ta sama strona co po zwykłej rejestracji z zatwierdzaniem.
   redirect(buildEventInternalPath(
     slug,
-    `/checkout/success?name=${encodeURIComponent(trimmedFirst)}`,
+    attendeeStatus === "pending"
+      ? `/welcome?name=${encodeURIComponent(trimmedFirst)}&status=pending`
+      : `/checkout/success?name=${encodeURIComponent(trimmedFirst)}`,
     origin,
   ));
 }
@@ -219,7 +276,7 @@ export async function completeFreeCheckout(
 // ---- Paid checkout (P24) ---------------------------------------------------
 
 export type PaidCheckoutState = {
-  status: "idle" | "error";
+  status: "idle" | "error" | "already_registered";
   message?: string;
 };
 
@@ -234,7 +291,6 @@ async function validateDiscountCode(
   unitPrice: number,
 ): Promise<{ discountAmount: number; codeId: string } | string> {
   const supabase = createAdminClient();
-  const now = new Date().toISOString();
 
   const { data: dc } = await supabase
     .from("discount_codes")
@@ -247,21 +303,27 @@ async function validateDiscountCode(
     .maybeSingle();
 
   if (!dc) return "Nieprawidlowy kod rabatowy.";
-  if (dc.valid_from && dc.valid_from > now) return "Kod rabatowy jeszcze nieaktywny.";
-  if (dc.valid_until && dc.valid_until < now) return "Kod rabatowy wygasl.";
-  if (dc.max_uses !== null && dc.uses_count >= dc.max_uses) return "Kod rabatowy wyczerpany.";
+  const validity = isWithinWindow(dc.valid_from, dc.valid_until);
+  if (validity === "before") return "Kod rabatowy jeszcze nieaktywny.";
+  if (validity === "after") return "Kod rabatowy wygasl.";
   if (dc.ticket_type_id && dc.ticket_type_id !== ticketTypeId)
     return "Kod nie dotyczy wybranego typu biletu.";
 
-  let discountAmount: number;
-  if (dc.kind === "percent") {
-    discountAmount = Math.floor((unitPrice * dc.value) / 100);
-  } else {
-    discountAmount = dc.value;
+  // Limit użyć: potwierdzone użycia (uses_count rośnie dopiero po płatności) + trwające płatności
+  // z tym kodem. To wczesna, czytelna odpowiedź; wiążące sprawdzenie odbywa się atomowo przy
+  // tworzeniu zamówienia (create_pending_order_with_discount / try_use_discount_code).
+  if (dc.max_uses !== null) {
+    const cutoff = new Date(Date.now() - PENDING_ORDER_TTL_MINUTES * 60 * 1000).toISOString();
+    const { count } = await supabase
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("discount_code_id", dc.id)
+      .eq("status", "pending")
+      .gte("created_at", cutoff);
+    if (!hasDiscountUsesLeft(dc, count ?? 0)) return "Kod rabatowy wyczerpany.";
   }
-  discountAmount = Math.min(discountAmount, unitPrice);
 
-  return { discountAmount, codeId: dc.id };
+  return { discountAmount: computeDiscountAmount(unitPrice, dc), codeId: dc.id };
 }
 
 export async function startPaidCheckout(
@@ -287,10 +349,10 @@ export async function startPaidCheckout(
     return { status: "error", message: "Zgoda na przetwarzanie danych jest wymagana." };
 
   const supabase = createAdminClient();
-  const now = new Date().toISOString();
   const trimmedEmail = email.trim();
   const trimmedFirst = firstName.trim();
   const trimmedLast = lastName.trim();
+  const marketingConsent = formData.get("marketing_consent") === "on";
 
   // 1. Verify event
   const { data: event } = await supabase
@@ -318,15 +380,11 @@ export async function startPaidCheckout(
 
   if (!tt) return { status: "error", message: "Typ biletu niedostepny." };
   if (tt.price === 0) return { status: "error", message: "Uzyj formularza dla biletow darmowych." };
-  if (tt.sales_start && tt.sales_start > now) return { status: "error", message: "Sprzedaz jeszcze nie rozpoczeta." };
-  if (tt.sales_end && tt.sales_end < now) return { status: "error", message: "Sprzedaz zakonczona." };
+  const salesWindow = isWithinWindow(tt.sales_start, tt.sales_end);
+  if (salesWindow === "before") return { status: "error", message: "Sprzedaz jeszcze nie rozpoczeta." };
+  if (salesWindow === "after") return { status: "error", message: "Sprzedaz zakonczona." };
 
-  // 3. Payment config
-  const cfg = await getPaymentConfig(event.organization_id);
-  if (!cfg || !cfg.enabled)
-    return { status: "error", message: "Platnosci nie sa skonfigurowane dla tego wydarzenia." };
-
-  // 4. Discount code (server-side validation)
+  // 3. Discount code (server-side validation)
   let discountAmount = 0;
   let discountCodeId: string | null = null;
   if (typeof discountCodeRaw === "string" && discountCodeRaw.trim()) {
@@ -336,9 +394,43 @@ export async function startPaidCheckout(
     discountCodeId = result.codeId;
   }
 
-  const totalAmount = Math.max(0, tt.price - discountAmount);
+  const totalAmount = totalAfterDiscount(tt.price, discountAmount);
 
-  // 5. Atomic quantity reservation
+  // 4. Rabat pokrywa całą cenę (np. kod dla prelegenta): zamówienie bez płatności, bez P24
+  // (bramka odrzuca transakcje na 0 zł). Użycie kodu liczone od razu, atomowo z limitem.
+  if (totalAmount <= 0 && discountCodeId) {
+    const duplicateMessage = await handleDuplicateRegistration({
+      eventId: event.id,
+      slug: event.slug,
+      email: trimmedEmail,
+      headers: await headers(),
+    });
+    if (duplicateMessage) return { status: "already_registered", message: duplicateMessage };
+
+    const { data: codeUsed } = await supabase.rpc("try_use_discount_code", { p_code_id: discountCodeId });
+    if (!codeUsed) return { status: "error", message: "Kod rabatowy wyczerpany." };
+
+    // issueFreeTicket kończy się przekierowaniem; zwrócony stan oznacza błąd → oddajemy użycie kodu.
+    const failed = await issueFreeTicket({
+      event,
+      slug,
+      ticketType: tt,
+      firstName: trimmedFirst,
+      lastName: trimmedLast,
+      email: trimmedEmail,
+      marketingConsent,
+      discountCodeId,
+    });
+    await supabase.rpc("release_discount_code_use", { p_code_id: discountCodeId });
+    return failed.status === "already_registered" ? failed : { status: "error", message: failed.message };
+  }
+
+  // 5. Payment config (tylko gdy jest co płacić)
+  const cfg = await getPaymentConfig(event.organization_id);
+  if (!cfg || !cfg.enabled)
+    return { status: "error", message: "Platnosci nie sa skonfigurowane dla tego wydarzenia." };
+
+  // 6. Atomic quantity reservation
   if (tt.quantity_total !== null) {
     const { data: reserved } = await supabase.rpc("try_reserve_ticket_quantity", {
       p_ticket_type_id: ticketTypeId,
@@ -347,22 +439,52 @@ export async function startPaidCheckout(
     if (!reserved) return { status: "error", message: "Brak dostepnych miejsc." };
   }
 
-  // 6. Create pending order
+  // 7. Create pending order (imię, nazwisko i zgoda marketingowa trafią na bilet po płatności)
   const sessionId = `p24_${randomUUID()}`;
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .insert({
-      event_id: eventId,
-      buyer_name: `${trimmedFirst} ${trimmedLast}`,
-      buyer_email: trimmedEmail,
-      status: "pending",
-      total_amount: totalAmount,
-      currency: "PLN",
-      p24_session_id: sessionId,
-      discount_code_id: discountCodeId,
-    })
-    .select("id")
-    .single();
+  let order: { id: string } | null = null;
+  let orderError: unknown = null;
+  if (discountCodeId) {
+    // Z kodem: limit max_uses sprawdzany i zamówienie tworzone w jednej transakcji (blokada
+    // wiersza kodu), więc równoległe zakupy nie przekroczą limitu. NULL = kod wyczerpany.
+    const { data: orderId, error } = await supabase.rpc("create_pending_order_with_discount", {
+      p_event_id: eventId,
+      p_discount_code_id: discountCodeId,
+      p_buyer_first_name: trimmedFirst,
+      p_buyer_last_name: trimmedLast,
+      p_buyer_email: trimmedEmail,
+      p_marketing_consent: marketingConsent,
+      p_total_amount: totalAmount,
+      p_p24_session_id: sessionId,
+    });
+    if (!error && !orderId) {
+      if (tt.quantity_total !== null) {
+        await supabase.rpc("unreserve_ticket_quantity", { p_ticket_type_id: ticketTypeId, p_quantity: 1 });
+      }
+      return { status: "error", message: "Kod rabatowy wyczerpany." };
+    }
+    order = typeof orderId === "string" ? { id: orderId } : null;
+    orderError = error;
+  } else {
+    const inserted = await supabase
+      .from("orders")
+      .insert({
+        event_id: eventId,
+        buyer_name: `${trimmedFirst} ${trimmedLast}`,
+        buyer_first_name: trimmedFirst,
+        buyer_last_name: trimmedLast,
+        buyer_email: trimmedEmail,
+        marketing_consent: marketingConsent,
+        status: "pending",
+        total_amount: totalAmount,
+        currency: "PLN",
+        p24_session_id: sessionId,
+        discount_code_id: null,
+      })
+      .select("id")
+      .single();
+    order = inserted.data;
+    orderError = inserted.error;
+  }
 
   if (orderError || !order) {
     if (tt.quantity_total !== null) {
@@ -380,20 +502,7 @@ export async function startPaidCheckout(
     line_total: totalAmount,
   });
 
-  // 8. Increment discount code uses_count (best-effort; race acceptable in MVP)
-  if (discountCodeId) {
-    const { data: currentDc } = await supabase
-      .from("discount_codes")
-      .select("uses_count")
-      .eq("id", discountCodeId)
-      .single();
-    if (currentDc) {
-      await supabase
-        .from("discount_codes")
-        .update({ uses_count: currentDc.uses_count + 1 })
-        .eq("id", discountCodeId);
-    }
-  }
+  // Licznik użyć kodu rośnie dopiero po potwierdzeniu płatności (confirm_paid_order w webhooku).
 
   // 9. Register P24 transaction
   const headersList = await headers();

@@ -89,6 +89,18 @@ export async function rejectAttendee(
     };
   }
 
+  // Bilet wydany bez płatności (darmowy / rabat 100%) przy wydarzeniu z zatwierdzaniem: odrzucone
+  // zgłoszenie oddaje miejsce w puli i użycie kodu rabatowego. Organizator jest już zweryfikowany
+  // (getOwnEvent + aktualizacja przez RLS), funkcja działa tylko w obrębie tego wydarzenia.
+  // Zamówienia opłacone nie są ruszane — o zwrocie decyduje organizator.
+  const { error: releaseError } = await createAdminClient().rpc("release_rejected_attendee_tickets", {
+    p_event_id: eventId,
+    p_attendee_id: attendeeId,
+  });
+  if (releaseError) {
+    console.error("Failed to release tickets of rejected attendee:", releaseError);
+  }
+
   if (attendee.email) {
     try {
       await sendAttendeeRejectedEmail({

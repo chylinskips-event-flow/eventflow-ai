@@ -41,13 +41,16 @@ export type DiscountCode = {
   updated_at: string;
 };
 
-export type OrderStatus = "pending" | "paid" | "failed" | "cancelled" | "refunded";
+export type OrderStatus = "pending" | "paid" | "paid_overbooked" | "failed" | "cancelled" | "refunded";
 
 export type Order = {
   id: string;
   event_id: string;
   buyer_name: string;
+  buyer_first_name: string | null;
+  buyer_last_name: string | null;
   buyer_email: string;
+  marketing_consent: boolean;
   invoice_data: Record<string, unknown> | null;
   status: OrderStatus;
   total_amount: number;

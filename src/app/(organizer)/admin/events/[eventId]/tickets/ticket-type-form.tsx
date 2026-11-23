@@ -15,13 +15,11 @@ import {
 } from "@/components/ui/dialog";
 import { createTicketType, updateTicketType, type TicketTypeFormState } from "./actions";
 import type { TicketType } from "@/lib/tickets";
+import { toDateTimeLocalValue } from "@/lib/format";
 import { Plus, Pencil } from "lucide-react";
 import { useState } from "react";
 
-function toDatetimeLocal(iso: string | null): string {
-  if (!iso) return "";
-  return iso.slice(0, 16);
-}
+// Pola datetime-local pokazują godzinę w strefie wydarzenia (zapis w UTC).
 
 function priceToPln(grosze: number): string {
   if (grosze === 0) return "0";
@@ -102,10 +100,12 @@ function CreateForm({ eventId }: { eventId: string }) {
 function EditForm({
   eventId,
   ticket,
+  timeZone,
   onDone,
 }: {
   eventId: string;
   ticket: TicketType;
+  timeZone: string | null;
   onDone: () => void;
 }) {
   const bound = updateTicketType.bind(null, eventId, ticket.id);
@@ -182,7 +182,7 @@ function EditForm({
             id="et-start"
             name="sales_start"
             type="datetime-local"
-            defaultValue={toDatetimeLocal(ticket.sales_start)}
+            defaultValue={toDateTimeLocalValue(ticket.sales_start, timeZone)}
           />
         </div>
         <div className="space-y-1.5">
@@ -191,7 +191,7 @@ function EditForm({
             id="et-end"
             name="sales_end"
             type="datetime-local"
-            defaultValue={toDatetimeLocal(ticket.sales_end)}
+            defaultValue={toDateTimeLocalValue(ticket.sales_end, timeZone)}
           />
         </div>
       </div>
@@ -242,9 +242,11 @@ export function CreateTicketTypeButton({ eventId }: { eventId: string }) {
 export function EditTicketTypeButton({
   eventId,
   ticket,
+  timeZone,
 }: {
   eventId: string;
   ticket: TicketType;
+  timeZone: string | null;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -259,7 +261,7 @@ export function EditTicketTypeButton({
         <DialogHeader>
           <DialogTitle>Edytuj: {ticket.name}</DialogTitle>
         </DialogHeader>
-        <EditForm eventId={eventId} ticket={ticket} onDone={() => setOpen(false)} />
+        <EditForm eventId={eventId} ticket={ticket} timeZone={timeZone} onDone={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   );
