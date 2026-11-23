@@ -44,7 +44,7 @@ describe("menu wydarzenia w sekcjach", () => {
     expect(sections.map((s) => [s.label, s.items.map((i) => i.label)])).toEqual([
       ["Przygotowanie", ["Ustawienia", "Treść", "Prelegenci", "Agenda", "Bilety"]],
       ["Ludzie i partnerzy", ["Uczestnicy", "Partnerzy"]],
-      ["Dzień eventu", ["Recepcja", "Prowadzący", "Q&A i ankiety", "Komunikaty", "Galeria"]],
+      ["Dzień eventu", ["Recepcja", "Posiłki", "Prowadzący", "Q&A i ankiety", "Komunikaty", "Galeria"]],
       ["Zaangażowanie", ["Questy", "Nagrody", "Loteria", "Business Mixer"]],
       ["Rozliczenia", ["Płatności"]],
     ]);
@@ -61,6 +61,7 @@ describe("menu wydarzenia w sekcjach", () => {
         `${base}/content`,
         `${base}/engagement`,
         `${base}/gallery`,
+        `${base}/meals`,
         `${base}/messages`,
         `${base}/mixer`,
         `${base}/moderator`,
