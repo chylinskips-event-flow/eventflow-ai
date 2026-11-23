@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
-import { Check, Undo2, QrCode, Search, Users } from "lucide-react";
+import { Check, Printer, Undo2, QrCode, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QrScanner } from "@/components/qr-scanner";
+import { BadgeLabelDialog } from "@/components/badge-label-dialog";
+import type { BadgeLabelResult } from "@/lib/badge-label-core";
 import type { ReceptionAttendee, CheckInResult } from "@/lib/reception";
 
 type Filter = "all" | "present" | "absent";
@@ -14,6 +16,8 @@ interface ReceptionPanelProps {
   checkInByQrAction: (checkInToken: string) => Promise<CheckInResult>;
   checkInByIdAction: (attendeeId: string) => Promise<CheckInResult>;
   undoCheckInAction: (attendeeId: string) => Promise<void>;
+  /** Druk etykiety; brak = plan bez identyfikatorów, przycisk niewidoczny. */
+  badgeLabelAction?: (attendeeId: string) => Promise<BadgeLabelResult>;
   /** Klasa CSS `top-*` dla przyklejonego nagłówka; domyślnie "top-0" */
   stickyTopClass?: string;
   /** Opcjonalny slot na kompaktową sekcję linku recepcji (tylko w panelu organizatora) */
@@ -31,6 +35,7 @@ export function ReceptionPanel({
   checkInByQrAction,
   checkInByIdAction,
   undoCheckInAction,
+  badgeLabelAction,
   stickyTopClass = "top-0",
   receptionLinkSlot,
 }: ReceptionPanelProps) {
@@ -39,6 +44,7 @@ export function ReceptionPanel({
   const [scannerOpen, setScannerOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [labelFor, setLabelFor] = useState<string | null>(null);
 
   const checkedIn = attendees.filter((a) => a.checked_in_at !== null).length;
   const total = attendees.length;
@@ -178,6 +184,18 @@ export function ReceptionPanel({
                   </p>
                 )}
               </div>
+              {badgeLabelAction && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setLabelFor(a.id)}
+                  className="shrink-0 text-muted-foreground"
+                  aria-label={`Drukuj identyfikator: ${name}`}
+                  title="Drukuj identyfikator"
+                >
+                  <Printer className="size-4" />
+                </Button>
+              )}
               {a.checked_in_at ? (
                 <Button
                   variant="ghost"
@@ -205,6 +223,14 @@ export function ReceptionPanel({
           );
         })}
       </div>
+
+      {labelFor && badgeLabelAction && (
+        <BadgeLabelDialog
+          attendeeId={labelFor}
+          loadLabel={badgeLabelAction}
+          onClose={() => setLabelFor(null)}
+        />
+      )}
 
       {/* Overlay skanera QR */}
       {scannerOpen && (

@@ -1,4 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { BadgeLabelResult } from "@/lib/badge-label-core";
+
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "eventro.pl";
 
 export type ReceptionAttendee = {
   id: string;
@@ -17,11 +20,11 @@ export type CheckInResult =
 
 export async function getEventByReceptionToken(
   token: string,
-): Promise<{ id: string; slug: string; name: string } | null> {
+): Promise<{ id: string; organization_id: string; slug: string; name: string } | null> {
   const db = createAdminClient();
   const { data } = await db
     .from("events")
-    .select("id, slug, name")
+    .select("id, organization_id, slug, name")
     .eq("reception_token", token)
     .maybeSingle();
   return data ?? null;
@@ -41,6 +44,31 @@ export async function getReceptionList(
     .order("last_name", { ascending: true })
     .order("first_name", { ascending: true });
   return data ?? [];
+}
+
+// ─── Etykieta identyfikatora (druk na recepcji) ──────────────────────────────
+
+/** Dane etykiety jednej osoby. Wywołujący autoryzuje recepcję i sprawdza funkcję „badges”. */
+export async function getBadgeLabel(
+  event: { id: string; slug: string; name: string },
+  attendeeId: string,
+): Promise<BadgeLabelResult> {
+  const { data } = await createAdminClient()
+    .from("attendees")
+    .select("first_name, last_name, company, contact_code, status")
+    .eq("id", attendeeId)
+    .eq("event_id", event.id)
+    .maybeSingle();
+  if (!data || data.status !== "approved") return { ok: false, error: "Nie znaleziono uczestnika." };
+  return {
+    ok: true,
+    label: {
+      name: [data.first_name, data.last_name].filter(Boolean).join(" ") || "Uczestnik",
+      company: data.company,
+      eventName: event.name,
+      qrUrl: `https://${ROOT_DOMAIN}/e/${event.slug}/connect/${data.contact_code}`,
+    },
+  };
 }
 
 // ─── Check-in po QR (check_in_token ze skanera) ──────────────────────────────

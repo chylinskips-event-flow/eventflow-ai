@@ -1,12 +1,14 @@
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getOwnEvent } from "@/lib/events";
+import { hasFeature } from "@/lib/entitlements";
 import { getReceptionList } from "@/lib/reception";
 import { getOrigin } from "@/lib/request-origin";
 import { ReceptionPanel } from "@/components/reception-panel";
 import { PageShell } from "@/components/page-shell";
 import { ReceptionTokenSection } from "./reception-token-section";
 import {
+  organizerBadgeLabel,
   organizerCheckInByQr,
   organizerCheckInById,
   organizerUndoCheckIn,
@@ -30,6 +32,8 @@ export default async function ReceptionPage({
   const checkInByQr = organizerCheckInByQr.bind(null, eventId);
   const checkInById = organizerCheckInById.bind(null, eventId);
   const undoCheckIn = organizerUndoCheckIn.bind(null, eventId);
+  const badgeLabel = organizerBadgeLabel.bind(null, eventId);
+  const badgesEnabled = await hasFeature(event.organization_id, "badges");
 
   // Wspólna rama panelu organizatora (tytuł, szerokość). Bez zakładek: recepcja to jedno narzędzie
   // (licznik, skan QR, szukajka, filtry, lista) — kolejne kliknięcia tylko by spowalniały check-in.
@@ -42,6 +46,7 @@ export default async function ReceptionPage({
           checkInByQrAction={checkInByQr}
           checkInByIdAction={checkInById}
           undoCheckInAction={undoCheckIn}
+          badgeLabelAction={badgesEnabled ? badgeLabel : undefined}
           stickyTopClass="top-14"
           receptionLinkSlot={
             <ReceptionTokenSection

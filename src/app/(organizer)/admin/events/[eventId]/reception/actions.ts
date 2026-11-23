@@ -2,10 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { getOwnEvent } from "@/lib/events";
+import { featureGate } from "@/lib/entitlements";
+import type { BadgeLabelResult } from "@/lib/badge-label-core";
 import {
   checkInByQr,
   checkInById,
   undoCheckIn,
+  getBadgeLabel,
   generateReceptionToken,
   revokeReceptionToken,
   type CheckInResult,
@@ -15,6 +18,17 @@ async function verifyOrganizer(eventId: string) {
   const event = await getOwnEvent(eventId);
   if (!event) throw new Error("Brak dostępu");
   return event;
+}
+
+export async function organizerBadgeLabel(
+  eventId: string,
+  attendeeId: string,
+): Promise<BadgeLabelResult> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return { ok: false, error: "Brak dostępu do wydarzenia." };
+  const gate = await featureGate(event.organization_id, "badges");
+  if (!gate.ok) return { ok: false, error: gate.message };
+  return getBadgeLabel(event, attendeeId);
 }
 
 export async function organizerCheckInByQr(
