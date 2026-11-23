@@ -11,6 +11,7 @@ type Result = { data?: unknown; error?: unknown; count?: number };
 const db = {
   tables: {} as Record<string, (q: Query) => Result>,
   rpc: vi.fn(),
+  usage: vi.fn(),
   queries: [] as Query[],
   storage: {
     createSignedUploadUrl: vi.fn(),
@@ -26,7 +27,8 @@ function builder(table: string) {
   const q: Query = { table, op: "select", filters: [] };
   const run = () => {
     db.queries.push(q);
-    return Promise.resolve({ data: null, error: null, ...(db.tables[table]?.(q) ?? {}) });
+    // Jak PostgREST z .select() po update: domyślnie jeden zmieniony wiersz.
+    return Promise.resolve({ data: q.op === "update" ? [{ id: "row-id" }] : null, error: null, ...(db.tables[table]?.(q) ?? {}) });
   };
   const b: Record<string, unknown> = {
     select: () => b,
@@ -37,7 +39,7 @@ function builder(table: string) {
     maybeSingle: run,
     then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => run().then(res, rej),
   };
-  for (const m of ["eq", "in", "lt", "gte", "is", "not", "order"]) {
+  for (const m of ["eq", "in", "lt", "gte", "is", "not", "order", "limit"]) {
     b[m] = (...args: unknown[]) => (q.filters.push([m, ...args]), b);
   }
   return b;
@@ -46,7 +48,7 @@ function builder(table: string) {
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: (t: string) => builder(t),
-    rpc: (...a: unknown[]) => db.rpc(...a),
+    rpc: (name: string, args: unknown) => (name === "gallery_usage" ? db.usage(args) : db.rpc(name, args)),
     storage: { from: () => db.storage },
   }),
 }));
@@ -100,6 +102,8 @@ beforeEach(() => {
   db.tables = {};
   db.queries = [];
   db.rpc.mockReset();
+  db.usage.mockReset();
+  db.usage.mockResolvedValue({ data: [{ event_count: 0, event_bytes: 0, total_bytes: 0 }], error: null });
   for (const fn of Object.values(db.storage)) fn.mockReset();
   db.storage.createSignedUploadUrl.mockResolvedValue({ data: { signedUrl: "https://x/sign" }, error: null });
   db.storage.remove.mockResolvedValue({ data: [], error: null });
@@ -182,8 +186,7 @@ describe("rezerwacja i limity", () => {
 
   it("budżet wyczerpany → blokada bez rezerwacji", async () => {
     vi.stubEnv("GALLERY_STORAGE_BUDGET_MB", "1");
-    db.tables.event_photos = (q) =>
-      q.op === "select" ? { data: [{ event_id: "inny", status: "ready", size_bytes: 2 * 1024 * 1024, original_bytes: 1 }] } : {};
+    db.usage.mockResolvedValue({ data: [{ event_count: 0, event_bytes: 0, total_bytes: 2 * 1024 * 1024 }], error: null });
     const res = await gallery.startPhotoUpload(EVENT, organizerActor, meta);
     vi.unstubAllEnvs();
     expect(res.ok).toBe(false);
@@ -196,6 +199,59 @@ describe("rezerwacja i limity", () => {
     const res = await gallery.startPhotoUpload(EVENT, { kind: "link", link }, meta);
     expect(res).toEqual({ ok: false, error: "Zbyt wiele zdjęć naraz. Odczekaj kilka minut i spróbuj ponownie." });
     expect(db.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("licznik i budżet galerii", () => {
+  it("agregacja w bazie (bez limitu 1000 wierszy) — wartości z RPC", async () => {
+    vi.stubEnv("GALLERY_STORAGE_BUDGET_MB", "100");
+    db.usage.mockResolvedValue({
+      data: [{ event_count: "1500", event_bytes: "3000000000", total_bytes: String(50 * 1024 * 1024) }],
+      error: null,
+    });
+    const usage = await gallery.getGalleryUsage(EVENT);
+    vi.unstubAllEnvs();
+    expect(usage.count).toBe(1500);
+    expect(usage.eventBytes).toBe(3_000_000_000);
+    expect(usage.budget.usedBytes).toBe(50 * 1024 * 1024);
+    expect(usage.budget.blocked).toBe(false);
+    // Licznik nie pobiera wierszy zdjęć do aplikacji.
+    expect(db.queries.filter((q) => q.table === "event_photos")).toHaveLength(0);
+  });
+
+  it("porzucone rezerwacje (starsze niż 1 h) nie liczą się do budżetu", async () => {
+    const before = Date.now();
+    await gallery.getGalleryUsage(EVENT);
+    const args = db.usage.mock.calls[0][0] as { p_event_id: string; p_stale_before: string };
+    expect(args.p_event_id).toBe(EVENT);
+    const cutoff = new Date(args.p_stale_before).getTime();
+    expect(before - cutoff).toBeGreaterThanOrEqual(60 * 60 * 1000 - 1000);
+    expect(before - cutoff).toBeLessThanOrEqual(60 * 60 * 1000 + 1000);
+  });
+
+  it("błąd odczytu licznika → upload zablokowany (bez rezerwacji)", async () => {
+    db.usage.mockResolvedValue({ data: null, error: { code: "PGRST202" } });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await gallery.startPhotoUpload(EVENT, { kind: "organizer", userId: "user-1" }, meta);
+    spy.mockRestore();
+    expect(res.ok).toBe(false);
+    expect(db.rpc).not.toHaveBeenCalled();
+  });
+
+  it("sprzątanie porzuconych rezerwacji obejmuje wszystkie wydarzenia (wspólny budżet)", async () => {
+    db.tables.event_photos = (q) =>
+      q.op === "select" && q.filters.some((f) => f[0] === "lt")
+        ? { data: [{ id: "stale-1", original_path: `inny-event/stale-1/original.jpg` }] }
+        : {};
+    db.rpc.mockResolvedValue({ data: [{ photo_id: PHOTO, result: "ok" }], error: null });
+    await gallery.startPhotoUpload(EVENT, { kind: "organizer", userId: "user-1" }, meta);
+    const sweep = db.queries.find((q) => q.table === "event_photos" && q.op === "select" && q.filters.some((f) => f[0] === "lt"));
+    expect(sweep?.filters).toContainEqual(["eq", "status", "uploading"]);
+    expect(sweep?.filters.some((f) => f[0] === "eq" && f[1] === "event_id")).toBe(false);
+    expect(sweep?.filters.some((f) => f[0] === "limit")).toBe(true);
+    expect(db.storage.remove).toHaveBeenCalledWith([`inny-event/stale-1/original.jpg`]);
+    const del = db.queries.find((q) => q.table === "event_photos" && q.op === "delete");
+    expect(del?.filters).toContainEqual(["in", "id", ["stale-1"]]);
   });
 });
 
@@ -239,6 +295,74 @@ describe("przetworzenie", () => {
     expect(processPhoto).toHaveBeenCalledWith(expect.any(Buffer), { watermark: false, logo: null });
     expect(db.queries.find((q) => q.op === "update")?.payload).toMatchObject({ status: "ready", original_path: null, size_bytes: 2 });
     expect(db.storage.remove).toHaveBeenLastCalledWith([`${EVENT}/${PHOTO}/original.jpg`]);
+  });
+});
+
+describe("rezerwacja w toku a sprzątanie porzuconych", () => {
+  const organizerActor = { kind: "organizer" as const, userId: "user-1" };
+  const event = { id: EVENT, organization_id: "org", name: "Next Stop", logo_url: null };
+  const uploadUpdate = () => db.queries.find((q) => q.table === "event_photos" && q.op === "update");
+
+  it("wznowienie przerwanej wysyłki odświeża created_at (sprzątanie nie usunie wiersza)", async () => {
+    db.rpc.mockResolvedValue({ data: [{ photo_id: null, result: "duplicate" }], error: null });
+    db.tables.event_photos = (q) =>
+      q.op === "select" && q.filters.some((f) => f[0] === "eq" && f[1] === "content_hash") ? { data: { id: PHOTO } } : {};
+    const before = Date.now();
+    const res = await gallery.startPhotoUpload(EVENT, organizerActor, meta);
+    expect(res.ok).toBe(true);
+    const up = uploadUpdate();
+    const payload = up?.payload as { created_at?: string };
+    expect(new Date(payload.created_at ?? 0).getTime()).toBeGreaterThanOrEqual(before - 1000);
+    expect(up?.filters).toContainEqual(["eq", "status", "uploading"]);
+  });
+
+  it("nowa rezerwacja nie nadpisuje created_at", async () => {
+    db.rpc.mockResolvedValue({ data: [{ photo_id: PHOTO, result: "ok" }], error: null });
+    await gallery.startPhotoUpload(EVENT, organizerActor, meta);
+    expect(uploadUpdate()?.payload).not.toHaveProperty("created_at");
+  });
+
+  it("rezerwacja zniknęła przed wydaniem adresu → błąd, bez podpisanego adresu", async () => {
+    db.rpc.mockResolvedValue({ data: [{ photo_id: PHOTO, result: "ok" }], error: null });
+    db.tables.event_photos = (q) => (q.op === "update" ? { data: [] } : {});
+    const res = await gallery.startPhotoUpload(EVENT, organizerActor, meta);
+    expect(res.ok).toBe(false);
+    expect(db.storage.createSignedUploadUrl).not.toHaveBeenCalled();
+  });
+
+  it("sprzątanie usuwa tylko wiersze wciąż w toku i nadal przeterminowane", async () => {
+    db.tables.event_photos = (q) =>
+      q.op === "select" && q.filters.some((f) => f[0] === "lt") ? { data: [{ id: "stale-1", original_path: null }] } : {};
+    await gallery.sweepStaleUploads();
+    const del = db.queries.find((q) => q.table === "event_photos" && q.op === "delete");
+    expect(del?.filters).toContainEqual(["eq", "status", "uploading"]);
+    expect(del?.filters.some((f) => f[0] === "lt" && f[1] === "created_at")).toBe(true);
+  });
+
+  it("finalizacja wiersza usuniętego w trakcie → błąd i sprzątnięte pliki", async () => {
+    const original = `${EVENT}/${PHOTO}/original.jpg`;
+    db.tables.event_photos = (q) =>
+      q.op === "select"
+        ? {
+            data: {
+              id: PHOTO,
+              event_id: EVENT,
+              status: "uploading",
+              original_path: original,
+              content_hash: createHash("sha256").update(Buffer.from("plik")).digest("hex"),
+              upload_link_id: null,
+              uploaded_by: "user-1",
+            },
+          }
+        : { data: [] };
+    db.storage.download.mockResolvedValue({ data: new Blob([Buffer.from("plik")]), error: null });
+    db.storage.upload.mockResolvedValue({ data: {}, error: null });
+    processPhoto.mockResolvedValue({ display: Buffer.from("d"), thumb: Buffer.from("t"), width: 10, height: 10, watermarked: false });
+
+    const res = await gallery.finalizePhotoUpload(event, PHOTO, organizerActor);
+    expect(res.ok).toBe(false);
+    expect(uploadUpdate()?.filters).toContainEqual(["eq", "status", "uploading"]);
+    expect(db.storage.remove).toHaveBeenLastCalledWith([`${EVENT}/${PHOTO}/display.jpg`, `${EVENT}/${PHOTO}/thumb.jpg`, original]);
   });
 });
 

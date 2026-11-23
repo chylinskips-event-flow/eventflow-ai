@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import sharp from "sharp";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOwnEvent } from "@/lib/events";
-import { validateImageFile, MB } from "@/lib/upload-validation";
+import { validateImageFile, ORGANIZER_IMAGE_MAX_BYTES } from "@/lib/upload-validation";
 import type { CheckInResult } from "@/lib/reception";
 import { featureGate } from "@/lib/entitlements";
 import { changeRewardStock } from "@/lib/reward-stock";
@@ -141,7 +141,7 @@ export async function uploadRewardImage(
   if (!file || file.size === 0)
     return { status: "error", message: "Nie wybrano pliku." };
 
-  const validationError = validateImageFile(file, 5 * MB);
+  const validationError = validateImageFile(file, ORGANIZER_IMAGE_MAX_BYTES);
   if (validationError) return { status: "error", message: validationError };
 
   // Resize + konwersja do WebP przed uploadem

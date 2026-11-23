@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { uploadEventBadgeBg, type EventFormState } from "../actions";
-import { validateImageFile, MB } from "@/lib/upload-validation";
+import { validateImageFile, ORGANIZER_IMAGE_MAX_BYTES } from "@/lib/upload-validation";
 import { Button } from "@/components/ui/button";
 import { FileInput } from "@/components/ui/file-input";
 import { Label } from "@/components/ui/label";
@@ -26,7 +26,7 @@ export function BadgeBgUpload({
     const input = e.currentTarget.elements.namedItem("badge_bg") as HTMLInputElement | null;
     const file = input?.files?.[0];
     if (!file) return;
-    const error = validateImageFile(file, 5 * MB);
+    const error = validateImageFile(file, ORGANIZER_IMAGE_MAX_BYTES);
     if (error) {
       e.preventDefault();
       setClientError(error);
@@ -68,7 +68,7 @@ export function BadgeBgUpload({
           />
           <p className="text-xs text-muted-foreground">
             Zalecany rozmiar: <strong>1240 × 1748 px</strong> (A6 przy 300 dpi,
-            proporcje 105:148). Mniejszy obraz zostanie powiększony. JPEG, PNG lub WebP, maks. 5 MB.
+            proporcje 105:148). Mniejszy obraz zostanie powiększony. JPEG, PNG lub WebP, maks. 4 MB.
           </p>
         </div>
         {clientError && (

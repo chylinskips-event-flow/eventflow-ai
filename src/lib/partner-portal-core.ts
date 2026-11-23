@@ -7,8 +7,14 @@ export const PARTNER_OFFER_MAX_LENGTH = 2000;
 export const PARTNER_URL_MAX_LENGTH = 500;
 export const REVIEW_NOTE_MAX_LENGTH = 1000;
 export const MATERIAL_TITLE_MAX_LENGTH = 200;
-/** Limit body server actions to 6 MB (next.config) — zostawiamy zapas na resztę formularza. */
-export const MATERIAL_MAX_BYTES = 5 * 1024 * 1024;
+/**
+ * Plik idzie w body Server Action, a funkcje Vercela przyjmują najwyżej ~4,5 MB żądania
+ * (niezależnie od bodySizeLimit w next.config). 4 MB zostawia zapas na resztę formularza
+ * i narzut multipart.
+ */
+export const MATERIAL_MAX_BYTES = 4 * 1024 * 1024;
+/** Logo wysyłane z panelu partnera — ten sam limit body co materiały. */
+export const PARTNER_LOGO_MAX_BYTES = 4 * 1024 * 1024;
 export const MAX_MATERIALS_PER_PARTNER = 20;
 export const INVITE_TTL_DAYS = 14;
 
@@ -207,7 +213,7 @@ export function validateMaterialFile(
   if (!MATERIAL_TYPES[file.type]) {
     return { ok: false, error: `Dozwolone formaty: ${Object.values(MATERIAL_TYPES).join(", ")}.` };
   }
-  if (file.size > MATERIAL_MAX_BYTES) return { ok: false, error: "Maksymalny rozmiar pliku: 5 MB." };
+  if (file.size > MATERIAL_MAX_BYTES) return { ok: false, error: "Plik jest za duży — maksymalny rozmiar to 4 MB." };
   return { ok: true };
 }
 

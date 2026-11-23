@@ -16,6 +16,7 @@ import {
   MAX_PHOTO_BYTES,
   RESERVE_MESSAGES,
   SIGNED_VIEW_TTL_S,
+  STALE_SWEEP_BATCH,
   STALE_UPLOAD_MS,
   budgetState,
   galleryBudgetMb,
@@ -113,23 +114,31 @@ export async function signedUrls(paths: string[], ttl: number): Promise<Map<stri
 
 export type GalleryUsage = { count: number; eventBytes: number; budget: BudgetState };
 
-/** Licznik eventu (zdjęcia / miejsce) + zajętość wszystkich galerii względem budżetu. */
+/**
+ * Licznik eventu (zdjęcia / miejsce) + zajętość wszystkich galerii względem budżetu.
+ * Agregacja w bazie (RPC gallery_usage) — bez limitu wierszy PostgREST. Pliki w drodze
+ * liczą się rozmiarem oryginału; porzucone rezerwacje (starsze niż STALE_UPLOAD_MS)
+ * nie zajmują budżetu. Błąd odczytu = budżet zablokowany (bezpieczniej niż przepuścić).
+ */
 export async function getGalleryUsage(eventId: string): Promise<GalleryUsage> {
-  const admin = createAdminClient();
-  const { data } = await admin.from("event_photos").select("event_id, status, size_bytes, original_bytes");
-  let count = 0;
-  let eventBytes = 0;
-  let totalBytes = 0;
-  for (const r of (data ?? []) as { event_id: string; status: string; size_bytes: number; original_bytes: number }[]) {
-    // Pliki w drodze liczymy rozmiarem oryginału (zajmują miejsce do przetworzenia).
-    const bytes = r.status === "uploading" ? Number(r.original_bytes) : r.status === "ready" ? Number(r.size_bytes) : 0;
-    totalBytes += bytes;
-    if (r.event_id === eventId && r.status !== "failed") {
-      count += 1;
-      eventBytes += bytes;
-    }
+  const budgetMb = galleryBudgetMb(process.env.GALLERY_STORAGE_BUDGET_MB);
+  const { data, error } = await createAdminClient().rpc("gallery_usage", {
+    p_event_id: eventId,
+    p_stale_before: new Date(Date.now() - STALE_UPLOAD_MS).toISOString(),
+  });
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { event_count: number | string; event_bytes: number | string; total_bytes: number | string }
+    | null
+    | undefined;
+  if (error || !row) {
+    console.error("[gallery] usage read failed", error?.code ?? "no-row");
+    return { count: 0, eventBytes: 0, budget: { ...budgetState(0, budgetMb), blocked: true } };
   }
-  return { count, eventBytes, budget: budgetState(totalBytes, galleryBudgetMb(process.env.GALLERY_STORAGE_BUDGET_MB)) };
+  return {
+    count: Number(row.event_count),
+    eventBytes: Number(row.event_bytes),
+    budget: budgetState(Number(row.total_bytes), budgetMb),
+  };
 }
 
 export async function listUploadLinks(eventId: string): Promise<(UploadLink & { photo_count: number })[]> {
@@ -186,21 +195,31 @@ export type StartUploadResult =
   | { ok: true; photoId: string; signedUrl: string; contentType: string }
   | { ok: false; error: string; skipped?: boolean };
 
-/** Sprząta porzucone rezerwacje eventu (wiersz + plik oryginału, jeśli dotarł). */
-export async function sweepStaleUploads(eventId: string): Promise<void> {
+/**
+ * Sprząta porzucone rezerwacje (wiersz + plik oryginału, jeśli dotarł) — we WSZYSTKICH
+ * wydarzeniach, bo budżet miejsca jest wspólny. Partiami, najstarsze najpierw.
+ */
+export async function sweepStaleUploads(): Promise<void> {
   const admin = createAdminClient();
   const cutoff = new Date(Date.now() - STALE_UPLOAD_MS).toISOString();
   const { data } = await admin
     .from("event_photos")
     .select("id, original_path")
-    .eq("event_id", eventId)
     .eq("status", "uploading")
-    .lt("created_at", cutoff);
+    .lt("created_at", cutoff)
+    .order("created_at", { ascending: true })
+    .limit(STALE_SWEEP_BATCH);
   const rows = (data ?? []) as { id: string; original_path: string | null }[];
   if (rows.length === 0) return;
   const paths = rows.map((r) => r.original_path).filter((p): p is string => !!p);
   if (paths.length) await admin.storage.from(GALLERY_BUCKET).remove(paths);
-  await admin.from("event_photos").delete().in("id", rows.map((r) => r.id));
+  // Tylko wiersze wciąż w toku i nadal przeterminowane — rezerwacja mogła zostać w międzyczasie wznowiona lub zakończona.
+  await admin
+    .from("event_photos")
+    .delete()
+    .in("id", rows.map((r) => r.id))
+    .eq("status", "uploading")
+    .lt("created_at", cutoff);
 }
 
 export async function startPhotoUpload(eventId: string, actor: UploadActor, input: PhotoMeta): Promise<StartUploadResult> {
@@ -228,7 +247,7 @@ export async function startPhotoUpload(eventId: string, actor: UploadActor, inpu
     if ((count ?? 0) >= LINK_RATE_MAX) return { ok: false, error: "Zbyt wiele zdjęć naraz. Odczekaj kilka minut i spróbuj ponownie." };
   }
 
-  await sweepStaleUploads(eventId);
+  await sweepStaleUploads();
 
   const usage = await getGalleryUsage(eventId);
   if (usage.budget.blocked) return { ok: false, error: BUDGET_BLOCKED_MESSAGE };
@@ -246,16 +265,30 @@ export async function startPhotoUpload(eventId: string, actor: UploadActor, inpu
   if (!row) return { ok: false, error: "Nie udało się przygotować wysyłki. Spróbuj ponownie." };
 
   let photoId = row.photo_id;
+  let resumed = false;
   if (row.result === "duplicate") {
     // Ponowienie przerwanego uploadu tego samego pliku przez tego samego wgrywającego.
     photoId = await findResumableUpload(eventId, meta.hash, actor);
     if (!photoId) return { ok: false, error: RESERVE_MESSAGES.duplicate, skipped: true };
+    resumed = true;
   } else if (row.result !== "ok" || !photoId) {
     return { ok: false, error: RESERVE_MESSAGES[row.result as Exclude<ReserveResult, "ok">] ?? "Nie udało się przygotować wysyłki." };
   }
 
   const path = photoPaths(eventId, photoId, file.ext).original;
-  await admin.from("event_photos").update({ original_path: path, original_bytes: meta.size }).eq("id", photoId);
+  // Wznowienie odświeża created_at, żeby sprzątanie porzuconych rezerwacji nie usunęło
+  // wiersza w trakcie ponownej wysyłki.
+  const patch: Record<string, unknown> = { original_path: path, original_bytes: meta.size };
+  if (resumed) patch.created_at = new Date().toISOString();
+  const { data: reserved } = await admin
+    .from("event_photos")
+    .update(patch)
+    .eq("id", photoId)
+    .eq("status", "uploading")
+    .select("id");
+  if (!Array.isArray(reserved) || reserved.length === 0) {
+    return { ok: false, error: "Nie udało się przygotować wysyłki. Spróbuj ponownie." };
+  }
 
   const { data: signed, error: signError } = await admin.storage.from(GALLERY_BUCKET).createSignedUploadUrl(path, { upsert: true });
   if (signError || !signed) return { ok: false, error: "Nie udało się przygotować wysyłki. Spróbuj ponownie." };
@@ -358,7 +391,7 @@ export async function finalizePhotoUpload(event: GalleryEvent, photoId: string, 
     return { ok: false, error: "Nie udało się zapisać zdjęcia. Spróbuj ponownie." };
   }
 
-  const { error: upError } = await admin
+  const { data: updated, error: upError } = await admin
     .from("event_photos")
     .update({
       status: "ready",
@@ -371,8 +404,14 @@ export async function finalizePhotoUpload(event: GalleryEvent, photoId: string, 
       original_path: null,
       processed_at: new Date().toISOString(),
     })
-    .eq("id", row.id);
-  if (upError) return { ok: false, error: "Nie udało się zapisać zdjęcia. Spróbuj ponownie." };
+    .eq("id", row.id)
+    .eq("status", "uploading")
+    .select("id");
+  if (upError || !Array.isArray(updated) || updated.length === 0) {
+    // Rezerwacja zniknęła (np. sprzątnięta jako porzucona) — nie zostawiamy plików bez wiersza.
+    await bucket.remove([paths.display, paths.thumb, row.original_path]);
+    return { ok: false, error: "Nie udało się zapisać zdjęcia. Spróbuj ponownie." };
+  }
 
   // Oryginału nie przechowujemy po przetworzeniu.
   await bucket.remove([row.original_path]);
