@@ -19,6 +19,7 @@ import {
   type PhotoMeta,
   type StartUploadResult,
 } from "@/lib/gallery";
+import { resolvePhotoReport } from "@/lib/gallery-participant";
 
 export type GalleryAdminState = { status: "idle" | "success" | "error"; message?: string };
 
@@ -88,6 +89,25 @@ export async function deleteGalleryPhotos(eventId: string, ids: string[]): Promi
   if (!(await deletePhotos(eventId, ids))) return { status: "error", message: "Nie udało się usunąć zdjęć." };
   revalidate(eventId);
   return { status: "success" };
+}
+
+// ── Zgłoszenia ─────────────────────────────────────────────────────────────
+
+/** „Zostaw” — zdjęcie wraca do galerii (o ile nie ma innych otwartych zgłoszeń); „Usuń” — zdjęcie i pliki usunięte. */
+export async function resolveGalleryReport(
+  eventId: string,
+  reportId: string,
+  decision: "keep" | "remove",
+): Promise<GalleryAdminState> {
+  const ctx = await organizerContext(eventId);
+  if ("error" in ctx) return { status: "error", message: ctx.error };
+  const res = await resolvePhotoReport(eventId, reportId, decision);
+  if (!res.ok) return { status: "error", message: res.error };
+  if (res.photoId && !(await deletePhotos(eventId, [res.photoId]))) {
+    return { status: "error", message: "Nie udało się usunąć zdjęcia." };
+  }
+  revalidate(eventId);
+  return { status: "success", message: decision === "keep" ? "Zdjęcie zostaje w galerii." : "Zdjęcie usunięte." };
 }
 
 // ── Linki fotografa ────────────────────────────────────────────────────────

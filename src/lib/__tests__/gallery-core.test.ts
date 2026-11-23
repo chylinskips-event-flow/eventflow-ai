@@ -3,11 +3,18 @@ import {
   DEFAULT_BUDGET_MB,
   MAX_PHOTO_BYTES,
   budgetState,
+  comparePhotosNewestFirst,
+  decodePhotoCursor,
+  encodePhotoCursor,
   galleryBudgetMb,
   isSha256Hex,
+  participantGalleryState,
+  photoDownloadName,
   photoPaths,
+  photoTimeKey,
   uploadLinkState,
   validatePhotoFile,
+  validateReportInput,
   validateUploadLinkInput,
   watermarkBox,
 } from "@/lib/gallery-core";
@@ -95,5 +102,63 @@ describe("drobne", () => {
   it("logo znaku wodnego ~12% szerokości, nie mniejsze niż 80 px", () => {
     expect(watermarkBox(2560, 1707).logoWidth).toBe(307);
     expect(watermarkBox(400, 300).logoWidth).toBe(80);
+  });
+});
+
+describe("widok uczestnika i zgłoszenia", () => {
+  const base = {
+    eventId: "A",
+    attendeeEventId: "A",
+    checkedInAt: "2026-10-20T10:00:00Z",
+    enabled: true,
+    publishedAt: "2026-10-21T00:00:00Z",
+    featureOn: true,
+  };
+
+  it("stan galerii: inny event / wyłączona / bez check-inu / nieopublikowana / otwarta", () => {
+    expect(participantGalleryState(base)).toBe("open");
+    expect(participantGalleryState({ ...base, attendeeEventId: "B" })).toBe("unavailable");
+    expect(participantGalleryState({ ...base, enabled: false })).toBe("unavailable");
+    expect(participantGalleryState({ ...base, featureOn: false })).toBe("unavailable");
+    expect(participantGalleryState({ ...base, checkedInAt: null })).toBe("not_checked_in");
+    expect(participantGalleryState({ ...base, checkedInAt: null, publishedAt: null })).toBe("not_checked_in");
+    expect(participantGalleryState({ ...base, publishedAt: null })).toBe("coming_soon");
+  });
+
+  it("walidacja zgłoszenia", () => {
+    expect(validateReportInput("remove_me", "")).toEqual({ ok: true, value: { kind: "remove_me", message: null } });
+    expect(validateReportInput("other", " powód ")).toEqual({ ok: true, value: { kind: "other", message: "powód" } });
+    expect(validateReportInput("other", "")).toMatchObject({ ok: false });
+    expect(validateReportInput("x", "a")).toMatchObject({ ok: false });
+    expect(validateReportInput("remove_me", "a".repeat(501))).toMatchObject({ ok: false });
+  });
+
+  it("klucz czasu: mikrosekundy z Postgresa, brak daty → 0", () => {
+    const base = Date.parse("2026-11-20T10:00:00Z") * 1000;
+    expect(photoTimeKey("2026-11-20T10:00:00+00:00")).toBe(base);
+    expect(photoTimeKey("2026-11-20T10:00:00.1+00:00")).toBe(base + 100_000);
+    expect(photoTimeKey("2026-11-20T10:00:00.123456+00:00")).toBe(base + 123_456);
+    expect(photoTimeKey("2026-11-20T10:00:00.123457+00:00")).toBeGreaterThan(photoTimeKey("2026-11-20T10:00:00.123456+00:00"));
+    expect(photoTimeKey(null)).toBe(0);
+    expect(photoTimeKey("nie-data")).toBe(0);
+  });
+
+  it("kursor „Pokaż więcej”: zapis, odczyt, odrzucenie złych wartości, kolejność", () => {
+    const id = "44444444-4444-4444-8444-444444444444";
+    const c = { t: 1795000000000123, id };
+    expect(decodePhotoCursor(encodePhotoCursor(c))).toEqual(c);
+    expect(decodePhotoCursor(`12_${id.toUpperCase()}`)).toEqual({ t: 12, id });
+    for (const bad of [null, undefined, "", "12", "abc_" + id, "12_nie-uuid", "-1_" + id, "1".repeat(18) + "_" + id, 12]) {
+      expect(decodePhotoCursor(bad)).toBeNull();
+    }
+    const a = { t: 2, id: "b" };
+    const b = { t: 1, id: "c" };
+    const c2 = { t: 1, id: "a" };
+    expect([c2, a, b].sort(comparePhotosNewestFirst)).toEqual([a, b, c2]);
+  });
+
+  it("nazwa pobieranego pliku", () => {
+    expect(photoDownloadName("next-stop-lodz", "44444444-4444-4444-8444-444444444444")).toBe("next-stop-lodz-zdjecie-44444444.jpg");
+    expect(photoDownloadName("", "abc")).toBe("wydarzenie-zdjecie-abc.jpg");
   });
 });
