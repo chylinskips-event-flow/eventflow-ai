@@ -13,8 +13,13 @@ export const DISPLAY_QUALITY = 82;
 export const THUMB_MAX_PX = 600;
 export const THUMB_QUALITY = 72;
 
-/** Porzucone rezerwacje („uploading”) sprzątamy po 2 h. */
-export const STALE_UPLOAD_MS = 2 * 60 * 60 * 1000;
+/**
+ * Rezerwacja („uploading”) starsza niż 1 h jest porzucona: nie liczy się do budżetu
+ * i jest sprzątana (wiersz + plik). Wysyłka jednego pliku ≤ 15 MB trwa minuty.
+ */
+export const STALE_UPLOAD_MS = 60 * 60 * 1000;
+/** Ile porzuconych rezerwacji sprzątamy w jednym przebiegu (wszystkie wydarzenia). */
+export const STALE_SWEEP_BATCH = 200;
 /** Limit zapytań na link fotografa: rezerwacje w oknie czasowym. */
 export const LINK_RATE_WINDOW_MS = 10 * 60 * 1000;
 export const LINK_RATE_MAX = 120;

@@ -16,6 +16,7 @@ import {
   MAX_PHOTO_BYTES,
   RESERVE_MESSAGES,
   SIGNED_VIEW_TTL_S,
+  STALE_SWEEP_BATCH,
   STALE_UPLOAD_MS,
   budgetState,
   galleryBudgetMb,
@@ -113,23 +114,31 @@ export async function signedUrls(paths: string[], ttl: number): Promise<Map<stri
 
 export type GalleryUsage = { count: number; eventBytes: number; budget: BudgetState };
 
-/** Licznik eventu (zdjęcia / miejsce) + zajętość wszystkich galerii względem budżetu. */
+/**
+ * Licznik eventu (zdjęcia / miejsce) + zajętość wszystkich galerii względem budżetu.
+ * Agregacja w bazie (RPC gallery_usage) — bez limitu wierszy PostgREST. Pliki w drodze
+ * liczą się rozmiarem oryginału; porzucone rezerwacje (starsze niż STALE_UPLOAD_MS)
+ * nie zajmują budżetu. Błąd odczytu = budżet zablokowany (bezpieczniej niż przepuścić).
+ */
 export async function getGalleryUsage(eventId: string): Promise<GalleryUsage> {
-  const admin = createAdminClient();
-  const { data } = await admin.from("event_photos").select("event_id, status, size_bytes, original_bytes");
-  let count = 0;
-  let eventBytes = 0;
-  let totalBytes = 0;
-  for (const r of (data ?? []) as { event_id: string; status: string; size_bytes: number; original_bytes: number }[]) {
-    // Pliki w drodze liczymy rozmiarem oryginału (zajmują miejsce do przetworzenia).
-    const bytes = r.status === "uploading" ? Number(r.original_bytes) : r.status === "ready" ? Number(r.size_bytes) : 0;
-    totalBytes += bytes;
-    if (r.event_id === eventId && r.status !== "failed") {
-      count += 1;
-      eventBytes += bytes;
-    }
+  const budgetMb = galleryBudgetMb(process.env.GALLERY_STORAGE_BUDGET_MB);
+  const { data, error } = await createAdminClient().rpc("gallery_usage", {
+    p_event_id: eventId,
+    p_stale_before: new Date(Date.now() - STALE_UPLOAD_MS).toISOString(),
+  });
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { event_count: number | string; event_bytes: number | string; total_bytes: number | string }
+    | null
+    | undefined;
+  if (error || !row) {
+    console.error("[gallery] usage read failed", error?.code ?? "no-row");
+    return { count: 0, eventBytes: 0, budget: { ...budgetState(0, budgetMb), blocked: true } };
   }
-  return { count, eventBytes, budget: budgetState(totalBytes, galleryBudgetMb(process.env.GALLERY_STORAGE_BUDGET_MB)) };
+  return {
+    count: Number(row.event_count),
+    eventBytes: Number(row.event_bytes),
+    budget: budgetState(Number(row.total_bytes), budgetMb),
+  };
 }
 
 export async function listUploadLinks(eventId: string): Promise<(UploadLink & { photo_count: number })[]> {
@@ -186,16 +195,20 @@ export type StartUploadResult =
   | { ok: true; photoId: string; signedUrl: string; contentType: string }
   | { ok: false; error: string; skipped?: boolean };
 
-/** Sprząta porzucone rezerwacje eventu (wiersz + plik oryginału, jeśli dotarł). */
-export async function sweepStaleUploads(eventId: string): Promise<void> {
+/**
+ * Sprząta porzucone rezerwacje (wiersz + plik oryginału, jeśli dotarł) — we WSZYSTKICH
+ * wydarzeniach, bo budżet miejsca jest wspólny. Partiami, najstarsze najpierw.
+ */
+export async function sweepStaleUploads(): Promise<void> {
   const admin = createAdminClient();
   const cutoff = new Date(Date.now() - STALE_UPLOAD_MS).toISOString();
   const { data } = await admin
     .from("event_photos")
     .select("id, original_path")
-    .eq("event_id", eventId)
     .eq("status", "uploading")
-    .lt("created_at", cutoff);
+    .lt("created_at", cutoff)
+    .order("created_at", { ascending: true })
+    .limit(STALE_SWEEP_BATCH);
   const rows = (data ?? []) as { id: string; original_path: string | null }[];
   if (rows.length === 0) return;
   const paths = rows.map((r) => r.original_path).filter((p): p is string => !!p);
@@ -228,7 +241,7 @@ export async function startPhotoUpload(eventId: string, actor: UploadActor, inpu
     if ((count ?? 0) >= LINK_RATE_MAX) return { ok: false, error: "Zbyt wiele zdjęć naraz. Odczekaj kilka minut i spróbuj ponownie." };
   }
 
-  await sweepStaleUploads(eventId);
+  await sweepStaleUploads();
 
   const usage = await getGalleryUsage(eventId);
   if (usage.budget.blocked) return { ok: false, error: BUDGET_BLOCKED_MESSAGE };
