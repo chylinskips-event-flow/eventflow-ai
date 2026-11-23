@@ -28,6 +28,11 @@ export async function getOwnOrganization(): Promise<Organization | null> {
     .from("organizations")
     .select("*")
     .eq("owner_user_id", user.id)
+    // Konto ma jedną organizację; gdyby istniały dwie (np. dawny podwójny zapis), wybieramy
+    // deterministycznie najstarszą zamiast błędu maybeSingle() i odcięcia od panelu.
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(1)
     .maybeSingle();
 
   return data;
