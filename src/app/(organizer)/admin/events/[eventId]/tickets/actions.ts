@@ -5,6 +5,24 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getOwnEvent } from "@/lib/events";
 import { getTicketTypes } from "@/lib/tickets";
 import { featureGate } from "@/lib/entitlements";
+import { parseOptionalDateTimeLocal } from "@/lib/format";
+
+/**
+ * Okno dat z pól datetime-local: godziny wpisane w strefie wydarzenia (domyślnie Europe/Warsaw),
+ * zapisywane jako UTC. Zwraca komunikat błędu albo parę ISO / null.
+ */
+function parseDateWindow(
+  startRaw: FormDataEntryValue | null,
+  endRaw: FormDataEntryValue | null,
+  timeZone: string | null,
+): { start: string | null; end: string | null } | string {
+  const start = parseOptionalDateTimeLocal(startRaw, timeZone);
+  const end = parseOptionalDateTimeLocal(endRaw, timeZone);
+  if (start === undefined || end === undefined) return "Nieprawidłowa data.";
+  if (start && end && Date.parse(end) <= Date.parse(start))
+    return "Data końca musi być późniejsza niż data początku.";
+  return { start, end };
+}
 
 // ---- Ticket types --------------------------------------------------------
 
@@ -25,11 +43,11 @@ export async function createTicketType(
   const description = formData.get("description");
   const pricePln = formData.get("price_pln");
   const quantityTotal = formData.get("quantity_total");
-  const salesStart = formData.get("sales_start");
-  const salesEnd = formData.get("sales_end");
+  const salesWindow = parseDateWindow(formData.get("sales_start"), formData.get("sales_end"), event.timezone);
 
   if (typeof name !== "string" || !name.trim())
     return { status: "error", message: "Nazwa jest wymagana." };
+  if (typeof salesWindow === "string") return { status: "error", message: salesWindow };
 
   const price = pricePln
     ? Math.round(parseFloat(String(pricePln).replace(",", ".")) * 100)
@@ -58,8 +76,8 @@ export async function createTicketType(
     description: typeof description === "string" && description.trim() ? description.trim() : null,
     price,
     quantity_total: quantityTotalVal,
-    sales_start: typeof salesStart === "string" && salesStart ? salesStart : null,
-    sales_end: typeof salesEnd === "string" && salesEnd ? salesEnd : null,
+    sales_start: salesWindow.start,
+    sales_end: salesWindow.end,
     position: maxPos + 1,
     enabled: true,
   });
@@ -83,12 +101,12 @@ export async function updateTicketType(
   const description = formData.get("description");
   const pricePln = formData.get("price_pln");
   const quantityTotal = formData.get("quantity_total");
-  const salesStart = formData.get("sales_start");
-  const salesEnd = formData.get("sales_end");
+  const salesWindow = parseDateWindow(formData.get("sales_start"), formData.get("sales_end"), event.timezone);
   const enabled = formData.get("enabled") === "on";
 
   if (typeof name !== "string" || !name.trim())
     return { status: "error", message: "Nazwa jest wymagana." };
+  if (typeof salesWindow === "string") return { status: "error", message: salesWindow };
 
   const price = pricePln
     ? Math.round(parseFloat(String(pricePln).replace(",", ".")) * 100)
@@ -115,8 +133,8 @@ export async function updateTicketType(
       description: typeof description === "string" && description.trim() ? description.trim() : null,
       price,
       quantity_total: quantityTotalVal,
-      sales_start: typeof salesStart === "string" && salesStart ? salesStart : null,
-      sales_end: typeof salesEnd === "string" && salesEnd ? salesEnd : null,
+      sales_start: salesWindow.start,
+      sales_end: salesWindow.end,
       enabled,
       updated_at: new Date().toISOString(),
     })
@@ -185,13 +203,13 @@ export async function createDiscountCode(
   const kind = formData.get("kind");
   const valueRaw = formData.get("value");
   const maxUses = formData.get("max_uses");
-  const validFrom = formData.get("valid_from");
-  const validUntil = formData.get("valid_until");
+  const validity = parseDateWindow(formData.get("valid_from"), formData.get("valid_until"), event.timezone);
 
   if (typeof code !== "string" || !code.trim())
     return { status: "error", message: "Kod jest wymagany." };
   if (kind !== "percent" && kind !== "amount")
     return { status: "error", message: "Wybierz typ rabatu." };
+  if (typeof validity === "string") return { status: "error", message: validity };
 
   const value = typeof valueRaw === "string" ? parseInt(valueRaw, 10) : NaN;
   if (isNaN(value) || value <= 0)
@@ -211,8 +229,8 @@ export async function createDiscountCode(
     kind,
     value,
     max_uses: maxUsesVal,
-    valid_from: typeof validFrom === "string" && validFrom ? validFrom : null,
-    valid_until: typeof validUntil === "string" && validUntil ? validUntil : null,
+    valid_from: validity.start,
+    valid_until: validity.end,
     enabled: true,
   });
 
