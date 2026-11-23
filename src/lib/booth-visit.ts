@@ -39,3 +39,17 @@ export function visitResultView(params: { hasQuest: boolean; pointsAwarded: numb
     showLevelUp: params.levelUp,
   };
 }
+
+/**
+ * Partner może mieć kilka aktywnych questów stoiskowych — każdy liczony osobno. Bieżący quest
+ * to pierwszy (w kolejności utworzenia) jeszcze niezaliczony; gdy wszystkie zaliczone — pierwszy
+ * (ekran „już odwiedzone”). Brak questów → null.
+ */
+export function pickBoothQuest<Q extends { id: string }>(
+  quests: Q[],
+  completedQuestIds: Iterable<string>,
+): Q | null {
+  if (quests.length === 0) return null;
+  const done = new Set(completedQuestIds);
+  return quests.find((q) => !done.has(q.id)) ?? quests[0];
+}

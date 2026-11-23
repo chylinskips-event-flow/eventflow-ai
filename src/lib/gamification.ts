@@ -144,11 +144,48 @@ async function isGamificationEnabled(eventId: string): Promise<boolean> {
   return !!(data as { gamification_enabled: boolean } | null)?.gamification_enabled;
 }
 
+type PendingQuest = { id: string; points_value: number | null; target_value: number | null };
+
+/**
+ * Aktywne questy danego typu, których uczestnik jeszcze nie zaliczył. Event może mieć kilka
+ * aktywnych questów tego samego typu — każdy oceniany jest niezależnie.
+ */
+async function pendingQuestsOfType(
+  attendeeId: string,
+  eventId: string,
+  type: "networking_contacts" | "profile_complete",
+): Promise<PendingQuest[]> {
+  const supabase = createAdminClient();
+
+  const { data: quests } = await supabase
+    .from("quests")
+    .select("id, points_value, target_value")
+    .eq("event_id", eventId)
+    .eq("type", type)
+    .eq("is_active", true)
+    .order("created_at", { ascending: true });
+
+  const rows = (quests ?? []) as PendingQuest[];
+  if (rows.length === 0) return [];
+
+  const { data: done } = await supabase
+    .from("quest_completions")
+    .select("quest_id")
+    .eq("attendee_id", attendeeId)
+    .in(
+      "quest_id",
+      rows.map((q) => q.id),
+    );
+
+  const doneIds = new Set(((done ?? []) as { quest_id: string }[]).map((c) => c.quest_id));
+  return rows.filter((q) => !doneIds.has(q.id));
+}
+
 /**
  * Hook networking_contacts: sprawdza OBU uczestników zaakceptowanej wymiany.
  * Wywołuj po każdym zapisie contact_request ze status='accepted'.
- * No-op gdy gamification_enabled=false lub brak aktywnego questa lub quest już zaliczony.
- * Błąd w completeQuest nie rzuca dalej — cichy log.
+ * No-op gdy gamification_enabled=false lub brak aktywnych niezaliczonych questów.
+ * Każdy aktywny quest networking_contacts (własny target_value) oceniany niezależnie.
  */
 export async function checkNetworkingQuestProgress(
   attendeeId: string,
@@ -156,29 +193,10 @@ export async function checkNetworkingQuestProgress(
 ): Promise<void> {
   if (!(await isGamificationEnabled(eventId))) return;
 
+  const pending = await pendingQuestsOfType(attendeeId, eventId, "networking_contacts");
+  if (pending.length === 0) return;
+
   const supabase = createAdminClient();
-
-  const { data: quest } = await supabase
-    .from("quests")
-    .select("id, points_value, target_value")
-    .eq("event_id", eventId)
-    .eq("type", "networking_contacts")
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (!quest) return;
-
-  // early-exit: quest już zaliczony (completeQuest i tak obsłuży UNIQUE, ale
-  // oszczędzamy zbędny COUNT)
-  const { data: existing } = await supabase
-    .from("quest_completions")
-    .select("id")
-    .eq("quest_id", quest.id as string)
-    .eq("attendee_id", attendeeId)
-    .maybeSingle();
-
-  if (existing) return;
-
   const { count } = await supabase
     .from("contact_requests")
     .select("id", { count: "exact", head: true })
@@ -186,14 +204,15 @@ export async function checkNetworkingQuestProgress(
     .eq("status", "accepted")
     .or(`requester_id.eq.${attendeeId},recipient_id.eq.${attendeeId}`);
 
-  const target = (quest.target_value as number | null) ?? 1;
-  if ((count ?? 0) >= target) {
+  for (const quest of pending) {
+    const target = quest.target_value ?? 1;
+    if ((count ?? 0) < target) continue;
     await completeQuest({
       attendeeId,
-      questId: quest.id as string,
+      questId: quest.id,
       partnerId: null,
       answeredCorrectly: null,
-      pointsAwarded: (quest.points_value as number) ?? 0,
+      pointsAwarded: quest.points_value ?? 0,
       leadConsent: false,
       consentTextVersion: null,
     });
@@ -203,7 +222,7 @@ export async function checkNetworkingQuestProgress(
 /**
  * Hook profile_complete: sprawdza kompletność profilu po jego zapisaniu.
  * Pola wymagane: company, job_title, industry, interests (niepusta), goal.
- * Avatar pominięty — opcjonalny.
+ * Avatar pominięty — opcjonalny. Każdy aktywny quest profile_complete zaliczany niezależnie.
  */
 export async function checkProfileQuestProgress(
   attendeeId: string,
@@ -211,27 +230,10 @@ export async function checkProfileQuestProgress(
 ): Promise<void> {
   if (!(await isGamificationEnabled(eventId))) return;
 
+  const pending = await pendingQuestsOfType(attendeeId, eventId, "profile_complete");
+  if (pending.length === 0) return;
+
   const supabase = createAdminClient();
-
-  const { data: quest } = await supabase
-    .from("quests")
-    .select("id, points_value")
-    .eq("event_id", eventId)
-    .eq("type", "profile_complete")
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (!quest) return;
-
-  const { data: existing } = await supabase
-    .from("quest_completions")
-    .select("id")
-    .eq("quest_id", quest.id as string)
-    .eq("attendee_id", attendeeId)
-    .maybeSingle();
-
-  if (existing) return;
-
   const { data: profile } = await supabase
     .from("attendees")
     .select("company, job_title, industry, interests, goal")
@@ -255,13 +257,15 @@ export async function checkProfileQuestProgress(
     Array.isArray(p.interests) && p.interests.length > 0 &&
     !!p.goal;
 
-  if (isComplete) {
+  if (!isComplete) return;
+
+  for (const quest of pending) {
     await completeQuest({
       attendeeId,
-      questId: quest.id as string,
+      questId: quest.id,
       partnerId: null,
       answeredCorrectly: null,
-      pointsAwarded: (quest.points_value as number) ?? 0,
+      pointsAwarded: quest.points_value ?? 0,
       leadConsent: false,
       consentTextVersion: null,
     });
