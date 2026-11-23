@@ -25,18 +25,33 @@ function revalidateMixer(eventId: string, mixerId: string) {
   revalidatePath(`/admin/events/${eventId}/mixer/${mixerId}`);
 }
 
-async function checkEditable(
+const MIXER_NOT_FOUND: MixerFormState = { status: "error", message: "Mixer nie znaleziony." };
+
+/**
+ * Status mixera, o ile należy on do wskazanego wydarzenia (null = brak / inne wydarzenie).
+ * Wołać po getOwnEvent(eventId) — razem dają pewność, że mixer należy do organizatora.
+ */
+async function getOwnedMixerStatus(
   mixerId: string,
   eventId: string,
   supabase: ReturnType<typeof createAdminClient>,
-): Promise<MixerFormState | null> {
+): Promise<string | null> {
   const { data } = await supabase
     .from("mixers")
     .select("status")
     .eq("id", mixerId)
     .eq("event_id", eventId)
     .maybeSingle();
-  const s = (data as { status: string } | null)?.status;
+  return (data as { status: string } | null)?.status ?? null;
+}
+
+async function checkEditable(
+  mixerId: string,
+  eventId: string,
+  supabase: ReturnType<typeof createAdminClient>,
+): Promise<MixerFormState | null> {
+  const s = await getOwnedMixerStatus(mixerId, eventId, supabase);
+  if (s === null) return MIXER_NOT_FOUND;
   if (s === "locked" || s === "running" || s === "finished") {
     return { status: "error", message: "Mixer jest zablokowany lub aktywny — odblokuj przed zmianami." };
   }
@@ -380,6 +395,8 @@ export async function updateIcebreaker(
   if (!trimmed) return { status: "error", message: "Pytanie nie może być puste." };
 
   const supabase = createAdminClient();
+  if ((await getOwnedMixerStatus(mixerId, eventId, supabase)) === null) return MIXER_NOT_FOUND;
+
   const { error } = await supabase
     .from("mixer_icebreakers")
     .update({ question: trimmed, is_custom: true })
@@ -403,6 +420,7 @@ export async function replaceIcebreaker(
   if (!event) return { status: "error", message: "Event nie znaleziony." };
 
   const supabase = createAdminClient();
+  if ((await getOwnedMixerStatus(mixerId, eventId, supabase)) === null) return MIXER_NOT_FOUND;
 
   // Pobierz zestaw już używanych pytań w tym mixerze
   const { data: existing } = await supabase
@@ -664,6 +682,12 @@ export async function nextRound(
 
   const supabase = createAdminClient();
 
+  const mixerStatus = await getOwnedMixerStatus(mixerId, eventId, supabase);
+  if (mixerStatus === null) return MIXER_NOT_FOUND;
+  if (mixerStatus !== "running") {
+    return { status: "error", message: "Mixer nie jest uruchomiony." };
+  }
+
   const { data: activeRaw } = await supabase
     .from("mixer_rounds")
     .select("id, round_number")
@@ -717,6 +741,12 @@ export async function resetLive(
   if (!event) return { status: "error", message: "Event nie znaleziony." };
 
   const supabase = createAdminClient();
+
+  const mixerStatus = await getOwnedMixerStatus(mixerId, eventId, supabase);
+  if (mixerStatus === null) return MIXER_NOT_FOUND;
+  if (mixerStatus !== "running" && mixerStatus !== "finished") {
+    return { status: "error", message: "Reset możliwy tylko dla uruchomionego lub zakończonego mixera." };
+  }
 
   await supabase
     .from("mixer_rounds")
