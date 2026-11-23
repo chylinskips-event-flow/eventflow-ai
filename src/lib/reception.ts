@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { BadgeLabelResult } from "@/lib/badge-label-core";
+import { isEventOpenForStaff } from "@/lib/staff-link";
 
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "eventro.pl";
 
@@ -18,16 +19,18 @@ export type CheckInResult =
 
 // ─── Odczyt przez reception_token (bez sesji organizatora) ───────────────────
 
+/** Wydarzenie z linku recepcji albo null: link wyłączony, wydarzenie usunięte lub zawieszone. */
 export async function getEventByReceptionToken(
   token: string,
 ): Promise<{ id: string; organization_id: string; slug: string; name: string } | null> {
   const db = createAdminClient();
   const { data } = await db
     .from("events")
-    .select("id, organization_id, slug, name")
+    .select("id, organization_id, slug, name, deleted_at")
     .eq("reception_token", token)
     .maybeSingle();
-  return data ?? null;
+  if (!data || !(await isEventOpenForStaff(data))) return null;
+  return { id: data.id, organization_id: data.organization_id, slug: data.slug, name: data.name };
 }
 
 // ─── Listy uczestników (tylko approved, tylko pola recepcji) ─────────────────

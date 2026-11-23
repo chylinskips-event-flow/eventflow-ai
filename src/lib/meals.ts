@@ -8,6 +8,7 @@ import {
   type MealSummary,
 } from "@/lib/meals-shared";
 import type { CheckInResult } from "@/lib/reception";
+import { isEventOpenForStaff } from "@/lib/staff-link";
 
 export type { MealActionResult } from "@/lib/meals-shared";
 
@@ -43,7 +44,10 @@ export async function getEventMeal(eventId: string, mealId: string): Promise<Mea
   return data ?? null;
 }
 
-/** Link obsługi: posiłek razem z wydarzeniem albo null, gdy link wyłączony lub nieznany. */
+/**
+ * Link obsługi: posiłek razem z wydarzeniem albo null, gdy link wyłączony lub nieznany
+ * albo wydarzenie usunięte lub zawieszone.
+ */
 export async function getMealByToken(
   token: string,
 ): Promise<{ meal: Meal; event: { id: string; slug: string; name: string } } | null> {
@@ -56,10 +60,11 @@ export async function getMealByToken(
   if (!meal) return null;
   const { data: event } = await db
     .from("events")
-    .select("id, slug, name")
+    .select("id, organization_id, slug, name, deleted_at")
     .eq("id", meal.event_id)
     .maybeSingle();
-  return event ? { meal, event } : null;
+  if (!event || !(await isEventOpenForStaff(event))) return null;
+  return { meal, event: { id: event.id, slug: event.slug, name: event.name } };
 }
 
 /** Zatwierdzeni uczestnicy z godziną wydania; tylko pola potrzebne obsłudze. */
