@@ -51,6 +51,15 @@ export async function submitBoothVisit(
     gamificationEnabled,
   });
 
+  // Formularz był wyrenderowany dla konkretnego questa (ukryte quest_id; pusty = bez questa).
+  // Jeśli bieżący quest się zmienił (np. inny niezaliczony quest partnera), nie oceniamy
+  // odpowiedzi i nie zużywamy prób innego questa — uczestnik odświeża stronę.
+  const renderedQuestId = ((formData.get("quest_id") as string | null) ?? "").trim();
+  const currentQuestId = (quest?.id as string | undefined) ?? "";
+  if (renderedQuestId !== currentQuestId) {
+    return { status: "error", message: "Stoisko zmieniło zadanie — odśwież stronę." };
+  }
+
   // Przy włączonej Fazie B (PARTNER_LEADS_ENABLED) lead powstaje WYŁĄCZNIE z osobnej zgody
   // w karcie „Pytania od {partner}” — stary checkbox jest ignorowany także po stronie serwera
   // (np. ręcznie dopisane pole w formularzu). Odwiedziny i punkty działają bez zmian.

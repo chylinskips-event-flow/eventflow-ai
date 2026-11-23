@@ -116,6 +116,8 @@ export function BoothClient({
       </Card>
 
       <form action={formAction} className="flex flex-col gap-4">
+        {/* Quest, dla którego wyrenderowano formularz — akcja odrzuca wysyłkę, gdy bieżący jest inny */}
+        <input type="hidden" name="quest_id" value={quest?.id ?? ""} />
         {/* Quest UI */}
         {quest && (
           <Card>

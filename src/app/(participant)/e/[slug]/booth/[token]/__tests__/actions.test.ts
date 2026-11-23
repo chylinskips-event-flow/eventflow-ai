@@ -50,9 +50,15 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 const { submitBoothVisit } = await import("../actions");
 const idle = { status: "idle" as const };
-const consentForm = () => {
+const consentForm = (questId?: string) => {
   const fd = new FormData();
   fd.set("lead_consent", "on");
+  if (questId) fd.set("quest_id", questId);
+  return fd;
+};
+const questForm = (questId: string) => {
+  const fd = new FormData();
+  fd.set("quest_id", questId);
   return fd;
 };
 const leadUpdates = () => ops.filter((o) => o.table === "checkins" && o.op === "update");
@@ -85,7 +91,7 @@ describe("submitBoothVisit — zgoda leadowa a flaga Fazy B", () => {
   it("flaga włączona, quest booth_visit: punkty naliczone, leadConsent=false", async () => {
     ctx.leadsV2 = true;
     ctx.quest = { id: "q1", type: "booth_visit", title: "Odwiedź", points_value: 10, config: null };
-    const res = await submitBoothVisit("expo", "tok", idle, consentForm());
+    const res = await submitBoothVisit("expo", "tok", idle, consentForm("q1"));
     expect(res).toMatchObject({ status: "success", pointsAwarded: 10 });
     expect(completeQuest).toHaveBeenCalledWith(expect.objectContaining({ leadConsent: false, consentTextVersion: null }));
   });
@@ -93,7 +99,7 @@ describe("submitBoothVisit — zgoda leadowa a flaga Fazy B", () => {
   it("flaga wyłączona, quest booth_visit: leadConsent=true (jak dotąd)", async () => {
     ctx.leadsV2 = false;
     ctx.quest = { id: "q1", type: "booth_visit", title: "Odwiedź", points_value: 10, config: null };
-    await submitBoothVisit("expo", "tok", idle, consentForm());
+    await submitBoothVisit("expo", "tok", idle, consentForm("q1"));
     expect(completeQuest).toHaveBeenCalledWith(expect.objectContaining({ leadConsent: true }));
   });
 });
@@ -128,7 +134,7 @@ describe("submitBoothVisit — kilka aktywnych questów jednego partnera", () =>
 
   it("dwa aktywne questy: zaliczany pierwszy niezaliczony (nie zwykły check-in bez punktów)", async () => {
     ctx.quests = [visitA, visitB];
-    await submitBoothVisit("expo", "tok", idle, new FormData());
+    await submitBoothVisit("expo", "tok", idle, questForm("qa"));
     expect(completeQuest).toHaveBeenCalledTimes(1);
     expect(completeQuest).toHaveBeenCalledWith(expect.objectContaining({ questId: "qa", pointsAwarded: 10 }));
   });
@@ -136,7 +142,61 @@ describe("submitBoothVisit — kilka aktywnych questów jednego partnera", () =>
   it("pierwszy już zaliczony → kolejna wizyta zalicza drugi quest niezależnie", async () => {
     ctx.quests = [visitA, visitB];
     ctx.completedIds = ["qa"];
-    await submitBoothVisit("expo", "tok", idle, new FormData());
+    await submitBoothVisit("expo", "tok", idle, questForm("qb"));
     expect(completeQuest).toHaveBeenCalledWith(expect.objectContaining({ questId: "qb", pointsAwarded: 15 }));
+  });
+});
+
+describe("submitBoothVisit — formularz wyrenderowany dla innego questa", () => {
+  const quizA = {
+    id: "qa",
+    type: "booth_quiz",
+    title: "Quiz A",
+    points_value: 10,
+    config: { question: "?", options: [{ id: "o1", label: "1" }], correct_id: "o1" },
+  };
+  const quizB = {
+    id: "qb",
+    type: "booth_quiz",
+    title: "Quiz B",
+    points_value: 20,
+    config: { question: "?", options: [{ id: "o1", label: "1" }], correct_id: "o1" },
+  };
+
+  it("bieżący quest inny niż w formularzu: błąd, bez oceny i bez zużycia prób", async () => {
+    ctx.quests = [quizA, quizB];
+    ctx.completedIds = ["qa"]; // bieżący to już qb, formularz był dla qa
+    const fd = questForm("qa");
+    fd.set("answer_id", "o1");
+    const res = await submitBoothVisit("expo", "tok", idle, fd);
+    expect(res).toEqual({ status: "error", message: "Stoisko zmieniło zadanie — odśwież stronę." });
+    expect(completeQuest).not.toHaveBeenCalled();
+    expect(ops.some((o) => o.table === "quiz_attempts")).toBe(false);
+    expect(ops.some((o) => o.table === "checkins")).toBe(false);
+  });
+
+  it("formularz bez questa, a teraz jest aktywny quest: błąd, nic nie zapisane", async () => {
+    ctx.quests = [quizB];
+    const res = await submitBoothVisit("expo", "tok", idle, new FormData());
+    expect(res.status).toBe("error");
+    expect(completeQuest).not.toHaveBeenCalled();
+    expect(ops).toHaveLength(0);
+  });
+
+  it("formularz z questem, który przestał być aktywny: błąd zamiast check-inu", async () => {
+    ctx.quests = [];
+    const res = await submitBoothVisit("expo", "tok", idle, questForm("qa"));
+    expect(res.status).toBe("error");
+    expect(ops).toHaveLength(0);
+  });
+
+  it("zgodny quest: odpowiedź oceniana i próba zapisana", async () => {
+    ctx.quests = [quizA, quizB];
+    const fd = questForm("qa");
+    fd.set("answer_id", "o1");
+    const res = await submitBoothVisit("expo", "tok", idle, fd);
+    expect(res).toMatchObject({ status: "success" });
+    expect(ops.some((o) => o.table === "quiz_attempts" && (o.payload as { quest_id: string }).quest_id === "qa")).toBe(true);
+    expect(completeQuest).toHaveBeenCalledWith(expect.objectContaining({ questId: "qa", answeredCorrectly: true, pointsAwarded: 10 }));
   });
 });
