@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { stripImageMetadata } from "@/lib/image-sanitize";
 import { getOwnEvent } from "@/lib/events";
 import { PARTNER_TIERS } from "@/lib/partner-options";
 
@@ -71,12 +72,15 @@ async function uploadPartnerLogoAndUpdateRecord(
     return "too_large";
   }
 
-  const extension = logo.name.split(".").pop() ?? "png";
-  const path = `${eventId}/${partnerId}-${Date.now()}.${extension}`;
+  // Publiczny bucket: zapisujemy kopię bez metadanych (EXIF/GPS).
+  const clean = await stripImageMetadata(logo);
+  if (!clean) return "invalid_type";
+
+  const path = `${eventId}/${partnerId}-${Date.now()}.${clean.ext}`;
 
   const { error: uploadError } = await supabase.storage
     .from("partner-logos")
-    .upload(path, logo, { contentType: logo.type, upsert: true });
+    .upload(path, clean.body, { contentType: clean.contentType, upsert: true });
 
   if (uploadError) {
     return "upload_error";

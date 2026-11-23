@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { stripImageMetadata } from "@/lib/image-sanitize";
 
 export type SpeakerFormState = {
   status: "idle" | "error" | "success";
@@ -58,12 +59,15 @@ async function uploadSpeakerPhotoAndUpdateRecord(
     return "too_large";
   }
 
-  const extension = photo.name.split(".").pop() ?? "jpg";
-  const path = `${eventId}/${speakerId}-${Date.now()}.${extension}`;
+  // Publiczny bucket: zapisujemy kopię bez metadanych (EXIF/GPS).
+  const clean = await stripImageMetadata(photo);
+  if (!clean) return "invalid_type";
+
+  const path = `${eventId}/${speakerId}-${Date.now()}.${clean.ext}`;
 
   const { error: uploadError } = await supabase.storage
     .from("speaker-photos")
-    .upload(path, photo, { contentType: photo.type, upsert: true });
+    .upload(path, clean.body, { contentType: clean.contentType, upsert: true });
 
   if (uploadError) {
     return "upload_error";

@@ -14,6 +14,7 @@ import {
   validateProfileInput,
 } from "@/lib/partner-portal-core";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/upload-validation";
+import { IMAGE_SANITIZE_ERROR, stripImageMetadata } from "@/lib/image-sanitize";
 
 // Akcje partnera. Autoryzacja przy KAŻDEJ akcji: getPartnerContext (zalogowany +
 // aktywny, nieunieważniony dostęp do TEGO partnera + event dostępny). partnerId z URL
@@ -54,11 +55,13 @@ export async function submitPartnerProfile(
       return { status: "error", message: "Logo: dozwolone formaty JPG, PNG, WebP." };
     }
     if (logo.size > PARTNER_LOGO_MAX_BYTES) return { status: "error", message: "Logo może mieć najwyżej 4 MB." };
-    const ext = logo.type === "image/png" ? "png" : logo.type === "image/webp" ? "webp" : "jpg";
-    const path = `${ctx.event.id}/draft-${partnerId}-${Date.now()}.${ext}`;
+    // Publiczny bucket: zapisujemy kopię bez metadanych (EXIF/GPS).
+    const clean = await stripImageMetadata(logo);
+    if (!clean) return { status: "error", message: IMAGE_SANITIZE_ERROR };
+    const path = `${ctx.event.id}/draft-${partnerId}-${Date.now()}.${clean.ext}`;
     const { error: uploadError } = await admin.storage
       .from("partner-logos")
-      .upload(path, logo, { contentType: logo.type });
+      .upload(path, clean.body, { contentType: clean.contentType });
     if (uploadError) return { status: "error", message: "Nie udało się wgrać logo." };
     logoUrl = admin.storage.from("partner-logos").getPublicUrl(path).data.publicUrl;
   } else if (formData.get("remove_logo") === "on") {

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { stripImageMetadata } from "@/lib/image-sanitize";
 
 export type ContentFormState = {
   status: "idle" | "error" | "success";
@@ -33,12 +34,15 @@ async function uploadEventContentImage(
     return { result: "too_large" };
   }
 
-  const extension = file.name.split(".").pop() ?? "jpg";
-  const path = `${eventId}/${filenamePrefix}-${Date.now()}.${extension}`;
+  // Publiczny bucket: zapisujemy kopię bez metadanych (EXIF/GPS).
+  const clean = await stripImageMetadata(file);
+  if (!clean) return { result: "invalid_type" };
+
+  const path = `${eventId}/${filenamePrefix}-${Date.now()}.${clean.ext}`;
 
   const { error: uploadError } = await supabase.storage
     .from("event-content")
-    .upload(path, file, { contentType: file.type, upsert: true });
+    .upload(path, clean.body, { contentType: clean.contentType, upsert: true });
 
   if (uploadError) {
     return { result: "upload_error" };
