@@ -6,13 +6,14 @@ import { getPartnerContext, getProfileDraft, publishedProfile } from "@/lib/part
 import {
   MATERIAL_TITLE_MAX_LENGTH,
   MAX_MATERIALS_PER_PARTNER,
+  PARTNER_LOGO_MAX_BYTES,
   changedProfileFields,
   normalizeEmail,
   safeFileName,
   validateMaterialFile,
   validateProfileInput,
 } from "@/lib/partner-portal-core";
-import { ALLOWED_IMAGE_TYPES, MB } from "@/lib/upload-validation";
+import { ALLOWED_IMAGE_TYPES } from "@/lib/upload-validation";
 
 // Akcje partnera. Autoryzacja przy KAŻDEJ akcji: getPartnerContext (zalogowany +
 // aktywny, nieunieważniony dostęp do TEGO partnera + event dostępny). partnerId z URL
@@ -52,7 +53,7 @@ export async function submitPartnerProfile(
     if (!ALLOWED_IMAGE_TYPES.includes(logo.type)) {
       return { status: "error", message: "Logo: dozwolone formaty JPG, PNG, WebP." };
     }
-    if (logo.size > 5 * MB) return { status: "error", message: "Logo może mieć najwyżej 5 MB." };
+    if (logo.size > PARTNER_LOGO_MAX_BYTES) return { status: "error", message: "Logo może mieć najwyżej 4 MB." };
     const ext = logo.type === "image/png" ? "png" : logo.type === "image/webp" ? "webp" : "jpg";
     const path = `${ctx.event.id}/draft-${partnerId}-${Date.now()}.${ext}`;
     const { error: uploadError } = await admin.storage
