@@ -44,3 +44,50 @@ describe("normalizeFromAddress", () => {
     expect(normalizeFromAddress("  'a@b.pl' ")).toBe("a@b.pl");
   });
 });
+
+describe("applyEmailRedirect (Preview)", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("bez zmiennej: odbiorca i temat bez zmian", async () => {
+    const { applyEmailRedirect } = await import("@/lib/email/config");
+    expect(applyEmailRedirect("ola@example.com", "Bilet", { redirect: "", vercelEnv: undefined })).toEqual({
+      to: "ola@example.com",
+      subject: "Bilet",
+    });
+  });
+
+  it("Preview bez zmiennej: wyjątek, nic nie wychodzi", async () => {
+    const { applyEmailRedirect, EmailConfigError: Err } = await import("@/lib/email/config");
+    expect(() => applyEmailRedirect("ola@example.com", "Bilet", { redirect: "", vercelEnv: "preview" })).toThrow(Err);
+  });
+
+  it("lokalnie (bez VERCEL_ENV) bez zmiennej: bez zmian", async () => {
+    const { applyEmailRedirect } = await import("@/lib/email/config");
+    expect(applyEmailRedirect("ola@example.com", "Bilet", { redirect: undefined, vercelEnv: undefined })).toEqual({ to: "ola@example.com", subject: "Bilet" });
+  });
+
+  it("Preview: mail na adres testowy, pierwotny odbiorca w temacie", async () => {
+    const { applyEmailRedirect } = await import("@/lib/email/config");
+    expect(applyEmailRedirect("ola@example.com", "Bilet", { redirect: " test@eventro.pl ", vercelEnv: "preview" })).toEqual({
+      to: "test@eventro.pl",
+      subject: "[Preview → ola@example.com] Bilet",
+    });
+  });
+
+  it("produkcja: zmienna ignorowana", async () => {
+    const { applyEmailRedirect } = await import("@/lib/email/config");
+    expect(applyEmailRedirect("ola@example.com", "Bilet", { redirect: "test@eventro.pl", vercelEnv: "production" })).toEqual({
+      to: "ola@example.com",
+      subject: "Bilet",
+    });
+  });
+
+  it("zły format adresu: wyjątek zamiast wysyłki", async () => {
+    const { applyEmailRedirect, EmailConfigError: Err } = await import("@/lib/email/config");
+    expect(() => applyEmailRedirect("ola@example.com", "Bilet", { redirect: "a@b.pl, c@d.pl", vercelEnv: "preview" })).toThrow(Err);
+  });
+});

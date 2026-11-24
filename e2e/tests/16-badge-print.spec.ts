@@ -289,7 +289,7 @@ async function expectLabelPreview(page: Page, body: string, p: Person) {
   expect(label!.name).toBe(fullName(p));
   expect(label!.company).toBe(p.company);
   expect(label!.eventName).toBe(EVENT_NAME);
-  expect(label!.qrUrl).toMatch(new RegExp(`^https://[^/]+/e/${fixture!.slug}/connect/${p.contact_code}$`));
+  expect(label!.qrUrl).toMatch(new RegExp(`^https?://[^/]+/e/${fixture!.slug}/connect/${p.contact_code}$`));
   const info = await readCanvas(page);
   expect(info.width).toBe(LABEL_W);
   expect(info.height).toBe(LABEL_H);

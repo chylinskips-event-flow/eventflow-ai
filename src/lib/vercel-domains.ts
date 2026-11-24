@@ -3,6 +3,15 @@
 
 const BASE = "https://api.vercel.com";
 
+/**
+ * Zarządzanie subdomenami w projekcie Vercel tylko poza Preview: Preview ma osobną bazę,
+ * więc jego wydarzenia nie mogą dodawać ani usuwać domen produkcyjnego projektu.
+ */
+export function vercelDomainsConfigured(env: Record<string, string | undefined> = process.env): boolean {
+  if (env.VERCEL_ENV === "preview" || env.VERCEL_ENV === "development") return false;
+  return Boolean(env.VERCEL_API_TOKEN && env.VERCEL_PROJECT_ID);
+}
+
 function headers() {
   return {
     Authorization: `Bearer ${process.env.VERCEL_API_TOKEN}`,
@@ -31,7 +40,7 @@ export type DomainStatus = { verified: boolean; name: string } | "missing" | nul
 
 /** Rejestruje domenę w projekcie Vercel. Idempotentna — domain_already_in_use → ok. */
 export async function addDomain(host: string): Promise<DomainResult> {
-  if (!process.env.VERCEL_API_TOKEN || !process.env.VERCEL_PROJECT_ID) {
+  if (!vercelDomainsConfigured()) {
     return { ok: false, error: "Vercel API not configured" };
   }
   try {
@@ -62,7 +71,7 @@ export async function addDomain(host: string): Promise<DomainResult> {
 
 /** Odpina domenę z projektu. Brak domeny (404) → ok. */
 export async function removeDomain(host: string): Promise<DomainResult> {
-  if (!process.env.VERCEL_API_TOKEN || !process.env.VERCEL_PROJECT_ID) {
+  if (!vercelDomainsConfigured()) {
     return { ok: false, error: "Vercel API not configured" };
   }
   try {
@@ -85,7 +94,7 @@ export async function removeDomain(host: string): Promise<DomainResult> {
 
 /** Pobiera status domeny. "missing" przy 404 (brak domeny w projekcie), null przy błędzie lub braku konfiguracji. */
 export async function getDomainStatus(host: string): Promise<DomainStatus> {
-  if (!process.env.VERCEL_API_TOKEN || !process.env.VERCEL_PROJECT_ID) {
+  if (!vercelDomainsConfigured()) {
     return null;
   }
   try {

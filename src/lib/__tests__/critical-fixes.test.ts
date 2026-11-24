@@ -14,6 +14,7 @@ vi.mock("@/lib/vercel-domains", () => ({
   addDomain: async (h: string) => (calls.vercel.push(`add ${h}`), { ok: true }),
   removeDomain: async (h: string) => void calls.vercel.push(`remove ${h}`),
   getDomainStatus: async () => null,
+  vercelDomainsConfigured: () => !!(process.env.VERCEL_API_TOKEN && process.env.VERCEL_PROJECT_ID),
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => {

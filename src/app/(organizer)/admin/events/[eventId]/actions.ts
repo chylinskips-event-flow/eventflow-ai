@@ -7,15 +7,14 @@ import { getOwnEvent, parseLines } from "@/lib/events";
 import { parseDateTimeLocal } from "@/lib/format";
 import { slugify, validateSlug } from "@/lib/slug";
 import { checkEventSlug, suggestEventSlug, takenSlugMessage } from "@/lib/event-slug";
-import { addDomain, removeDomain, getDomainStatus } from "@/lib/vercel-domains";
+import { addDomain, removeDomain, getDomainStatus, vercelDomainsConfigured } from "@/lib/vercel-domains";
 import { getPaidOrderCount } from "@/lib/orders";
 import { featureGate, hasFeature } from "@/lib/entitlements";
 import { IMAGE_SANITIZE_ERROR, stripImageMetadata } from "@/lib/image-sanitize";
 import { ORGANIZER_IMAGE_MAX_BYTES } from "@/lib/upload-validation";
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? "eventro.pl";
-const hasVercelConfig = () =>
-  !!(process.env.VERCEL_API_TOKEN && process.env.VERCEL_PROJECT_ID);
+const hasVercelConfig = () => vercelDomainsConfigured();
 
 export type EventFormState = {
   status: "idle" | "error" | "success";

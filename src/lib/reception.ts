@@ -1,8 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { BadgeLabelResult } from "@/lib/badge-label-core";
 import { isEventOpenForStaff } from "@/lib/staff-link";
+import { buildEventApexUrl } from "@/lib/event-url";
 
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "eventro.pl";
 
 export type ReceptionAttendee = {
   id: string;
@@ -57,6 +57,7 @@ export async function getReceptionList(
 export async function getBadgeLabel(
   event: { id: string; slug: string; name: string },
   attendeeId: string,
+  origin: string,
 ): Promise<BadgeLabelResult> {
   const { data } = await createAdminClient()
     .from("attendees")
@@ -71,7 +72,8 @@ export async function getBadgeLabel(
       name: [data.first_name, data.last_name].filter(Boolean).join(" ") || "Uczestnik",
       company: data.company,
       eventName: event.name,
-      qrUrl: `https://${ROOT_DOMAIN}/e/${event.slug}/connect/${data.contact_code}`,
+      // Adres z NEXT_PUBLIC_ROOT_DOMAIN albo z adresu żądania (Preview, lokalnie) — nie zawsze produkcja.
+      qrUrl: `${buildEventApexUrl(event.slug, origin)}/connect/${data.contact_code}`,
     },
   };
 }

@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { EMAIL_REPLY_TO, getFromAddress, getResendApiKey } from "@/lib/email/config";
+import { EMAIL_REPLY_TO, applyEmailRedirect, getFromAddress, getResendApiKey } from "@/lib/email/config";
 
 type Attachment = { filename: string; content: Buffer; contentId?: string };
 
@@ -14,11 +14,12 @@ export async function sendAppEmail(params: {
   attachments?: Attachment[];
 }) {
   const from = getFromAddress();
+  const { to, subject } = applyEmailRedirect(params.to, params.subject);
   const { error } = await new Resend(getResendApiKey()).emails.send({
     from,
     replyTo: EMAIL_REPLY_TO,
-    to: params.to,
-    subject: params.subject,
+    to,
+    subject,
     html: params.html,
     ...(params.attachments?.length ? { attachments: params.attachments } : {}),
   });

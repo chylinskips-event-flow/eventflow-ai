@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { getOrigin } from "@/lib/request-origin";
 import { featureGate } from "@/lib/entitlements";
 import type { BadgeLabelResult } from "@/lib/badge-label-core";
 import type { LinkInactiveResult, UndoCheckInResult } from "@/lib/reception-feedback";
@@ -25,7 +27,7 @@ export async function staffBadgeLabel(
   if (!event) return { ok: false, error: "Link recepcji jest nieaktywny." };
   const gate = await featureGate(event.organization_id, "badges");
   if (!gate.ok) return { ok: false, error: gate.message };
-  return getBadgeLabel(event, attendeeId);
+  return getBadgeLabel(event, attendeeId, getOrigin(await headers()));
 }
 
 export async function staffCheckInByQr(
