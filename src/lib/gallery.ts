@@ -199,32 +199,45 @@ export type StartUploadResult =
   | { ok: false; error: string; skipped?: boolean; rateLimited?: boolean; retryAfterMs?: number };
 
 /**
- * Sprząta porzucone rezerwacje (wiersz + plik oryginału, jeśli dotarł) — we WSZYSTKICH
- * wydarzeniach, bo budżet miejsca jest wspólny. Partiami, najstarsze najpierw. Tylko
- * rezerwacje starsze niż ważność podpisanego adresu wysyłki (STALE_SWEEP_MS) — po ich
- * usunięciu nikt nie wgra już pliku pod tę ścieżkę. Do budżetu porzucone rezerwacje
- * przestają się liczyć wcześniej (STALE_UPLOAD_MS).
+ * Sprząta porzucone i odrzucone wysyłki — we WSZYSTKICH wydarzeniach, bo budżet miejsca
+ * jest wspólny. Dwa etapy:
+ * 1. Rezerwacje w toku starsze niż STALE_UPLOAD_MS dostają status 'failed' — od razu
+ *    przestają zajmować limity linku i eventu oraz blokować ponowną wysyłkę tego samego
+ *    pliku (limity i unikalność hasha pomijają 'failed').
+ * 2. Wiersze 'failed' starsze niż ważność podpisanego adresu wysyłki (STALE_SWEEP_MS) są
+ *    usuwane razem z plikiem spod original_path (oryginał albo pusta zaślepka) — po tym
+ *    czasie nikt nie wgra już pliku pod tę ścieżkę. Partiami, najstarsze najpierw.
  */
 export async function sweepStaleUploads(): Promise<void> {
   const admin = createAdminClient();
+  // Tylko wiersze wciąż w toku — wznowienie odświeża created_at, zakończone mają inny status.
+  await admin
+    .from("event_photos")
+    .update({ status: "failed" })
+    .eq("status", "uploading")
+    .lt("created_at", new Date(Date.now() - STALE_UPLOAD_MS).toISOString());
+
   const cutoff = new Date(Date.now() - STALE_SWEEP_MS).toISOString();
   const { data } = await admin
     .from("event_photos")
     .select("id, original_path")
-    .eq("status", "uploading")
+    .eq("status", "failed")
     .lt("created_at", cutoff)
     .order("created_at", { ascending: true })
     .limit(STALE_SWEEP_BATCH);
   const rows = (data ?? []) as { id: string; original_path: string | null }[];
   if (rows.length === 0) return;
   const paths = rows.map((r) => r.original_path).filter((p): p is string => !!p);
-  if (paths.length) await admin.storage.from(GALLERY_BUCKET).remove(paths);
-  // Tylko wiersze wciąż w toku i nadal przeterminowane — rezerwacja mogła zostać w międzyczasie wznowiona lub zakończona.
+  if (paths.length) {
+    const { error } = await admin.storage.from(GALLERY_BUCKET).remove(paths);
+    // Wiersz zostaje, dopóki plików nie da się usunąć — inaczej zostałyby pliki bez śladu w bazie.
+    if (error) return;
+  }
   await admin
     .from("event_photos")
     .delete()
     .in("id", rows.map((r) => r.id))
-    .eq("status", "uploading")
+    .eq("status", "failed")
     .lt("created_at", cutoff);
 }
 
@@ -365,7 +378,8 @@ async function loadLogo(logoUrl: string | null): Promise<Buffer | null> {
  * Oryginał po przetworzeniu (albo odrzuceniu) zastępujemy pustym plikiem-zaślepką zamiast go
  * usuwać: podpisany adres wysyłki (upsert: false) jest ważny jeszcze do 2 h, a zajęta ścieżka
  * sprawia, że ponowna wysyłka pod nią jest odrzucana i nie powstaje plik, którego nic nie
- * śledzi. Zaślepkę usuwa deletePhotos razem z resztą plików zdjęcia (original_path).
+ * śledzi. Zaślepkę usuwa deletePhotos razem z resztą plików zdjęcia (original_path), a przy
+ * zdjęciu odrzuconym ('failed') — sweepStaleUploads po wygaśnięciu podpisanego adresu.
  * Gdy zaślepki nie da się zapisać — usuwamy oryginał jak dotąd.
  */
 async function retireOriginal(path: string): Promise<void> {
