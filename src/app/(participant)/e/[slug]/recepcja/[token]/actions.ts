@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { featureGate } from "@/lib/entitlements";
 import type { BadgeLabelResult } from "@/lib/badge-label-core";
+import type { LinkInactiveResult, UndoCheckInResult } from "@/lib/reception-feedback";
 import {
   getEventByReceptionToken,
   checkInByQr,
@@ -12,11 +13,9 @@ import {
   type CheckInResult,
 } from "@/lib/reception";
 
-async function resolveEvent(receptionToken: string) {
-  const event = await getEventByReceptionToken(receptionToken);
-  if (!event) throw new Error("Token nieaktywny");
-  return event;
-}
+// Link wyłączony w trakcie zmiany (lub wydarzenie usunięte / zawieszone): zwracamy wynik
+// zamiast rzucać — panel pokazuje „Link nieaktywny” zamiast błędu aplikacji.
+const LINK_INACTIVE: LinkInactiveResult = { ok: false, error: "link_inactive" };
 
 export async function staffBadgeLabel(
   receptionToken: string,
@@ -33,7 +32,8 @@ export async function staffCheckInByQr(
   receptionToken: string,
   checkInToken: string,
 ): Promise<CheckInResult> {
-  const event = await resolveEvent(receptionToken);
+  const event = await getEventByReceptionToken(receptionToken);
+  if (!event) return LINK_INACTIVE;
   const result = await checkInByQr(event.id, checkInToken, "staff");
   revalidatePath(`/e/${event.slug}/recepcja/${receptionToken}`);
   return result;
@@ -43,7 +43,8 @@ export async function staffCheckInById(
   receptionToken: string,
   attendeeId: string,
 ): Promise<CheckInResult> {
-  const event = await resolveEvent(receptionToken);
+  const event = await getEventByReceptionToken(receptionToken);
+  if (!event) return LINK_INACTIVE;
   const result = await checkInById(event.id, attendeeId, "staff");
   revalidatePath(`/e/${event.slug}/recepcja/${receptionToken}`);
   return result;
@@ -52,8 +53,10 @@ export async function staffCheckInById(
 export async function staffUndoCheckIn(
   receptionToken: string,
   attendeeId: string,
-): Promise<void> {
-  const event = await resolveEvent(receptionToken);
+): Promise<UndoCheckInResult> {
+  const event = await getEventByReceptionToken(receptionToken);
+  if (!event) return LINK_INACTIVE;
   await undoCheckIn(event.id, attendeeId);
   revalidatePath(`/e/${event.slug}/recepcja/${receptionToken}`);
+  return { ok: true };
 }
