@@ -2,7 +2,17 @@ import type { NextConfig } from "next";
 
 // Panel organizatora nie trafia do wyszukiwarek — nagłówek działa także dla przekierowań (np. /admin → /login),
 // niezależnie od meta robots ustawionych w layoutach.
-export const NOINDEX_PATHS = ["/admin", "/admin/:path*", "/g/:path*"];
+// Strony wydarzenia z tokenem/kodem w adresie (bilet, recepcja, posiłek, stoisko, kontakt, płatność)
+// też dostają noindex — pod /e/{slug}/… i na subdomenie wydarzenia ({slug}.domena/…), bo nagłówki
+// są dopasowywane do ścieżki żądania przed przepisaniem jej przez middleware.
+export const EVENT_PRIVATE_SEGMENTS = ["a", "recepcja", "posilek", "booth", "connect", "checkout"];
+
+export const NOINDEX_PATHS = [
+  "/admin",
+  "/admin/:path*",
+  "/g/:path*",
+  ...EVENT_PRIVATE_SEGMENTS.flatMap((s) => [`/e/:slug/${s}`, `/e/:slug/${s}/:path*`, `/${s}`, `/${s}/:path*`]),
+];
 
 // Nagłówki bezpieczeństwa dla wszystkich odpowiedzi.
 export const SECURITY_HEADERS = [

@@ -9,25 +9,11 @@ export function getSiteUrl(): string {
   return "https://eventro.pl";
 }
 
-// Ścieżki stron wydarzenia z tokenem/kodem albo prywatne — zarówno pod /e/{slug}/…, jak i na
-// subdomenie wydarzenia ({slug}.domena/…), która przepisuje na /e/{slug}/….
-const EVENT_PRIVATE_SEGMENTS = ["a/", "recepcja/", "posilek/", "booth/", "connect/", "checkout"];
-
-export const ROBOTS_DISALLOW: string[] = [
-  "/admin",
-  "/onboarding",
-  "/partner/",
-  "/partner$",
-  "/api/",
-  "/auth/",
-  "/g/",
-  "/qa/",
-  "/mod/",
-  "/p/",
-  "/suspended",
-  ...EVENT_PRIVATE_SEGMENTS.map((s) => `/e/*/${s}`),
-  ...EVENT_PRIVATE_SEGMENTS.map((s) => `/${s}`),
-];
+// Blokujemy tylko ścieżki bez treści do indeksowania. Stron z noindex (meta robots albo nagłówek
+// X-Robots-Tag: panel, portal partnera, linki z tokenem, strony wydarzenia z tokenem — NOINDEX_PATHS
+// w next.config.ts) celowo tu nie ma: robot, któremu zabroniono pobrania strony, nie zobaczy noindex
+// i może zaindeksować sam adres.
+export const ROBOTS_DISALLOW: string[] = ["/onboarding", "/api/", "/auth/"];
 
 /** Strony marketingowe w sitemapie (bez stron wydarzeń — te linkuje organizator). */
 export const SITEMAP_PATHS = ["/", "/privacy", "/terms"];

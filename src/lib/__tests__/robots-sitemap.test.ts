@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// robots.txt: prywatne ścieżki (panel, API, linki z tokenem) wyłączone z indeksowania, strona
-// wydarzenia dozwolona; sitemap: tylko strony marketingowe; subdomena wydarzenia serwuje robots.txt.
+// robots.txt: blokuje tylko ścieżki bez treści (API, auth, onboarding), strony z noindex zostają
+// dostępne dla robota; sitemap: tylko strony marketingowe; subdomena wydarzenia serwuje robots.txt.
 
 vi.mock("@/lib/supabase/middleware", () => ({
   isEventSuspended: async () => false,
@@ -37,19 +37,23 @@ describe("robots.txt", () => {
     return [rules.disallow ?? []].flat();
   };
 
+  it.each(["/onboarding", "/onboarding/krok", "/api/p24/webhook", "/auth/callback"])("blokuje %s", (path) => {
+    expect(blocked(path, disallowOf())).toBe(true);
+  });
+
+  // Strony z noindex (meta robots / X-Robots-Tag) muszą być dostępne dla robota — inaczej nie zobaczy
+  // noindex, a sam adres może trafić do indeksu.
   it.each([
     "/admin",
     "/admin/events/1",
-    "/onboarding",
     "/partner",
     "/partner/abc",
     "/partner/invite/tok",
-    "/api/p24/webhook",
-    "/auth/callback",
     "/g/tok",
     "/qa/tok",
     "/mod/tok",
     "/p/tok",
+    "/suspended",
     "/e/konf/a/tok",
     "/e/konf/recepcja/tok",
     "/e/konf/posilek/tok",
@@ -59,8 +63,8 @@ describe("robots.txt", () => {
     "/a/tok",
     "/recepcja/tok",
     "/posilek/tok",
-  ])("blokuje %s", (path) => {
-    expect(blocked(path, disallowOf())).toBe(true);
+  ])("nie blokuje strony z noindex %s", (path) => {
+    expect(blocked(path, disallowOf())).toBe(false);
   });
 
   it.each(["/", "/privacy", "/terms", "/e/konf", "/e/konf/agenda", "/e/konf/register", "/partners", "/agenda"])(
