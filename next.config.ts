@@ -4,6 +4,22 @@ import type { NextConfig } from "next";
 // niezależnie od meta robots ustawionych w layoutach.
 export const NOINDEX_PATHS = ["/admin", "/admin/:path*", "/g/:path*"];
 
+// Nagłówki bezpieczeństwa dla wszystkich odpowiedzi.
+export const SECURITY_HEADERS = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+];
+
+// Ochrona przed osadzaniem w ramce z obcej domeny (clickjacking). Bez restrykcyjnego CSP dla
+// skryptów — tylko frame-ancestors. Wyłączone ekrany rzutnika (/qa/{token} — pytania z sali,
+// /p/{token} — plan Mixera): są tylko do odczytu i bywają osadzane w narzędziach do transmisji
+// i prezentacji.
+export const FRAME_PROTECTED_SOURCE = "/((?!qa/|p/).*)";
+export const FRAME_HEADERS = [
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+];
+
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@react-pdf/renderer", "heic-decode", "libheif-js"],
   experimental: {
@@ -12,10 +28,14 @@ const nextConfig: NextConfig = {
     },
   },
   async headers() {
-    return NOINDEX_PATHS.map((source) => ({
-      source,
-      headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
-    }));
+    return [
+      { source: "/(.*)", headers: SECURITY_HEADERS },
+      { source: FRAME_PROTECTED_SOURCE, headers: FRAME_HEADERS },
+      ...NOINDEX_PATHS.map((source) => ({
+        source,
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      })),
+    ];
   },
 };
 
