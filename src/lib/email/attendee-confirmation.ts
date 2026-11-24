@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 import type { Event } from "@/lib/events";
-import { getTemplate, applyVariables } from "@/lib/message-templates";
+import { getTemplate, applyVariables, applySubjectVariables } from "@/lib/message-templates";
 import { sendAppEmail } from "@/lib/email/send";
 import { buildEventApexUrl } from "@/lib/event-url";
 import { QR_CONTENT_ID } from "@/lib/email/attendee-layout";
@@ -37,7 +37,7 @@ export async function sendAttendeeConfirmationEmail(params: {
 
   const template = await getTemplate(event.id, templateType);
   const vars = { imię: firstName, nazwa_eventu: event.name, "link_dostępu": accessUrl };
-  const subject = applyVariables(template.subject ?? "", vars);
+  const subject = applySubjectVariables(template.subject ?? "", vars);
   const html = applyVariables(template.body, vars);
 
   await sendAppEmail({
@@ -57,7 +57,7 @@ export async function sendAttendeePendingApprovalEmail(params: {
 
   const template = await getTemplate(event.id, "registration_pending");
   const vars = { imię: firstName, nazwa_eventu: event.name, "link_dostępu": "" };
-  const subject = applyVariables(template.subject ?? "", vars);
+  const subject = applySubjectVariables(template.subject ?? "", vars);
   const html = applyVariables(template.body, vars);
 
   await sendAppEmail({
@@ -76,7 +76,7 @@ export async function sendAttendeeRejectedEmail(params: {
 
   const template = await getTemplate(event.id, "registration_rejected");
   const vars = { imię: firstName, nazwa_eventu: event.name, "link_dostępu": "" };
-  const subject = applyVariables(template.subject ?? "", vars);
+  const subject = applySubjectVariables(template.subject ?? "", vars);
   const html = applyVariables(template.body, vars);
 
   await sendAppEmail({
