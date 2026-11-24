@@ -71,3 +71,18 @@ export function isWithinWindow(
   if (end && Date.parse(end) < now.getTime()) return "after";
   return "open";
 }
+
+/**
+ * Czy zamówienie nadal trzyma swoje miejsca: oczekujące i młodsze niż PENDING_ORDER_TTL_MINUTES
+ * (jak v_holds / v_expired w confirm_paid_order). Takie zamówienie zostało już wliczone do limitu
+ * przy kasie, więc potwierdzenie płatności nie sprawdza limitu uczestników ponownie.
+ */
+export function orderReservationHeld(
+  order: { status: string; created_at: string | null },
+  now: number = Date.now(),
+): boolean {
+  if (order.status !== "pending" || !order.created_at) return false;
+  const created = Date.parse(order.created_at);
+  if (Number.isNaN(created)) return false;
+  return created >= now - PENDING_ORDER_TTL_MINUTES * 60 * 1000;
+}

@@ -9,6 +9,7 @@ const createAdminClient = vi.fn(() => ({
       select: () => builder,
       eq: () => builder,
       neq: () => builder,
+      gte: () => builder,
       order: () => Promise.resolve(result),
       maybeSingle: () => Promise.resolve(result),
       then: (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve),
@@ -98,6 +99,17 @@ describe("entitlements (BILLING_ENABLED=true)", () => {
     tables.attendees = { data: null, error: null, count: 75 } as never;
     const e = await load();
     expect(await e.isAttendeeLimitReached({ id: "ev", organization_id: "org" })).toBe(true);
+  });
+
+  it("limit uczestników w kasie: trwające płatności zajmują miejsca", async () => {
+    vi.stubEnv("BILLING_ENABLED", "true");
+    tables.plans = { data: plans, error: null };
+    tables.attendees = { data: null, error: null, count: 74 } as never;
+    tables.orders = { data: null, error: null, count: 1 } as never;
+    const e = await load();
+    const ev = { id: "ev", organization_id: "org" };
+    expect(await e.isAttendeeLimitReached(ev)).toBe(false);
+    expect(await e.isAttendeeLimitReached(ev, { includePendingOrders: true })).toBe(true);
   });
 
   it("błąd odczytu tabel → pełny dostęp (nie odcinamy organizatora)", async () => {

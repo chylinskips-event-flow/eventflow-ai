@@ -31,8 +31,10 @@ import {
   getPublicTicketTypes,
   formatPrice,
   isTicketTypeSoldOut,
+  isTicketTypeSellable,
   availableQuantity,
 } from "@/lib/tickets";
+import { hasFeature } from "@/lib/entitlements";
 import { computeLevel, computeNextLevelThreshold, LEVEL_LABELS } from "@/lib/gamification";
 import { formatDate, formatDateTimeRange, pluralizePl } from "@/lib/format";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -423,7 +425,7 @@ export default async function ParticipantEventPage({
 
   // Zawsze service_role: dostęp jest już ustalony wyżej (published/live albo podgląd właściciela).
   // Publicznych polityk RLS na tych tabelach nie ma — wystawiały kolumny z tokenami.
-  const [sections, sessions, speakers, eventSections, publicTicketTypes, partners, usesTickets] =
+  const [sections, sessions, speakers, eventSections, publicTicketTypes, partners, usesTickets, paidTicketsAllowed] =
     await Promise.all([
       getEventContentSectionsForPreview(event.id),
       getEventSessionsForParticipant(event.id),
@@ -432,6 +434,7 @@ export default async function ParticipantEventPage({
       getPublicTicketTypes(event.id),
       getEventPartnersForParticipant(event.id),
       eventUsesTickets(event.id),
+      hasFeature(event.organization_id, "tickets_paid"),
     ]);
 
   const hasTickets = publicTicketTypes.length > 0;
@@ -615,12 +618,13 @@ export default async function ParticipantEventPage({
             <div className="grid gap-4 sm:grid-cols-2">
               {publicTicketTypes.map((tt) => {
                 const soldOut = isTicketTypeSoldOut(tt);
+                const sellable = isTicketTypeSellable(tt, paidTicketsAllowed);
                 const avail = availableQuantity(tt);
                 return (
                   <div
                     key={tt.id}
                     className={`rounded-xl border bg-background p-5 shadow-sm ${
-                      soldOut ? "opacity-60" : ""
+                      soldOut || !sellable ? "opacity-60" : ""
                     }`}
                   >
                     <div className="mb-1 text-lg font-semibold">{tt.name}</div>
@@ -632,12 +636,16 @@ export default async function ParticipantEventPage({
                     <div className="mb-4 text-2xl font-bold">
                       {formatPrice(tt.price)}
                     </div>
-                    {avail !== null && !soldOut && avail <= 10 && (
+                    {sellable && avail !== null && !soldOut && avail <= 10 && (
                       <p className="mb-2 text-xs text-amber-600 font-medium">
                         Ostatnie {avail} {avail === 1 ? "miejsce" : "miejsca"}
                       </p>
                     )}
-                    {soldOut ? (
+                    {!sellable ? (
+                      <Button disabled className="w-full">
+                        Niedostępny
+                      </Button>
+                    ) : soldOut ? (
                       <Button disabled className="w-full">
                         Wyprzedany
                       </Button>

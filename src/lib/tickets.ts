@@ -98,6 +98,15 @@ export function isFree(price: number): boolean {
   return price === 0;
 }
 
+/**
+ * Czy typ biletu może być sprzedawany przy obecnym planie organizatora. Płatny typ bez funkcji
+ * „bilety płatne” (np. po zmianie planu na niższy) jest pokazywany jako niedostępny — kasa i tak
+ * odrzuciłaby zakup. Organizator może go dalej edytować i wyłączyć.
+ */
+export function isTicketTypeSellable(tt: { price: number }, paidTicketsAllowed: boolean): boolean {
+  return tt.price === 0 || paidTicketsAllowed;
+}
+
 /** Whether a ticket type is currently available for purchase. */
 export function isTicketTypeAvailable(tt: TicketType): boolean {
   if (!tt.enabled) return false;

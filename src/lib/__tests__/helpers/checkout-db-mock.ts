@@ -42,6 +42,7 @@ export function createCheckoutDbMock() {
       lt: (k: string, v: unknown) => filter(`lt:${k}`)(v),
       like: (k: string, v: unknown) => filter(`like:${k}`)(v),
       ilike: (k: string, v: unknown) => filter(`ilike:${k}`)(v),
+      not: (k: string, op: string, v: unknown) => filter(`not:${k}:${op}`)(v),
       insert: (p: unknown) => ((call.op = "insert"), (call.payload = p), b),
       update: (p: unknown) => ((call.op = "update"), (call.payload = p), b),
       delete: () => ((call.op = "delete"), b),
