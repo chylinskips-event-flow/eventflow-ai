@@ -15,7 +15,9 @@ export type ReceptionAttendee = {
 export type CheckInResult =
   | { ok: true; name: string; alreadyCheckedIn: false }
   | { ok: true; name: string; alreadyCheckedIn: true; checkedInAt: string }
-  | { ok: false; error: "not_found" | "not_approved" };
+  | { ok: false; error: "not_found" | "not_approved" }
+  // Tylko akcje linku obsługi: link wyłączony lub wydarzenie niedostępne.
+  | { ok: false; error: "link_inactive" };
 
 // ─── Odczyt przez reception_token (bez sesji organizatora) ───────────────────
 

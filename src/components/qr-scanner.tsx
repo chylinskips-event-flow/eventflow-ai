@@ -4,6 +4,11 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Camera, X, CheckCircle2, AlertCircle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { CheckInResult } from "@/lib/reception";
+import {
+  QR_SCAN_ERROR_MESSAGE,
+  RECEPTION_LINK_INACTIVE_MESSAGE,
+  RECEPTION_LINK_INACTIVE_TITLE,
+} from "@/lib/reception-feedback";
 
 type ScanFeedback =
   | { type: "idle" }
@@ -12,6 +17,8 @@ type ScanFeedback =
   | { type: "already"; name: string; checkedInAt: string }
   | { type: "not_found" }
   | { type: "not_approved" }
+  | { type: "link_inactive" }
+  | { type: "error" }
   | { type: "camera_error"; message: string };
 
 interface QrScannerProps {
@@ -118,6 +125,15 @@ export function QrScanner({ onScan, onClose, title, successLabel, alreadyLabel, 
     async function handleToken(token: string) {
       try {
         const result = await onScanRef.current(token);
+        if (!result.ok && result.error === "link_inactive") {
+          // Link wyłączony — kolejne skany nic nie zmienią: zatrzymujemy kamerę i zostawiamy komunikat.
+          active = false;
+          cancelAnimationFrame(rafRef.current);
+          streamRef.current?.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
+          setFeedback({ type: "link_inactive" });
+          return;
+        }
         if (result.ok) {
           if (result.alreadyCheckedIn) {
             setFeedback({ type: "already", name: result.name, checkedInAt: result.checkedInAt });
@@ -132,7 +148,12 @@ export function QrScanner({ onScan, onClose, title, successLabel, alreadyLabel, 
           if (active) setFeedback({ type: "scanning" });
         }, 3000);
       } catch {
-        // ignore transient server errors — scanner keeps running
+        // Błąd sieci / serwera — skaner działa dalej, ale pokazujemy, że skan się nie zapisał.
+        if (!active) return;
+        setFeedback({ type: "error" });
+        setTimeout(() => {
+          if (active) setFeedback({ type: "scanning" });
+        }, 3000);
       }
     }
 
@@ -247,6 +268,22 @@ function FeedbackBar({
         <div className="flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-white">
           <AlertCircle className="size-5 shrink-0" />
           <span className="text-sm font-medium">{notApprovedLabel ?? "Uczestnik nie jest zatwierdzony"}</span>
+        </div>
+      );
+    case "link_inactive":
+      return (
+        <div role="alert" className="flex items-start gap-2 rounded-lg bg-red-600 px-3 py-2 text-white">
+          <AlertCircle className="mt-0.5 size-5 shrink-0" />
+          <span className="text-sm">
+            <span className="font-semibold">{RECEPTION_LINK_INACTIVE_TITLE}.</span> {RECEPTION_LINK_INACTIVE_MESSAGE}
+          </span>
+        </div>
+      );
+    case "error":
+      return (
+        <div className="flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-white">
+          <AlertCircle className="size-5 shrink-0" />
+          <span className="text-sm font-medium">{QR_SCAN_ERROR_MESSAGE}</span>
         </div>
       );
     case "camera_error":
