@@ -151,7 +151,7 @@ export async function registerAttendee(
   }
 
   const cookieStore = await cookies();
-  setAttendeeSessionCookie(cookieStore, slug, attendee.qr_code_token);
+  setAttendeeSessionCookie(cookieStore, event.id, attendee.qr_code_token);
 
   // Uwaga: cookie ustawiamy też dla statusu 'pending' — getCurrentAttendee()
   // (Krok 2.3) i tak nie uzna takiego attendee za zalogowanego, dopóki

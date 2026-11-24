@@ -254,7 +254,7 @@ async function issueFreeTicket(params: {
 
   // 8. Set cookie
   const cookieStore = await cookies();
-  setAttendeeSessionCookie(cookieStore, slug, attendee.qr_code_token);
+  setAttendeeSessionCookie(cookieStore, eventId, attendee.qr_code_token);
 
   // Oczekujący na zatwierdzenie: ta sama strona co po zwykłej rejestracji z zatwierdzaniem.
   redirect(buildEventInternalPath(

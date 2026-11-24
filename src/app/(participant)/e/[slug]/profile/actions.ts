@@ -278,7 +278,7 @@ export async function deleteMyAttendeeData(slug: string): Promise<void> {
     throw new Error("Nie udało się usunąć danych. Spróbuj ponownie.");
   }
 
-  await clearAttendeeSession(slug, attendee.qr_code_token);
+  await clearAttendeeSession(attendee.event_id, attendee.qr_code_token);
 
   const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
   redirect(`${eventRoot}?deleted=1`);

@@ -37,6 +37,6 @@ export async function GET(
   // tutaj na nowo, niezależnie od tego, czy już istnieje.
   const response = NextResponse.redirect(eventPath(""));
   // Cookie per wydarzenie — nie wylogowuje z innych wydarzeń w tej przeglądarce.
-  setAttendeeSessionCookie(response.cookies, slug, token);
+  setAttendeeSessionCookie(response.cookies, attendee.event_id, token);
   return response;
 }
