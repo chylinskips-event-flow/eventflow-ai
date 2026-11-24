@@ -159,3 +159,34 @@ describe("issueRewardByToken — ponowny skan tej samej osoby", () => {
     expect(stock()).toBe(5);
   });
 });
+
+describe("redeemReward — uczestnik musi należeć do eventu i spełniać warunki", () => {
+  it("uczestnik z innego eventu → odmowa, magazyn i wydania bez zmian", async () => {
+    db.attendees.push({ id: "b1", event_id: "ev2", first_name: "Obcy", points: 999, status: "approved" });
+    expect(await redeemReward("ev1", "r1", "b1")).toEqual({ status: "error", message: "Uczestnik nie znaleziony." });
+    expect(stock()).toBe(5);
+    expect(db.reward_redemptions).toHaveLength(0);
+  });
+
+  it("uczestnik niezatwierdzony → odmowa", async () => {
+    db.attendees.push({ id: "a2", event_id: "ev1", points: 100, status: "pending" });
+    expect(await redeemReward("ev1", "r1", "a2")).toMatchObject({ status: "error" });
+    expect(stock()).toBe(5);
+    expect(db.reward_redemptions).toHaveLength(0);
+  });
+
+  it("za mało punktów → odmowa (jak przy wydaniu po QR)", async () => {
+    db.rewards[0].points_required = 150;
+    expect(await redeemReward("ev1", "r1", "a1")).toEqual({
+      status: "error",
+      message: "Uczestnik nie ma wystarczającej liczby punktów.",
+    });
+    expect(stock()).toBe(5);
+  });
+
+  it("dokładnie wymagana liczba punktów → wydanie", async () => {
+    db.rewards[0].points_required = 100;
+    expect(await redeemReward("ev1", "r1", "a1")).toMatchObject({ status: "success" });
+    expect(stock()).toBe(4);
+  });
+});
