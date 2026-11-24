@@ -7,6 +7,7 @@ import { getOwnOrganization } from "@/lib/organizations";
 import { getOrigin } from "@/lib/request-origin";
 import { isBillingEnabled } from "@/lib/entitlements";
 import {
+  createSubscriptionCheckout,
   getOrCreateStripeCustomer,
   getOrganizationSubscription,
   getPriceIdForPlan,
@@ -52,6 +53,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
   } = await supabase.auth.getUser();
 
   let url: string | null = null;
+  let alreadySubscribed = false;
   try {
     const customerId = await getOrCreateStripeCustomer({
       id: organization.id,
@@ -62,25 +64,19 @@ export async function startCheckout(formData: FormData): Promise<void> {
     const trialDays = current ? 0 : await getTrialDays(planKey);
     const origin = getOrigin(await headers());
 
-    const session = await getStripe().checkout.sessions.create({
-      mode: "subscription",
-      customer: customerId,
-      client_reference_id: organization.id,
-      line_items: [{ price: priceId, quantity: 1 }],
-      metadata: { organization_id: organization.id, plan_key: planKey },
-      subscription_data: {
-        metadata: { organization_id: organization.id, plan_key: planKey },
-        ...(trialDays > 0 ? { trial_period_days: trialDays } : {}),
-      },
-      // Stripe Tax: VAT + reverse-charge B2B UE (NIP przez tax_id_collection).
-      automatic_tax: { enabled: true },
-      tax_id_collection: { enabled: true },
-      billing_address_collection: "required",
-      customer_update: { address: "auto", name: "auto" },
-      success_url: `${origin}${BILLING_PATH}?checkout=success`,
-      cancel_url: `${origin}${BILLING_PATH}?checkout=cancel`,
+    // Sprawdza subskrypcje w Stripe, ponownie używa otwartej sesji i stosuje klucz
+    // idempotencji — równoległe Checkouty nie dają drugiej subskrypcji.
+    const result = await createSubscriptionCheckout({
+      organizationId: organization.id,
+      customerId,
+      planKey,
+      priceId,
+      trialDays,
+      successUrl: `${origin}${BILLING_PATH}?checkout=success`,
+      cancelUrl: `${origin}${BILLING_PATH}?checkout=cancel`,
     });
-    url = session.url;
+    if (result.kind === "has_subscription") alreadySubscribed = true;
+    else url = result.url;
   } catch (err) {
     console.error(
       "[billing] checkout session failed:",
@@ -89,6 +85,8 @@ export async function startCheckout(formData: FormData): Promise<void> {
     fail("stripe");
   }
 
+  // Subskrypcja istnieje już w Stripe, choć webhook mógł jeszcze nie dotrzeć.
+  if (alreadySubscribed) fail("has_subscription");
   if (!url) fail("stripe");
   redirect(url);
 }

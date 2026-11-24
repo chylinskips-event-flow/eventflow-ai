@@ -27,6 +27,9 @@ export {
 /**
  * Master flag monetyzacji. Dopóki nie jest ustawiona na "true", wszyscy organizatorzy
  * mają pełny dostęp bez limitów (pilotaż), a baza planów nie jest w ogóle czytana.
+ *
+ * Druga warstwa w bazie (triggery na events/attendees dla roli authenticated) działa
+ * tylko przy public.billing_settings.enforce_plan_limits = true — włączać razem z tą flagą.
  */
 export function isBillingEnabled(): boolean {
   return process.env.BILLING_ENABLED === "true";

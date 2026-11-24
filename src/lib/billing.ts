@@ -1,8 +1,11 @@
 import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  checkoutIdempotencyKey,
+  hasBlockingStripeSubscription,
   mapStripeStatus,
   planKeyForPrice,
+  planOpenCheckoutSessions,
   resolvePriceId,
   shouldApplySubscription,
   toIso,
@@ -125,6 +128,115 @@ export async function getOrCreateStripeCustomer(org: {
   }
   // 23505 = równoległy zapis — zwróć to, co jest w bazie.
   return (await getStripeCustomerId(org.id)) ?? customer.id;
+}
+
+export type SubscriptionCheckoutInput = {
+  organizationId: string;
+  customerId: string;
+  planKey: string;
+  priceId: string;
+  trialDays: number;
+  successUrl: string;
+  cancelUrl: string;
+};
+
+export type SubscriptionCheckoutResult =
+  | { kind: "has_subscription" }
+  | { kind: "redirect"; url: string };
+
+/**
+ * Sesja Checkout subskrypcji bez ryzyka drugiej subskrypcji:
+ *  1. klient ma już subskrypcję w Stripe (także zanim dotarł webhook) → zmiana planu przez Portal;
+ *  2. otwarta sesja na tę samą cenę → ponowne użycie; otwarte sesje na inne ceny → wygaszenie;
+ *  3. nowa sesja z kluczem idempotencji (organizacja + cena + okno czasu), więc równoległe
+ *     kliknięcia/karty dostają tę samą sesję.
+ */
+export async function createSubscriptionCheckout(
+  input: SubscriptionCheckoutInput,
+  now: Date = new Date(),
+): Promise<SubscriptionCheckoutResult> {
+  const stripe = getStripe();
+
+  const subscriptions = await stripe.subscriptions.list({
+    customer: input.customerId,
+    status: "all",
+    limit: 20,
+  });
+  if (hasBlockingStripeSubscription(subscriptions.data)) {
+    return { kind: "has_subscription" };
+  }
+
+  const open = await stripe.checkout.sessions.list({
+    customer: input.customerId,
+    status: "open",
+    limit: 20,
+  });
+  const { reuse, expire } = planOpenCheckoutSessions(open.data, {
+    organizationId: input.organizationId,
+    priceId: input.priceId,
+    nowS: Math.floor(now.getTime() / 1000),
+  });
+  await Promise.all(
+    expire.map((id) =>
+      stripe.checkout.sessions.expire(id).catch((err: unknown) => {
+        console.error(
+          "[billing] expire checkout session failed:",
+          err instanceof Error ? err.message : err,
+        );
+      }),
+    ),
+  );
+  if (reuse?.url) return { kind: "redirect", url: reuse.url };
+
+  const metadata = { organization_id: input.organizationId, plan_key: input.planKey };
+  const params: Stripe.Checkout.SessionCreateParams = {
+    mode: "subscription",
+    customer: input.customerId,
+    client_reference_id: input.organizationId,
+    line_items: [{ price: input.priceId, quantity: 1 }],
+    // price_id pozwala rozpoznać sesję do ponownego użycia (sprawdzane wyżej).
+    metadata: { ...metadata, price_id: input.priceId },
+    subscription_data: {
+      metadata,
+      ...(input.trialDays > 0 ? { trial_period_days: input.trialDays } : {}),
+    },
+    // Stripe Tax: VAT + reverse-charge B2B UE (NIP przez tax_id_collection).
+    automatic_tax: { enabled: true },
+    tax_id_collection: { enabled: true },
+    billing_address_collection: "required",
+    customer_update: { address: "auto", name: "auto" },
+    success_url: input.successUrl,
+    cancel_url: input.cancelUrl,
+  };
+
+  const idempotencyKey = checkoutIdempotencyKey({
+    organizationId: input.organizationId,
+    priceId: input.priceId,
+    trialDays: input.trialDays,
+    nowMs: now.getTime(),
+  });
+
+  let session: Stripe.Checkout.Session;
+  let keyed = true;
+  try {
+    session = await stripe.checkout.sessions.create(params, { idempotencyKey });
+  } catch (err) {
+    // Ten sam klucz z innymi parametrami (np. inny adres powrotu) — zwykła nowa sesja.
+    if ((err as { type?: string } | null)?.type !== "StripeIdempotencyError") throw err;
+    session = await stripe.checkout.sessions.create(params);
+    keyed = false;
+  }
+  // Przy powtórzonym kluczu Stripe odtwarza zapisaną PIERWSZĄ odpowiedź (status "open",
+  // stary url), nawet jeśli sesja została potem wygaszona. Aktualny stan — z retrieve.
+  if (keyed) {
+    session = await stripe.checkout.sessions.retrieve(session.id);
+  }
+  // Sesja z klucza okna czasu jest już zamknięta (wygaszona/zakończona) — wtedy nowa.
+  if (session.status !== "open" || !session.url) {
+    session = await stripe.checkout.sessions.create(params);
+  }
+  if (!session.url) throw new Error("checkout session without url");
+  return { kind: "redirect", url: session.url };
 }
 
 async function organizationIdForCustomer(customerId: string): Promise<string | null> {
