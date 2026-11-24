@@ -193,7 +193,12 @@ test.describe("zalogowany organizator", () => {
     expect(photo.upload_link_id).toBe(linkId);
     expect(photo.uploaded_by).toBeNull();
     expect(photo.hidden).toBe(false);
-    expect(photo.original_path, "oryginał usunięty po przetworzeniu").toBeNull();
+    // Oryginał nie jest przechowywany: pod jego ścieżką zostaje pusta zaślepka (blokuje ponowną
+    // wysyłkę pod tę ścieżkę, dopóki podpisany adres jest ważny).
+    expect(photo.original_path, "ścieżka oryginału zajęta zaślepką").toBeTruthy();
+    const { data: placeholder, error: placeholderError } = await admin().storage.from("event-photos").download(photo.original_path);
+    expect(placeholderError).toBeNull();
+    expect((await placeholder!.arrayBuffer()).byteLength, "oryginał usunięty po przetworzeniu (0 B)").toBe(0);
     expect(photo.display_path).toBeTruthy();
     expect(photo.thumb_path).toBeTruthy();
     // Mały plik nie jest powiększany (max 2560 px, bez powiększania).

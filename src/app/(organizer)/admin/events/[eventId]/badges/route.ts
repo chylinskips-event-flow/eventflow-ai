@@ -37,7 +37,8 @@ export async function GET(
   const customTitle = searchParams.get("title") ?? undefined;
 
   const admin = createAdminClient();
-  // Stronami — PostgREST zwraca maks. 1000 wierszy na zapytanie.
+  // Stronami — PostgREST zwraca maks. 1000 wierszy na zapytanie. Nowe zapytanie na każdą
+  // stronę (builder PostgREST kumuluje parametry).
   const { data, error } = await fetchAllRows<Attendee>((from, to) => {
     let query = admin
       .from("attendees")
@@ -51,6 +52,7 @@ export async function GET(
     }
     // filter === "all" → no additional constraint
 
+    // id na końcu: stały porządek przy równych nazwiskach.
     return query
       .order("last_name", { ascending: true })
       .order("first_name", { ascending: true })

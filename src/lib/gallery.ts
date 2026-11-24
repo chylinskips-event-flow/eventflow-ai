@@ -11,16 +11,19 @@ import {
   DEFAULT_GALLERY_INFO_TEXT,
   GALLERY_BUCKET,
   LINK_RATE_MAX,
+  LINK_RATE_MESSAGE,
   LINK_RATE_WINDOW_MS,
   MAX_PHOTOS_PER_EVENT,
   MAX_PHOTO_BYTES,
   RESERVE_MESSAGES,
   SIGNED_VIEW_TTL_S,
   STALE_SWEEP_BATCH,
+  STALE_SWEEP_MS,
   STALE_UPLOAD_MS,
   budgetState,
   galleryBudgetMb,
   isSha256Hex,
+  linkRateRetryAfterMs,
   photoPaths,
   uploadLinkState,
   validatePhotoFile,
@@ -193,32 +196,48 @@ export type PhotoMeta = { name: string; type: string; size: number; hash: string
 
 export type StartUploadResult =
   | { ok: true; photoId: string; signedUrl: string; contentType: string }
-  | { ok: false; error: string; skipped?: boolean };
+  | { ok: false; error: string; skipped?: boolean; rateLimited?: boolean; retryAfterMs?: number };
 
 /**
- * Sprząta porzucone rezerwacje (wiersz + plik oryginału, jeśli dotarł) — we WSZYSTKICH
- * wydarzeniach, bo budżet miejsca jest wspólny. Partiami, najstarsze najpierw.
+ * Sprząta porzucone i odrzucone wysyłki — we WSZYSTKICH wydarzeniach, bo budżet miejsca
+ * jest wspólny. Dwa etapy:
+ * 1. Rezerwacje w toku starsze niż STALE_UPLOAD_MS dostają status 'failed' — od razu
+ *    przestają zajmować limity linku i eventu oraz blokować ponowną wysyłkę tego samego
+ *    pliku (limity i unikalność hasha pomijają 'failed').
+ * 2. Wiersze 'failed' starsze niż ważność podpisanego adresu wysyłki (STALE_SWEEP_MS) są
+ *    usuwane razem z plikiem spod original_path (oryginał albo pusta zaślepka) — po tym
+ *    czasie nikt nie wgra już pliku pod tę ścieżkę. Partiami, najstarsze najpierw.
  */
 export async function sweepStaleUploads(): Promise<void> {
   const admin = createAdminClient();
-  const cutoff = new Date(Date.now() - STALE_UPLOAD_MS).toISOString();
+  // Tylko wiersze wciąż w toku — wznowienie odświeża created_at, zakończone mają inny status.
+  await admin
+    .from("event_photos")
+    .update({ status: "failed" })
+    .eq("status", "uploading")
+    .lt("created_at", new Date(Date.now() - STALE_UPLOAD_MS).toISOString());
+
+  const cutoff = new Date(Date.now() - STALE_SWEEP_MS).toISOString();
   const { data } = await admin
     .from("event_photos")
     .select("id, original_path")
-    .eq("status", "uploading")
+    .eq("status", "failed")
     .lt("created_at", cutoff)
     .order("created_at", { ascending: true })
     .limit(STALE_SWEEP_BATCH);
   const rows = (data ?? []) as { id: string; original_path: string | null }[];
   if (rows.length === 0) return;
   const paths = rows.map((r) => r.original_path).filter((p): p is string => !!p);
-  if (paths.length) await admin.storage.from(GALLERY_BUCKET).remove(paths);
-  // Tylko wiersze wciąż w toku i nadal przeterminowane — rezerwacja mogła zostać w międzyczasie wznowiona lub zakończona.
+  if (paths.length) {
+    const { error } = await admin.storage.from(GALLERY_BUCKET).remove(paths);
+    // Wiersz zostaje, dopóki plików nie da się usunąć — inaczej zostałyby pliki bez śladu w bazie.
+    if (error) return;
+  }
   await admin
     .from("event_photos")
     .delete()
     .in("id", rows.map((r) => r.id))
-    .eq("status", "uploading")
+    .eq("status", "failed")
     .lt("created_at", cutoff);
 }
 
@@ -244,7 +263,19 @@ export async function startPhotoUpload(eventId: string, actor: UploadActor, inpu
       .select("id", { count: "exact", head: true })
       .eq("upload_link_id", linkId)
       .gte("created_at", since);
-    if ((count ?? 0) >= LINK_RATE_MAX) return { ok: false, error: "Zbyt wiele zdjęć naraz. Odczekaj kilka minut i spróbuj ponownie." };
+    if ((count ?? 0) >= LINK_RATE_MAX) {
+      // Podpowiedź dla kolejki w przeglądarce: kiedy najstarsza rezerwacja wypadnie z okna.
+      const { data: oldest } = await admin
+        .from("event_photos")
+        .select("created_at")
+        .eq("upload_link_id", linkId)
+        .gte("created_at", since)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      const retryAfterMs = linkRateRetryAfterMs((oldest as { created_at?: string } | null)?.created_at, Date.now());
+      return { ok: false, error: LINK_RATE_MESSAGE, rateLimited: true, retryAfterMs };
+    }
   }
 
   await sweepStaleUploads();
@@ -266,10 +297,13 @@ export async function startPhotoUpload(eventId: string, actor: UploadActor, inpu
 
   let photoId = row.photo_id;
   let resumed = false;
+  let previousPath: string | null = null;
   if (row.result === "duplicate") {
     // Ponowienie przerwanego uploadu tego samego pliku przez tego samego wgrywającego.
-    photoId = await findResumableUpload(eventId, meta.hash, actor);
-    if (!photoId) return { ok: false, error: RESERVE_MESSAGES.duplicate, skipped: true };
+    const resumable = await findResumableUpload(eventId, meta.hash, actor);
+    if (!resumable) return { ok: false, error: RESERVE_MESSAGES.duplicate, skipped: true };
+    photoId = resumable.id;
+    previousPath = resumable.original_path;
     resumed = true;
   } else if (row.result !== "ok" || !photoId) {
     return { ok: false, error: RESERVE_MESSAGES[row.result as Exclude<ReserveResult, "ok">] ?? "Nie udało się przygotować wysyłki." };
@@ -290,22 +324,34 @@ export async function startPhotoUpload(eventId: string, actor: UploadActor, inpu
     return { ok: false, error: "Nie udało się przygotować wysyłki. Spróbuj ponownie." };
   }
 
-  const { data: signed, error: signError } = await admin.storage.from(GALLERY_BUCKET).createSignedUploadUrl(path, { upsert: true });
+  // Adres bez nadpisywania (upsert: false): pod ścieżkę rezerwacji da się wgrać plik tylko
+  // wtedy, gdy jeszcze nic tam nie leży. Przy wznowieniu usuwamy wcześniejszą (przerwaną)
+  // wysyłkę, żeby nowa mogła się zapisać.
+  if (resumed) {
+    const stale = [...new Set([path, previousPath].filter((p): p is string => !!p))];
+    await admin.storage.from(GALLERY_BUCKET).remove(stale);
+  }
+  const { data: signed, error: signError } = await admin.storage.from(GALLERY_BUCKET).createSignedUploadUrl(path, { upsert: false });
   if (signError || !signed) return { ok: false, error: "Nie udało się przygotować wysyłki. Spróbuj ponownie." };
 
   return { ok: true, photoId, signedUrl: signed.signedUrl, contentType: file.contentType };
 }
 
-async function findResumableUpload(eventId: string, hash: string, actor: UploadActor): Promise<string | null> {
+async function findResumableUpload(
+  eventId: string,
+  hash: string,
+  actor: UploadActor,
+): Promise<{ id: string; original_path: string | null } | null> {
   let q = createAdminClient()
     .from("event_photos")
-    .select("id")
+    .select("id, original_path")
     .eq("event_id", eventId)
     .eq("content_hash", hash)
     .eq("status", "uploading");
   q = actor.kind === "link" ? q.eq("upload_link_id", actor.link.id) : q.eq("uploaded_by", actor.userId);
   const { data } = await q.maybeSingle();
-  return (data as { id: string } | null)?.id ?? null;
+  const row = data as { id: string; original_path: string | null } | null;
+  return row?.id ? { id: row.id, original_path: row.original_path ?? null } : null;
 }
 
 // ── Upload: przetworzenie ──────────────────────────────────────────────────
@@ -328,10 +374,26 @@ async function loadLogo(logoUrl: string | null): Promise<Buffer | null> {
   }
 }
 
+/**
+ * Oryginał po przetworzeniu (albo odrzuceniu) zastępujemy pustym plikiem-zaślepką zamiast go
+ * usuwać: podpisany adres wysyłki (upsert: false) jest ważny jeszcze do 2 h, a zajęta ścieżka
+ * sprawia, że ponowna wysyłka pod nią jest odrzucana i nie powstaje plik, którego nic nie
+ * śledzi. Zaślepkę usuwa deletePhotos razem z resztą plików zdjęcia (original_path), a przy
+ * zdjęciu odrzuconym ('failed') — sweepStaleUploads po wygaśnięciu podpisanego adresu.
+ * Gdy zaślepki nie da się zapisać — usuwamy oryginał jak dotąd.
+ */
+async function retireOriginal(path: string): Promise<void> {
+  const bucket = createAdminClient().storage.from(GALLERY_BUCKET);
+  const res = await Promise.resolve(bucket.upload(path, new Uint8Array(0), { contentType: "image/jpeg", upsert: true })).catch(
+    () => null,
+  );
+  if (!res || res.error) await bucket.remove([path]);
+}
+
 async function markFailed(photoId: string, originalPath: string | null) {
   const admin = createAdminClient();
-  if (originalPath) await admin.storage.from(GALLERY_BUCKET).remove([originalPath]);
-  await admin.from("event_photos").update({ status: "failed", original_path: null }).eq("id", photoId);
+  if (originalPath) await retireOriginal(originalPath);
+  await admin.from("event_photos").update({ status: "failed" }).eq("id", photoId);
 }
 
 export async function finalizePhotoUpload(event: GalleryEvent, photoId: string, actor: UploadActor): Promise<FinalizeResult> {
@@ -401,7 +463,6 @@ export async function finalizePhotoUpload(event: GalleryEvent, photoId: string, 
       height: processed.height,
       size_bytes: processed.display.length + processed.thumb.length,
       watermarked: processed.watermarked,
-      original_path: null,
       processed_at: new Date().toISOString(),
     })
     .eq("id", row.id)
@@ -413,8 +474,8 @@ export async function finalizePhotoUpload(event: GalleryEvent, photoId: string, 
     return { ok: false, error: "Nie udało się zapisać zdjęcia. Spróbuj ponownie." };
   }
 
-  // Oryginału nie przechowujemy po przetworzeniu.
-  await bucket.remove([row.original_path]);
+  // Oryginału nie przechowujemy po przetworzeniu (zostaje pusta zaślepka pod jego ścieżką).
+  await retireOriginal(row.original_path);
   return { ok: true };
 }
 

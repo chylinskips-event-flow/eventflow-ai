@@ -329,10 +329,15 @@ function GaleriaForm({ eventId, section, content, onClose }: { eventId: string; 
     setUploading(true);
     const fd = new FormData();
     fd.set("image", file);
-    const result = await uploadGaleriaImage(eventId, section.id, fd);
-    setUploading(false);
-    if (!result.ok) setUploadError(result.error ?? "Błąd uploadu.");
-    if (fileRef.current) fileRef.current.value = "";
+    try {
+      const result = await uploadGaleriaImage(eventId, section.id, fd);
+      if (!result.ok) setUploadError(result.error ?? "Błąd uploadu.");
+    } catch {
+      setUploadError("Nie udało się wgrać zdjęcia. Spróbuj ponownie lub wybierz inny plik.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   }
 
   function handleRemove(storagePath: string) {

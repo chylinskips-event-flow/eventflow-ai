@@ -155,7 +155,8 @@ describe("rezerwacja i limity", () => {
     const res = await gallery.startPhotoUpload(EVENT, organizerActor, meta);
     expect(res).toEqual({ ok: true, photoId: PHOTO, signedUrl: "https://x/sign", contentType: "image/jpeg" });
     expect(db.rpc).toHaveBeenCalledWith("reserve_event_photo", expect.objectContaining({ p_max_per_event: 500, p_content_hash: HASH }));
-    expect(db.storage.createSignedUploadUrl).toHaveBeenCalledWith(`${EVENT}/${PHOTO}/original.jpg`, { upsert: true });
+    // Bez nadpisywania: pod zajętą ścieżkę nie da się wgrać pliku tym adresem.
+    expect(db.storage.createSignedUploadUrl).toHaveBeenCalledWith(`${EVENT}/${PHOTO}/original.jpg`, { upsert: false });
   });
 
   it("zły format / rozmiar / skrót → odrzucone przed rezerwacją", async () => {
@@ -194,11 +195,28 @@ describe("rezerwacja i limity", () => {
     expect(db.rpc).not.toHaveBeenCalled();
   });
 
-  it("limit zapytań na link fotografa", async () => {
+  it("limit zapytań na link fotografa → odmowa z podpowiedzią, kiedy ponowić", async () => {
     db.tables.event_photos = (q) => (q.filters.some((f) => f[0] === "gte") ? { count: 120 } : { data: [] });
     const res = await gallery.startPhotoUpload(EVENT, { kind: "link", link }, meta);
-    expect(res).toEqual({ ok: false, error: "Zbyt wiele zdjęć naraz. Odczekaj kilka minut i spróbuj ponownie." });
+    expect(res).toMatchObject({ ok: false, error: "Zbyt wiele zdjęć naraz. Odczekaj kilka minut i spróbuj ponownie.", rateLimited: true });
+    if (!res.ok) {
+      expect(res.retryAfterMs).toBeGreaterThanOrEqual(15_000);
+      expect(res.retryAfterMs).toBeLessThanOrEqual(10 * 60 * 1000);
+    }
     expect(db.rpc).not.toHaveBeenCalled();
+  });
+
+  it("limit linku: podpowiedź liczona od najstarszej rezerwacji w oknie", async () => {
+    const oldest = new Date(Date.now() - 9 * 60 * 1000).toISOString(); // wypadnie z okna za ~1 min
+    db.tables.event_photos = (q) =>
+      q.filters.some((f) => f[0] === "order") ? { data: { created_at: oldest } } : q.filters.some((f) => f[0] === "gte") ? { count: 120 } : {};
+    const res = await gallery.startPhotoUpload(EVENT, { kind: "link", link }, meta);
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.rateLimited).toBe(true);
+      expect(res.retryAfterMs).toBeGreaterThan(55_000);
+      expect(res.retryAfterMs).toBeLessThan(65_000);
+    }
   });
 });
 
@@ -246,8 +264,10 @@ describe("licznik i budżet galerii", () => {
     db.rpc.mockResolvedValue({ data: [{ photo_id: PHOTO, result: "ok" }], error: null });
     await gallery.startPhotoUpload(EVENT, { kind: "organizer", userId: "user-1" }, meta);
     const sweep = db.queries.find((q) => q.table === "event_photos" && q.op === "select" && q.filters.some((f) => f[0] === "lt"));
-    expect(sweep?.filters).toContainEqual(["eq", "status", "uploading"]);
+    expect(sweep?.filters).toContainEqual(["eq", "status", "failed"]);
     expect(sweep?.filters.some((f) => f[0] === "eq" && f[1] === "event_id")).toBe(false);
+    const release = db.queries.find((q) => q.table === "event_photos" && q.op === "update" && q.filters.some((f) => f[0] === "lt"));
+    expect(release?.filters.some((f) => f[0] === "eq" && f[1] === "event_id")).toBe(false);
     expect(sweep?.filters.some((f) => f[0] === "limit")).toBe(true);
     expect(db.storage.remove).toHaveBeenCalledWith([`inny-event/stale-1/original.jpg`]);
     const del = db.queries.find((q) => q.table === "event_photos" && q.op === "delete");
@@ -274,17 +294,28 @@ describe("przetworzenie", () => {
     expect(db.storage.download).not.toHaveBeenCalled();
   });
 
-  it("plik inny niż zadeklarowany (skrót) → failed, oryginał usunięty", async () => {
+  it("plik inny niż zadeklarowany (skrót) → failed, oryginał zastąpiony pustą zaślepką", async () => {
     db.tables.event_photos = (q) => (q.op === "select" ? { data: photoRow() } : {});
     db.storage.download.mockResolvedValue({ data: new Blob([Buffer.from("inny plik")]), error: null });
+    db.storage.upload.mockResolvedValue({ data: {}, error: null });
     const res = await gallery.finalizePhotoUpload(event, PHOTO, { kind: "organizer", userId: "user-1" });
     expect(res.ok).toBe(false);
-    expect(db.storage.remove).toHaveBeenCalledWith([`${EVENT}/${PHOTO}/original.jpg`]);
-    expect(db.queries.find((q) => q.op === "update")?.payload).toMatchObject({ status: "failed", original_path: null });
+    expect(db.storage.upload).toHaveBeenCalledWith(`${EVENT}/${PHOTO}/original.jpg`, new Uint8Array(0), expect.objectContaining({ upsert: true }));
+    expect(db.storage.remove).not.toHaveBeenCalledWith([`${EVENT}/${PHOTO}/original.jpg`]);
+    const payload = db.queries.find((q) => q.op === "update")?.payload;
+    expect(payload).toEqual({ status: "failed" }); // ścieżka zostaje — deletePhotos usunie zaślepkę
     expect(processPhoto).not.toHaveBeenCalled();
   });
 
-  it("znak wodny wyłączony w ustawieniach → przetwarzanie bez znaku; oryginał usunięty po zapisie", async () => {
+  it("zaślepki nie da się zapisać → oryginał usunięty jak dotąd", async () => {
+    db.tables.event_photos = (q) => (q.op === "select" ? { data: photoRow() } : {});
+    db.storage.download.mockResolvedValue({ data: new Blob([Buffer.from("inny plik")]), error: null });
+    db.storage.upload.mockResolvedValue({ data: null, error: { message: "x" } });
+    await gallery.finalizePhotoUpload(event, PHOTO, { kind: "organizer", userId: "user-1" });
+    expect(db.storage.remove).toHaveBeenCalledWith([`${EVENT}/${PHOTO}/original.jpg`]);
+  });
+
+  it("znak wodny wyłączony w ustawieniach → przetwarzanie bez znaku; oryginał zastąpiony zaślepką po zapisie", async () => {
     db.tables.event_photos = (q) => (q.op === "select" ? { data: photoRow() } : {});
     db.tables.event_gallery_settings = () => ({ data: { enabled: true, watermark_enabled: false, info_text: null, published_at: null } });
     db.storage.download.mockResolvedValue({ data: new Blob([Buffer.from("plik")]), error: null });
@@ -293,15 +324,20 @@ describe("przetworzenie", () => {
 
     expect(await gallery.finalizePhotoUpload(event, PHOTO, { kind: "organizer", userId: "user-1" })).toEqual({ ok: true });
     expect(processPhoto).toHaveBeenCalledWith(expect.any(Buffer), { watermark: false, logo: null });
-    expect(db.queries.find((q) => q.op === "update")?.payload).toMatchObject({ status: "ready", original_path: null, size_bytes: 2 });
-    expect(db.storage.remove).toHaveBeenLastCalledWith([`${EVENT}/${PHOTO}/original.jpg`]);
+    expect(db.queries.find((q) => q.op === "update")?.payload).toMatchObject({ status: "ready", size_bytes: 2 });
+    // Treść oryginału znika (pusty plik), ścieżka pozostaje zajęta — ponowna wysyłka podpisanym
+    // adresem (upsert: false) nie utworzy pliku poza ewidencją.
+    expect(db.storage.upload).toHaveBeenLastCalledWith(`${EVENT}/${PHOTO}/original.jpg`, new Uint8Array(0), expect.objectContaining({ upsert: true }));
+    expect(db.storage.remove).not.toHaveBeenCalled();
   });
 });
 
 describe("rezerwacja w toku a sprzątanie porzuconych", () => {
   const organizerActor = { kind: "organizer" as const, userId: "user-1" };
   const event = { id: EVENT, organization_id: "org", name: "Next Stop", logo_url: null };
-  const uploadUpdate = () => db.queries.find((q) => q.table === "event_photos" && q.op === "update");
+  // Aktualizacja wiersza zdjęcia — z pominięciem zwolnienia porzuconych rezerwacji przy sprzątaniu.
+  const uploadUpdate = () =>
+    db.queries.find((q) => q.table === "event_photos" && q.op === "update" && (q.payload as Record<string, unknown>)?.status !== "failed");
 
   it("wznowienie przerwanej wysyłki odświeża created_at (sprzątanie nie usunie wiersza)", async () => {
     db.rpc.mockResolvedValue({ data: [{ photo_id: null, result: "duplicate" }], error: null });
@@ -314,6 +350,63 @@ describe("rezerwacja w toku a sprzątanie porzuconych", () => {
     const payload = up?.payload as { created_at?: string };
     expect(new Date(payload.created_at ?? 0).getTime()).toBeGreaterThanOrEqual(before - 1000);
     expect(up?.filters).toContainEqual(["eq", "status", "uploading"]);
+  });
+
+  it("wznowienie: wcześniejsza (przerwana) wysyłka usunięta przed wydaniem nowego adresu", async () => {
+    db.rpc.mockResolvedValue({ data: [{ photo_id: null, result: "duplicate" }], error: null });
+    db.tables.event_photos = (q) =>
+      q.op === "select" && q.filters.some((f) => f[0] === "eq" && f[1] === "content_hash")
+        ? { data: { id: PHOTO, original_path: `${EVENT}/${PHOTO}/original.png` } }
+        : {};
+    const res = await gallery.startPhotoUpload(EVENT, organizerActor, meta);
+    expect(res.ok).toBe(true);
+    expect(db.storage.remove).toHaveBeenCalledWith([`${EVENT}/${PHOTO}/original.jpg`, `${EVENT}/${PHOTO}/original.png`]);
+    const removeOrder = db.storage.remove.mock.invocationCallOrder.at(-1)!;
+    expect(removeOrder).toBeLessThan(db.storage.createSignedUploadUrl.mock.invocationCallOrder[0]);
+    expect(db.storage.createSignedUploadUrl).toHaveBeenCalledWith(`${EVENT}/${PHOTO}/original.jpg`, { upsert: false });
+  });
+
+  it("usuwanie wierszy i plików dopiero po wygaśnięciu podpisanego adresu wysyłki (> 2 h)", async () => {
+    const before = Date.now();
+    await gallery.sweepStaleUploads();
+    const sweep = db.queries.find((q) => q.table === "event_photos" && q.op === "select");
+    const lt = sweep?.filters.find((f) => f[0] === "lt" && f[1] === "created_at");
+    expect(before - new Date(String(lt?.[2])).getTime()).toBeGreaterThanOrEqual(2 * 60 * 60 * 1000);
+  });
+
+  it("porzucona rezerwacja po 1 h dostaje status failed (zwalnia limity i hash)", async () => {
+    const before = Date.now();
+    await gallery.sweepStaleUploads();
+    const release = db.queries.find((q) => q.table === "event_photos" && q.op === "update");
+    expect(release?.payload).toEqual({ status: "failed" });
+    expect(release?.filters).toContainEqual(["eq", "status", "uploading"]);
+    const lt = release?.filters.find((f) => f[0] === "lt" && f[1] === "created_at");
+    const age = before - new Date(String(lt?.[2])).getTime();
+    expect(age).toBeGreaterThanOrEqual(60 * 60 * 1000 - 1000);
+    expect(age).toBeLessThanOrEqual(60 * 60 * 1000 + 1000);
+    // Zwolnienie limitów przed usuwaniem plików.
+    const releaseIdx = db.queries.indexOf(release!);
+    const selectIdx = db.queries.findIndex((q) => q.table === "event_photos" && q.op === "select");
+    expect(releaseIdx).toBeLessThan(selectIdx);
+  });
+
+  it("odrzucone zdjęcie (failed) — zaślepka usunięta razem z wierszem po wygaśnięciu adresu", async () => {
+    const placeholder = `${EVENT}/${PHOTO}/original.jpg`;
+    db.tables.event_photos = (q) =>
+      q.op === "select" && q.filters.some((f) => f[0] === "lt") ? { data: [{ id: PHOTO, original_path: placeholder }] } : {};
+    await gallery.sweepStaleUploads();
+    expect(db.storage.remove).toHaveBeenCalledWith([placeholder]);
+    const del = db.queries.find((q) => q.table === "event_photos" && q.op === "delete");
+    expect(del?.filters).toContainEqual(["in", "id", [PHOTO]]);
+    expect(del?.filters).toContainEqual(["eq", "status", "failed"]);
+  });
+
+  it("błąd usuwania plików → wiersze zostają (ponowna próba przy następnym sprzątaniu)", async () => {
+    db.tables.event_photos = (q) =>
+      q.op === "select" && q.filters.some((f) => f[0] === "lt") ? { data: [{ id: PHOTO, original_path: `${EVENT}/${PHOTO}/original.jpg` }] } : {};
+    db.storage.remove.mockResolvedValue({ data: null, error: { message: "x" } });
+    await gallery.sweepStaleUploads();
+    expect(db.queries.some((q) => q.table === "event_photos" && q.op === "delete")).toBe(false);
   });
 
   it("nowa rezerwacja nie nadpisuje created_at", async () => {
@@ -330,12 +423,12 @@ describe("rezerwacja w toku a sprzątanie porzuconych", () => {
     expect(db.storage.createSignedUploadUrl).not.toHaveBeenCalled();
   });
 
-  it("sprzątanie usuwa tylko wiersze wciąż w toku i nadal przeterminowane", async () => {
+  it("sprzątanie usuwa tylko wiersze odrzucone i nadal przeterminowane", async () => {
     db.tables.event_photos = (q) =>
       q.op === "select" && q.filters.some((f) => f[0] === "lt") ? { data: [{ id: "stale-1", original_path: null }] } : {};
     await gallery.sweepStaleUploads();
     const del = db.queries.find((q) => q.table === "event_photos" && q.op === "delete");
-    expect(del?.filters).toContainEqual(["eq", "status", "uploading"]);
+    expect(del?.filters).toContainEqual(["eq", "status", "failed"]);
     expect(del?.filters.some((f) => f[0] === "lt" && f[1] === "created_at")).toBe(true);
   });
 
