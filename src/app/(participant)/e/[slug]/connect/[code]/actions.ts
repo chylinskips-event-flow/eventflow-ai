@@ -60,7 +60,7 @@ export async function connectViaCode(
   // jednocześnie przez obie osoby).
   const { data: existingRows, error: readError } = await supabase
     .from("contact_requests")
-    .select("id, requester_id, recipient_id, status, requester_note, recipient_note")
+    .select("id, requester_id, recipient_id, status, requester_note, recipient_note, created_at")
     .eq("event_id", scanner.event_id)
     .or(
       `and(requester_id.eq.${scanner.id},recipient_id.eq.${owner.id}),` +
@@ -79,8 +79,9 @@ export async function connectViaCode(
 
   if (rows.length > 0) {
     // Upgrade dowolnego stanu (pending LUB declined) → accepted. Patrz komentarz
-    // funkcji: skan nadpisuje odmowę. Przy wierszach w obu kierunkach zostaje jeden.
-    const plan = planQrConnect(rows, scanner.id, now);
+    // funkcji: skan nadpisuje odmowę. Przy wierszach w obu kierunkach zostaje jeden —
+    // ten sam niezależnie od tego, która osoba skanuje.
+    const plan = planQrConnect(rows, now);
     const { error } = await supabase
       .from("contact_requests")
       .update(plan.update)

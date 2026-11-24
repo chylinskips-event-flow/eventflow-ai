@@ -10,6 +10,7 @@ const row = (over: Partial<PairContactRow>): PairContactRow => ({
   requester_id: "a",
   recipient_id: "b",
   status: "pending",
+  created_at: "2026-11-20T10:00:00.000Z",
   requester_note: null,
   recipient_note: null,
   ...over,
@@ -17,17 +18,16 @@ const row = (over: Partial<PairContactRow>): PairContactRow => ({
 
 describe("planQrConnect", () => {
   it("jeden wiersz pending → accepted, nic do usunięcia", () => {
-    const plan = planQrConnect([row({ id: "r1" })], "b", NOW);
+    const plan = planQrConnect([row({ id: "r1" })], NOW);
     expect(plan).toEqual({ keepId: "r1", update: { status: "accepted", responded_at: NOW }, deleteIds: [] });
   });
 
-  it("prośby w obu kierunkach: zostaje wiersz skanującego, drugi usuwany, notatka przeniesiona", () => {
+  it("prośby w obu kierunkach: zostaje starszy wiersz, drugi usuwany, notatka przeniesiona", () => {
     const plan = planQrConnect(
       [
-        row({ id: "ab", requester_id: "a", recipient_id: "b", requester_note: "notatka A" }),
+        row({ id: "ab", requester_id: "a", recipient_id: "b", requester_note: "notatka A", created_at: "2026-11-21T10:00:00.000Z" }),
         row({ id: "ba", requester_id: "b", recipient_id: "a", requester_note: "notatka B" }),
       ],
-      "b",
       NOW,
     );
     expect(plan.keepId).toBe("ba");
@@ -40,9 +40,8 @@ describe("planQrConnect", () => {
     const plan = planQrConnect(
       [
         row({ id: "ab", status: "accepted", requester_note: "moja A" }),
-        row({ id: "ba", requester_id: "b", recipient_id: "a", requester_note: "B", recipient_note: "stara A" }),
+        row({ id: "ba", requester_id: "b", recipient_id: "a", requester_note: "B", recipient_note: "stara A", created_at: "2026-01-01T00:00:00.000Z" }),
       ],
-      "b",
       NOW,
     );
     expect(plan.keepId).toBe("ab");
@@ -52,13 +51,26 @@ describe("planQrConnect", () => {
 
   it("odmowa i prośba zwrotna: skan łączy parę", () => {
     const plan = planQrConnect(
-      [row({ id: "ab", status: "declined" }), row({ id: "ba", requester_id: "b", recipient_id: "a" })],
-      "a",
+      [row({ id: "ab", status: "declined" }), row({ id: "ba", requester_id: "b", recipient_id: "a", created_at: "2026-11-22T10:00:00.000Z" })],
       NOW,
     );
     expect(plan.keepId).toBe("ab");
     expect(plan.update.status).toBe("accepted");
     expect(plan.deleteIds).toEqual(["ba"]);
+  });
+
+  it("wybór wiersza nie zależy od kolejności wierszy (równoczesne skany obu osób zachowują ten sam)", () => {
+    const rows = [
+      row({ id: "ab", status: "declined" }),
+      row({ id: "ba", requester_id: "b", recipient_id: "a", status: "declined" }),
+    ];
+    const p1 = planQrConnect(rows, NOW);
+    const p2 = planQrConnect([...rows].reverse(), NOW);
+    // ta sama data utworzenia → rozstrzyga najniższe id
+    expect(p1.keepId).toBe("ab");
+    expect(p2.keepId).toBe("ab");
+    expect(p1.deleteIds).toEqual(["ba"]);
+    expect(p2.deleteIds).toEqual(["ba"]);
   });
 });
 
@@ -66,8 +78,8 @@ describe("planQrConnect", () => {
 
 type Row = Record<string, unknown>;
 const db = { contact_requests: [] as Row[] };
-const scanner = { id: "a", event_id: "ev" };
-const owner = { id: "b", event_id: "ev" };
+let scanner = { id: "a", event_id: "ev" };
+let owner = { id: "b", event_id: "ev" };
 
 function builder() {
   const filters: ((r: Row) => boolean)[] = [];
@@ -121,17 +133,49 @@ const { connectViaCode } = await import("@/app/(participant)/e/[slug]/connect/[c
 
 beforeEach(() => {
   db.contact_requests = [];
+  scanner = { id: "a", event_id: "ev" };
+  owner = { id: "b", event_id: "ev" };
 });
 
 describe("connectViaCode", () => {
   it("prośby w obu kierunkach: skan nawiązuje kontakt i zostawia jeden wiersz", async () => {
     db.contact_requests = [
-      { id: "ab", event_id: "ev", requester_id: "a", recipient_id: "b", status: "pending", requester_note: null, recipient_note: null },
-      { id: "ba", event_id: "ev", requester_id: "b", recipient_id: "a", status: "pending", requester_note: null, recipient_note: null },
+      { id: "ab", event_id: "ev", requester_id: "a", recipient_id: "b", status: "pending", created_at: "2026-11-20T10:00:00Z", requester_note: null, recipient_note: null },
+      { id: "ba", event_id: "ev", requester_id: "b", recipient_id: "a", status: "pending", created_at: "2026-11-20T10:00:00Z", requester_note: null, recipient_note: null },
     ];
     await expect(connectViaCode("expo", "CODE")).rejects.toThrow(/REDIRECT:.*contacts/);
     expect(db.contact_requests).toHaveLength(1);
     expect(db.contact_requests[0]).toMatchObject({ id: "ab", status: "accepted" });
+  });
+
+  it("równoczesne skany obu osób: obie akcje zachowują ten sam wiersz, kontakt nie znika", async () => {
+    const base = { event_id: "ev", created_at: "2026-11-20T10:00:00Z", requester_note: null, recipient_note: null };
+    db.contact_requests = [
+      { id: "ab", requester_id: "a", recipient_id: "b", status: "declined", ...base },
+      { id: "ba", requester_id: "b", recipient_id: "a", status: "declined", ...base },
+    ];
+    // Obie akcje czytają, zanim którakolwiek zapisze: odczyt zwraca migawkę tych samych wierszy.
+    const snapshot = db.contact_requests.map((r) => ({ ...r }));
+    const plans = [
+      planQrConnect(snapshot as never, "t1"),
+      planQrConnect([...snapshot].reverse() as never, "t2"),
+    ];
+    for (const plan of plans) {
+      db.contact_requests.filter((r) => r.id === plan.keepId).forEach((r) => Object.assign(r, plan.update));
+      db.contact_requests = db.contact_requests.filter((r) => !plan.deleteIds.includes(r.id as string));
+    }
+    expect(db.contact_requests).toEqual([expect.objectContaining({ id: "ab", status: "accepted" })]);
+  });
+
+  it("skan wykonany przez drugą osobę zachowuje ten sam wiersz", async () => {
+    scanner = { id: "b", event_id: "ev" };
+    owner = { id: "a", event_id: "ev" };
+    db.contact_requests = [
+      { id: "ab", event_id: "ev", requester_id: "a", recipient_id: "b", status: "pending", created_at: "2026-11-20T10:00:00Z", requester_note: null, recipient_note: null },
+      { id: "ba", event_id: "ev", requester_id: "b", recipient_id: "a", status: "pending", created_at: "2026-11-20T11:00:00Z", requester_note: null, recipient_note: null },
+    ];
+    await expect(connectViaCode("expo", "CODE")).rejects.toThrow(/REDIRECT:.*contacts/);
+    expect(db.contact_requests).toEqual([expect.objectContaining({ id: "ab", status: "accepted" })]);
   });
 
   it("brak wierszy: nowy kontakt accepted", async () => {
