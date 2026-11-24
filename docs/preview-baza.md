@@ -37,8 +37,11 @@ SQL Editor, więc nie ma historii migracji w CLI. Push próbowałby wykonać wsz
 Po pracy możesz odłączyć projekt komendą `npx supabase unlink`.
 
 ### 3. Logowanie (Supabase → Authentication → URL Configuration)
-- **Site URL:** `https://eventflow-git-main-my-event-flow.vercel.app`
+- **Site URL:** adres dowolnego wdrożenia Preview, np. `https://eventflow-git-<gałąź>-my-event-flow.vercel.app`.
+  Nie używaj `eventflow-git-main-…`: ten adres wskazuje na produkcję (gałąź `main`), nie na Preview.
 - **Redirect URLs:** `https://eventflow-*-my-event-flow.vercel.app/**`
+
+Link logowania prowadzi na adres, z którego go wysłano (Redirect URLs), więc Site URL to tylko wartość zapasowa.
 
 Maile z linkiem logowania wysyła Supabase. Bez własnego SMTP przychodzą tylko na adresy członków
 organizacji Supabase, w limicie kilku na godzinę. Do testów logowania organizatora to wystarczy.
