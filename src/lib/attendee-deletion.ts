@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { AVATAR_BUCKET, storagePathFromPublicUrl } from "@/lib/avatar-storage";
+import { AVATAR_BUCKET, avatarPathsFor } from "@/lib/avatar-storage";
 
 /**
  * Trwałe, całkowite usunięcie danych uczestnika: rekord w attendees + avatar
@@ -22,7 +22,7 @@ export async function deleteAttendeeCompletely(
 
   const { data: attendee } = await supabase
     .from("attendees")
-    .select("avatar_url")
+    .select("event_id")
     .eq("id", attendeeId)
     .maybeSingle();
 
@@ -35,11 +35,10 @@ export async function deleteAttendeeCompletely(
     return { error: error.message };
   }
 
-  if (attendee?.avatar_url) {
-    const path = storagePathFromPublicUrl(attendee.avatar_url);
-    if (path) {
-      await supabase.storage.from(AVATAR_BUCKET).remove([path]);
-    }
+  // Kasujemy pliki wyłącznie spod ścieżek tego uczestnika ("<event_id>/<id>.<ext>"),
+  // wyznaczonych z identyfikatorów w bazie — nie z treści avatar_url.
+  if (attendee?.event_id) {
+    await supabase.storage.from(AVATAR_BUCKET).remove(avatarPathsFor(attendee.event_id, attendeeId));
   }
 
   return { error: null };
