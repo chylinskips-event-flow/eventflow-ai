@@ -3,6 +3,18 @@
 Preview (wdrożenia gałęzi i PR-ów na Vercelu) ma własny projekt Supabase. Dzięki temu testy na Preview
 nie zapisują niczego do produkcji. Produkcja nie zmienia się w żaden sposób.
 
+## Stan (24.11.2026)
+
+Osobnej bazy jeszcze nie ma. Supabase pozwala na 2 aktywne darmowe projekty na konto, a oba miejsca
+są zajęte (produkcja Eventro i projekt Cyber Box). Do czasu decyzji o planie Pro (ok. 25 USD miesięcznie
+za organizację):
+- Preview nadal czyta i zapisuje wspólną bazę z produkcją, więc testy na Preview robimy tylko odczytem,
+  a testy z zapisem lokalnie (`npm run e2e`, Docker);
+- w Vercelu jest ustawione `EMAIL_REDIRECT_TO` tylko dla Preview, więc maile z Preview trafiają na
+  jeden adres testowy, a nie do uczestników.
+
+Gdy pojawi się miejsce na projekt (plan Pro albo zwolniony darmowy slot), wystarczy wykonać kroki poniżej.
+
 ## Co już jest w repozytorium
 
 - `supabase/migrations/20260619000000_baseline_default_privileges.sql`: przywraca stare uprawnienia
@@ -37,9 +49,9 @@ SQL Editor, więc nie ma historii migracji w CLI. Push próbowałby wykonać wsz
 Po pracy możesz odłączyć projekt komendą `npx supabase unlink`.
 
 ### 3. Logowanie (Supabase → Authentication → URL Configuration)
-- **Site URL:** adres dowolnego wdrożenia Preview, np. `https://eventflow-git-<gałąź>-my-event-flow.vercel.app`.
-  Nie używaj `eventflow-git-main-…`: ten adres wskazuje na produkcję (gałąź `main`), nie na Preview.
-- **Redirect URLs:** `https://eventflow-*-my-event-flow.vercel.app/**`
+- **Site URL:** adres dowolnego wdrożenia Preview, np. `https://eventro-git-<gałąź>-my-event-flow.vercel.app`.
+  Nie używaj `eventro-git-main-…`: ten adres wskazuje na produkcję (gałąź `main`), nie na Preview.
+- **Redirect URLs:** `https://eventro-*-my-event-flow.vercel.app/**`
 
 Link logowania prowadzi na adres, z którego go wysłano (Redirect URLs), więc Site URL to tylko wartość zapasowa.
 
