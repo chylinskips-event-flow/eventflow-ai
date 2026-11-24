@@ -521,6 +521,14 @@ export function parseApprovedQty(
   return { ok: true, value: n };
 }
 
+/** Ilość pozycji widoczna na stronie organizatora (ukryte pole formularza decyzji); null = brak/błędna. */
+export function parseSeenQty(raw: unknown): number | null {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (!/^\d{1,3}$/.test(value)) return null;
+  const n = Number(value);
+  return n >= 1 ? n : null;
+}
+
 /** Ilość zatwierdzona (0 dla oczekujących i odrzuconych). */
 export function approvedQty(i: Pick<RequestItem, "status" | "qty" | "approved_qty">): number {
   if (i.status === "approved") return i.qty;

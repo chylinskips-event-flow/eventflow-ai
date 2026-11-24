@@ -304,7 +304,7 @@ export function DraftSection({
                 <Button
                   className="w-fit"
                   disabled={isPending}
-                  onClick={() => run(() => approvePartnerDraft(eventId, partnerId))}
+                  onClick={() => run(() => approvePartnerDraft(eventId, partnerId, draft.submitted_at))}
                 >
                   <Check className="size-4" />
                   Akceptuj i opublikuj
