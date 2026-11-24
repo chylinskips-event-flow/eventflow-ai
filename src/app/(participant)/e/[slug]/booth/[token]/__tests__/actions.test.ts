@@ -24,6 +24,11 @@ vi.mock("@/lib/gamification", () => ({ completeQuest: (p: never) => completeQues
 vi.mock("@/lib/partner-leads", () => ({ isPartnerLeadsEnabled: () => ctx.leadsV2 }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
+    // Rezerwacja próby quizu (claim_quiz_attempt) — zapisywana jako operacja na quiz_attempts
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      ops.push({ table: "quiz_attempts", op: `rpc:${fn}`, payload: { quest_id: args.p_quest_id } });
+      return { data: 1, error: null };
+    },
     from: (table: string) => {
       const list = () => {
         if (table === "quests") return ctx.quests ?? (ctx.quest ? [ctx.quest] : []);

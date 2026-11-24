@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { drawLotteryWinner } from "./actions";
+import {
+  drawLotteryWinner,
+  excludeLotteryAttendee,
+  resetLotteryExclusions,
+  restoreLotteryAttendee,
+} from "./actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,12 +25,15 @@ export function LotteryClient({
   eventId,
   pointsPerTicket,
   eligible,
+  initialExcludedIds = [],
 }: {
   eventId: string;
   pointsPerTicket: number;
   eligible: Attendee[];
+  /** Wykluczenia zapisane w bazie (obowiązują też po odświeżeniu strony). */
+  initialExcludedIds?: string[];
 }) {
-  const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
+  const [excludedIds, setExcludedIds] = useState<Set<string>>(() => new Set(initialExcludedIds));
   const [winner, setWinner] = useState<Winner | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -51,14 +59,46 @@ export function LotteryClient({
 
   function excludeWinner() {
     if (!winner) return;
-    setExcludedIds((prev) => new Set([...prev, winner.id]));
-    setWinner(null);
+    const id = winner.id;
+    setError(null);
+    startTransition(async () => {
+      const result = await excludeLotteryAttendee(eventId, id);
+      if (result.status === "error") {
+        setError(result.message);
+        return;
+      }
+      setExcludedIds((prev) => new Set([...prev, id]));
+      setWinner(null);
+    });
+  }
+
+  function restore(id: string) {
+    setError(null);
+    startTransition(async () => {
+      const result = await restoreLotteryAttendee(eventId, id);
+      if (result.status === "error") {
+        setError(result.message);
+        return;
+      }
+      setExcludedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    });
   }
 
   function reset() {
-    setExcludedIds(new Set());
-    setWinner(null);
     setError(null);
+    startTransition(async () => {
+      const result = await resetLotteryExclusions(eventId);
+      if (result.status === "error") {
+        setError(result.message);
+        return;
+      }
+      setExcludedIds(new Set());
+      setWinner(null);
+    });
   }
 
   return (
@@ -82,7 +122,7 @@ export function LotteryClient({
               </span>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={excludeWinner}>
+              <Button size="sm" variant="outline" onClick={excludeWinner} disabled={isPending}>
                 Wyklucz i losuj dalej
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setWinner(null)}>
@@ -120,7 +160,7 @@ export function LotteryClient({
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           {excludedIds.size > 0 && (
-            <Button variant="ghost" size="sm" className="self-start" onClick={reset}>
+            <Button variant="ghost" size="sm" className="self-start" onClick={reset} disabled={isPending}>
               Resetuj wykluczenia
             </Button>
           )}
@@ -163,13 +203,8 @@ export function LotteryClient({
                         variant="ghost"
                         size="sm"
                         className="h-6 px-2 text-xs"
-                        onClick={() =>
-                          setExcludedIds((prev) => {
-                            const next = new Set(prev);
-                            next.delete(a.id);
-                            return next;
-                          })
-                        }
+                        disabled={isPending}
+                        onClick={() => restore(a.id)}
                       >
                         Przywróć
                       </Button>
