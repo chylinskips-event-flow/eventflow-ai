@@ -26,3 +26,19 @@ export async function fetchAllRows<T>(
   }
   return { data: all, error: null };
 }
+
+/**
+ * Usuwa powtórzenia po `id`, zachowując pierwsze wystąpienie i kolejność. Stronicowanie przez
+ * offset nie jest odporne na zapisy między zapytaniami: gdy wiersz wejdzie do zbioru (lub z niego
+ * wypadnie) przed bieżącym offsetem, ostatni wiersz strony może wrócić na początku następnej.
+ */
+export function dedupeById<T extends { id: string }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const r of rows) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    out.push(r);
+  }
+  return out;
+}

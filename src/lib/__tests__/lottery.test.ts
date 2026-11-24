@@ -188,3 +188,44 @@ describe("drawLotteryWinner", () => {
     }
   });
 });
+
+describe("nakładające się strony (zapis między zapytaniami)", () => {
+  const rows = Array.from({ length: 1500 }, (_, i) => person(`p${String(i).padStart(4, "0")}`, 10));
+
+  // Strona 2 zaczyna się powtórzonym ostatnim wierszem strony 1 — tak jak przy offsetowym
+  // stronicowaniu, gdy przed bieżącym offsetem do zbioru wejdzie nowy wiersz.
+  function overlappingClient() {
+    const b = {
+      from: () => b,
+      select: () => b,
+      eq: () => b,
+      gte: () => b,
+      order: () => b,
+      range: async (from: number, to: number) => ({
+        data: from === 0 ? rows.slice(0, to + 1) : rows.slice(from - 1, to),
+        error: null,
+      }),
+    };
+    return b;
+  }
+
+  it("dedupeById zostawia pierwsze wystąpienie i kolejność", async () => {
+    const { dedupeById } = await import("@/lib/paginate");
+    expect(dedupeById([{ id: "a" }, { id: "b" }, { id: "a" }, { id: "c" }, { id: "b" }])).toEqual([
+      { id: "a" },
+      { id: "b" },
+      { id: "c" },
+    ]);
+  });
+
+  it("uczestnik z granicy stron trafia do puli raz", async () => {
+    const { loadLotteryCandidates } = await import("@/lib/lottery");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await loadLotteryCandidates(overlappingClient() as any, "ev1", 10);
+    expect(error).toBeNull();
+    expect(data.filter((a) => a.id === "p0999")).toHaveLength(1);
+    expect(new Set(data.map((a) => a.id)).size).toBe(data.length);
+    const pool = buildLotteryPool(data, 10, new Set());
+    expect(pickWeightedWinner(pool, 0.5)?.totalTickets).toBe(data.length);
+  });
+});

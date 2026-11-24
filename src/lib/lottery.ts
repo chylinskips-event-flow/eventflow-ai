@@ -1,7 +1,7 @@
 // Loteria: pula losowania i ważone losowanie (czysta logika, testowalna) oraz odczyt z bazy.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAllRows } from "@/lib/paginate";
+import { dedupeById, fetchAllRows } from "@/lib/paginate";
 
 export type LotteryCandidate = {
   id: string;
@@ -61,8 +61,9 @@ export async function loadLotteryCandidates(
       .order("id", { ascending: true })
       .range(from, to),
   );
+  // Punkty zmieniają się w trakcie eventu, więc strony mogą się nakładać — każdy uczestnik raz.
   return {
-    data: data.map((a) => ({
+    data: dedupeById(data).map((a) => ({
       id: a.id,
       first_name: a.first_name ?? null,
       last_name: a.last_name ?? null,

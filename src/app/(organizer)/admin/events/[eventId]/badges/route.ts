@@ -8,7 +8,7 @@ import { getOwnEvent } from "@/lib/events";
 import { featureGate } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Attendee } from "@/lib/attendees";
-import { fetchAllRows } from "@/lib/paginate";
+import { dedupeById, fetchAllRows } from "@/lib/paginate";
 import { BadgesPdf } from "./badge-pdf";
 
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "eventro.pl";
@@ -63,7 +63,8 @@ export async function GET(
     return new Response("Database error", { status: 500 });
   }
 
-  const attendees = (data ?? []) as Attendee[];
+  // Strony mogą się nakładać przy zapisach w trakcie pobierania — jeden identyfikator na osobę.
+  const attendees = dedupeById((data ?? []) as Attendee[]);
   if (attendees.length === 0) {
     return new Response("No attendees found for this filter", { status: 404 });
   }
