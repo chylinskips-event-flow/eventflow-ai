@@ -155,6 +155,24 @@ export function applyVariables(
   }, template);
 }
 
+/**
+ * Temat maila to zwykły tekst (nagłówek), nie HTML: wartości podstawiane bez escapowania,
+ * inaczej „Rock & Roll” trafia do skrzynki jako „Rock &amp; Roll”. Znaki nowej linii
+ * zamieniane na spacje — temat jest jednolinijkowy.
+ */
+export function applySubjectVariables(
+  template: string,
+  vars: Record<string, string>,
+): string {
+  return Object.entries(vars)
+    .reduce(
+      (result, [key, raw]) => result.replace(new RegExp(`\\{${key}\\}`, "g"), () => raw),
+      template,
+    )
+    .replace(/[\r\n]+/g, " ")
+    .trim();
+}
+
 export async function getTemplate(
   eventId: string,
   type: MessageTemplateType,

@@ -15,7 +15,9 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Guard: jeśli żądanie już zostało przepisane, nie rób tego ponownie.
-  if (!request.headers.get("x-mw-rewritten")) {
+  // /robots.txt nie jest przepisywany — subdomena wydarzenia dostaje te same reguły co apex
+  // (wyłączone ścieżki z tokenem), zamiast 404 = „indeksuj wszystko”.
+  if (!request.headers.get("x-mw-rewritten") && pathname !== "/robots.txt") {
     const isEventSubdomain =
       host !== ROOT_DOMAIN &&
       host !== `www.${ROOT_DOMAIN}` &&
