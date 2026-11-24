@@ -6,6 +6,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOwnEvent } from "@/lib/events";
+import { isEventOpenForStaff } from "@/lib/staff-link";
 
 // ── Typy wierszy DB ─────────────────────────────────────────────────────────
 
@@ -261,18 +262,34 @@ export type MixerLiveState = {
   } | null;
 };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Stan ekranu rzutnika Mixera po tokenie (publiczny, tylko do odczytu).
+ * Wydarzenie usunięte albo zawieszone (wydarzenie lub organizacja) → null (404).
+ */
 export async function getMixerLiveState(
   presentToken: string,
 ): Promise<MixerLiveState | null> {
+  if (!UUID.test(presentToken)) return null;
   const supabase = createAdminClient();
 
   const { data: mixerRaw } = await supabase
     .from("mixers")
-    .select("id, name, status, rounds_count, round_minutes, break_after_round, present_token")
+    .select(
+      "id, name, status, rounds_count, round_minutes, break_after_round, present_token, events!inner(id, organization_id, deleted_at)",
+    )
     .eq("present_token", presentToken)
     .maybeSingle();
 
   if (!mixerRaw) return null;
+
+  const event = (mixerRaw as { events: unknown }).events as {
+    id: string;
+    organization_id: string;
+    deleted_at: string | null;
+  } | null;
+  if (!event || !(await isEventOpenForStaff(event))) return null;
 
   const mixer = mixerRaw as {
     id: string;

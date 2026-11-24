@@ -27,13 +27,15 @@ function makeDeps(over: Partial<AccessLinkDeps> = {}) {
   const deps: AccessLinkDeps = {
     findEvent: async (slug) => (slug === EVENT.slug ? EVENT : null),
     isSuspended: async () => false,
-    countRecent: async ({ emailHash, ipHash, since }) => ({
-      email: rows.filter((r) => r.emailHash === emailHash && r.at >= since.getTime()).length,
-      ip: rows.filter((r) => r.ipHash === ipHash && r.at >= since.getTime()).length,
-    }),
-    record: async ({ eventId, emailHash, ipHash }) => {
+    // Atrapa atomowej funkcji w bazie: sprawdzenie i zapis bez przerwy (jak w transakcji).
+    tryRecord: async ({ eventId, emailHash, ipHash, since, maxPerEmail, maxPerIp }) => {
+      const email = rows.filter((r) => r.emailHash === emailHash && r.at >= since.getTime()).length;
+      const ip = rows.filter((r) => r.ipHash === ipHash && r.at >= since.getTime()).length;
+      if (email >= maxPerEmail || ip >= maxPerIp) return false;
       rows.push({ eventId, emailHash, ipHash, at: clock });
+      return true;
     },
+    purge: async () => {},
     findApprovedAttendees: async (eventId, email) =>
       eventId !== EVENT.id ? [] : email === REGISTERED ? [ANIA] : email === SHARED ? [JAN, OLA] : [],
     sendLinks,
@@ -150,13 +152,50 @@ describe("requestAccessLinkCore — „Wejdź ponownie”", () => {
   it("awaria tabeli limitu (np. brak migracji): błąd, bez wysyłki", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const broken = makeDeps({
-      countRecent: async () => {
-        throw new Error("relation does not exist");
+      tryRecord: async () => {
+        throw new Error("function does not exist");
       },
     });
     const res = await requestAccessLinkCore(broken.deps, req(REGISTERED));
     expect(res.status).toBe("error");
     expect(broken.tasks).toHaveLength(0);
+    spy.mockRestore();
+  });
+
+  it("równoległe prośby dla jednego adresu: wysyłka najwyżej do limitu", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 30 }, (_, i) => requestAccessLinkCore(t.deps, req(REGISTERED, `10.1.0.${i}`))),
+    );
+    expect(results.filter((r) => r.status === "sent")).toHaveLength(ACCESS_LINK_MAX_PER_EMAIL);
+    expect(results.filter((r) => r.status === "rate_limited")).toHaveLength(30 - ACCESS_LINK_MAX_PER_EMAIL);
+    await t.flush();
+    expect(t.sendLinks).toHaveBeenCalledTimes(ACCESS_LINK_MAX_PER_EMAIL);
+  });
+
+  it("limit sprawdzany i zapisywany jednym wywołaniem z limitami z konfiguracji", async () => {
+    const tryRecord = vi.fn(async () => true);
+    const d = makeDeps({ tryRecord });
+    await requestAccessLinkCore(d.deps, req(REGISTERED, "3.3.3.3"));
+    expect(tryRecord).toHaveBeenCalledTimes(1);
+    expect(tryRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: EVENT.id,
+        emailHash: hashForRateLimit("email", REGISTERED),
+        ipHash: hashForRateLimit("ip", "3.3.3.3"),
+        maxPerEmail: ACCESS_LINK_MAX_PER_EMAIL,
+        maxPerIp: ACCESS_LINK_MAX_PER_IP,
+      }),
+    );
+  });
+
+  it("błąd sprzątania starych wierszy nie blokuje prośby", async () => {
+    const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const d = makeDeps({
+      purge: async () => {
+        throw new Error("purge failed");
+      },
+    });
+    expect((await requestAccessLinkCore(d.deps, req(REGISTERED))).status).toBe("sent");
     spy.mockRestore();
   });
 

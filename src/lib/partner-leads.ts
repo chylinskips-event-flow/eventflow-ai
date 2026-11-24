@@ -97,6 +97,8 @@ export type PartnerQuestion = PublicQuestion & {
   status: QuestionStatus;
   review_note: string | null;
   position: number;
+  /** Wersja pytania z bazy — decyzja organizatora dotyczy tylko wersji widzianej na stronie. */
+  updated_at?: string;
 };
 
 export async function getPartnerQuestions(
@@ -105,7 +107,7 @@ export async function getPartnerQuestions(
 ): Promise<PartnerQuestion[]> {
   let q = createAdminClient()
     .from("partner_questions")
-    .select("id, kind, prompt, options, status, review_note, position")
+    .select("id, kind, prompt, options, status, review_note, position, updated_at")
     .eq("partner_id", partnerId);
   if (opts.approvedOnly) q = q.eq("status", "approved");
   const { data, error } = await q
@@ -125,6 +127,7 @@ export async function getPartnerQuestions(
       status: r.status as QuestionStatus,
       review_note: (r.review_note as string | null) ?? null,
       position: (r.position as number) ?? 0,
+      updated_at: (r.updated_at as string | null) ?? undefined,
     }));
 }
 

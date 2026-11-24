@@ -614,6 +614,30 @@ export async function unlockMixer(
   return { status: "success" };
 }
 
+// ── rotatePresentToken ───────────────────────────────────────────────────────
+// Nowy link rzutnika: stary przestaje działać od razu (np. gdy wyciekł albo został na ekranie).
+
+export async function rotatePresentToken(
+  eventId: string,
+  mixerId: string,
+): Promise<MixerFormState> {
+  const event = await getOwnEvent(eventId);
+  if (!event) return { status: "error", message: "Event nie znaleziony." };
+
+  const { data, error } = await createAdminClient()
+    .from("mixers")
+    .update({ present_token: crypto.randomUUID(), updated_at: new Date().toISOString() })
+    .eq("id", mixerId)
+    .eq("event_id", eventId)
+    .select("id");
+
+  if (error) return { status: "error", message: "Nie udało się utworzyć nowego linku." };
+  if (!data?.length) return MIXER_NOT_FOUND;
+
+  revalidateMixer(eventId, mixerId);
+  return { status: "success", message: "Nowy link rzutnika gotowy — stary już nie działa." };
+}
+
 // ── startMixer ───────────────────────────────────────────────────────────────
 
 export async function startMixer(

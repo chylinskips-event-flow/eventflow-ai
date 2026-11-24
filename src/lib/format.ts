@@ -75,6 +75,12 @@ export function pluralizePl(
   return forms[2];
 }
 
+/** „Ostatnie miejsce” / „Ostatnie 3 miejsca” / „Ostatnie 5 miejsc” (odmiana jak w pluralizePl). */
+export function formatLastSeats(n: number): string {
+  if (n === 1) return "Ostatnie miejsce";
+  return `Ostatnie ${n} ${pluralizePl(n, ["miejsce", "miejsca", "miejsc"])}`;
+}
+
 // Domyślna strefa, gdy event nie ma ustawionej (spójna z formularzami).
 const TZ_FALLBACK = "Europe/Warsaw";
 

@@ -206,13 +206,28 @@ export async function redeemReward(
   // 1. Odczytaj aktualny stan magazynu
   const { data: rewardRow, error: readErr } = await supabase
     .from("rewards")
-    .select("id, stock")
+    .select("id, stock, points_required")
     .eq("id", rewardId)
     .eq("event_id", eventId)
     .maybeSingle();
 
   if (readErr || !rewardRow)
     return { status: "error", message: "Nagroda nie znaleziona." };
+
+  // 1b. Uczestnik musi należeć do tego eventu, być zatwierdzony i mieć dość punktów
+  //     (te same warunki co przy wydaniu po kodzie QR).
+  const { data: attendeeRow } = await supabase
+    .from("attendees")
+    .select("id, points, status")
+    .eq("id", attendeeId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+  const attendee = attendeeRow as { id: string; points: number | null; status: string } | null;
+  if (!attendee || attendee.status !== "approved")
+    return { status: "error", message: "Uczestnik nie znaleziony." };
+  const pointsRequired = (rewardRow as { points_required: number | null }).points_required ?? 0;
+  if ((attendee.points ?? 0) < pointsRequired)
+    return { status: "error", message: "Uczestnik nie ma wystarczającej liczby punktów." };
 
   // 2. Już odebrana → odmowa bez dotykania magazynu
   const { data: existingRedemption } = await supabase

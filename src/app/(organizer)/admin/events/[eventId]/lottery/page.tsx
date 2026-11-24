@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { LotteryClient } from "./lottery-client";
 import { featureGate } from "@/lib/entitlements";
 import { FeatureLockedPage } from "@/components/upgrade-notice";
+import { buildLotteryPool, loadLotteryCandidates, loadLotteryExclusions } from "@/lib/lottery";
 
 export default async function LotteryPage({
   params,
@@ -24,33 +25,23 @@ export default async function LotteryPage({
   const pointsPerTicket = event.lottery_points_per_ticket;
 
   const admin = createAdminClient();
-  const { data: rawAttendees } = await admin
-    .from("attendees")
-    .select("id, first_name, last_name, company, points")
-    .eq("event_id", eventId)
-    .eq("status", "approved")
-    .order("last_name", { ascending: true });
+  // Pełna lista stronami (PostgREST zwraca maks. 1000 wierszy na zapytanie) + wykluczenia z bazy
+  const [{ data: candidates }, { data: excludedIds }] = await Promise.all([
+    loadLotteryCandidates(admin, eventId, pointsPerTicket),
+    loadLotteryExclusions(admin, eventId),
+  ]);
 
-  type AttendeeRow = {
-    id: string;
-    first_name: string | null;
-    last_name: string | null;
-    company: string | null;
-    points: number;
-  };
-
-  const attendees: AttendeeRow[] = (rawAttendees ?? []).map((a) => ({
-    id: a.id as string,
-    first_name: a.first_name as string | null,
-    last_name: a.last_name as string | null,
-    company: a.company as string | null,
-    points: (a.points as number) ?? 0,
-  }));
-
-  // Tylko uczestnicy z ≥1 biletem losowania
-  const eligible = attendees.filter(
-    (a) => Math.floor(a.points / pointsPerTicket) >= 1,
-  );
+  // Tylko uczestnicy z ≥1 biletem losowania (wykluczonych pokazujemy, ale wyszarzonych)
+  const eligible = buildLotteryPool(candidates, pointsPerTicket, new Set())
+    .sort((x, y) =>
+      x.last_name === y.last_name
+        ? 0
+        : x.last_name === null
+          ? 1
+          : y.last_name === null
+            ? -1
+            : x.last_name.localeCompare(y.last_name, "pl"),
+    );
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
@@ -66,6 +57,7 @@ export default async function LotteryPage({
         eventId={eventId}
         pointsPerTicket={pointsPerTicket}
         eligible={eligible}
+        initialExcludedIds={excludedIds}
       />
     </main>
   );

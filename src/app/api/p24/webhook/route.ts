@@ -8,9 +8,10 @@ import {
 } from "@/lib/p24";
 import { sendAttendeeConfirmationEmail } from "@/lib/email/attendee-confirmation";
 import type { Event } from "@/lib/events";
-import { buyerNameParts } from "@/lib/checkout-core";
+import { buyerNameParts, orderReservationHeld } from "@/lib/checkout-core";
 import { getOrganizerEmail } from "@/lib/booth-requests";
 import { sendOrderOverbookedEmail } from "@/lib/email/order-overbooked";
+import { isAttendeeLimitReached } from "@/lib/entitlements";
 
 type P24Notification = {
   merchantId: number;
@@ -157,23 +158,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ responseCode: 0 });
   }
 
-  // 8. Idempotent fulfillment (SQL, atomowo): 'paid' gdy miejsce jest (aktywna rezerwacja albo
-  // wolna pula po jej wygaśnięciu), 'paid_overbooked' gdy puli już nie ma, 'noop' gdy zamówienie
-  // rozliczył równoległy webhook. Licznik kodu rabatowego rośnie tylko przy 'paid'.
-  const { data: outcome, error: confirmError } = await supabase.rpc("confirm_paid_order", {
-    p_order_id: order.id,
-    p_p24_order_id: String(orderId),
-  });
+  // 8. Limit uczestników z planu organizatora sprawdzony ponownie przy potwierdzeniu tylko wtedy,
+  // gdy rezerwacja już nie trzyma miejsca (zamówienie anulowane albo starsze niż czas rezerwacji —
+  // inni mogli zająć miejsca). Aktywna rezerwacja została wliczona do limitu w kasie i jest
+  // honorowana. Przy osiągniętym limicie: ta sama ścieżka co brak miejsc w puli — bez biletu,
+  // powiadomienie organizatora.
+  // 9. W przeciwnym razie idempotentne potwierdzenie (SQL, atomowo): 'paid' gdy miejsce jest
+  // (aktywna rezerwacja albo wolna pula po jej wygaśnięciu), 'paid_overbooked' gdy puli już nie
+  // ma, 'noop' gdy zamówienie rozliczył równoległy webhook. Licznik kodu rośnie tylko przy 'paid'.
+  const limitReached = orderReservationHeld(order) ? false : await isAttendeeLimitReached(event);
+  const { data: outcome, error: confirmError } = limitReached
+    ? await supabase.rpc("mark_order_overbooked", {
+        p_order_id: order.id,
+        p_p24_order_id: String(orderId),
+      })
+    : await supabase.rpc("confirm_paid_order", {
+        p_order_id: order.id,
+        p_p24_order_id: String(orderId),
+      });
 
   if (confirmError) {
     // Płatność potwierdzona, zapis nieudany: 500, żeby P24 ponowiło powiadomienie.
-    console.error("[p24-webhook] confirm_paid_order failed:", confirmError.message);
+    console.error("[p24-webhook] order confirmation failed:", confirmError.message);
     return NextResponse.json({ error: "Confirm failed" }, { status: 500 });
   }
 
   if (outcome === "paid_overbooked") {
     // Bez biletu i bez automatycznego zwrotu: organizator dostaje powiadomienie i decyduje.
-    console.error(`[p24-webhook] order ${order.id} paid after reservation expired; pool exhausted`);
+    console.error(
+      `[p24-webhook] order ${order.id} paid without a free seat (${limitReached ? "attendee limit" : "pool exhausted"})`,
+    );
     try {
       const to = await getOrganizerEmail(event.organization_id);
       if (to) {
@@ -185,6 +199,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           currency: order.currency ?? "PLN",
           sessionId: order.p24_session_id,
           p24OrderId: String(orderId),
+          reason: limitReached ? "attendee_limit" : "pool",
         });
       }
     } catch (err) {
@@ -198,7 +213,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ responseCode: 0 });
   }
 
-  // 9. Create tickets + attendees for all order items
+  // 10. Create tickets + attendees for all order items
   const { data: items } = await supabase
     .from("order_items")
     .select("ticket_type_id, quantity")

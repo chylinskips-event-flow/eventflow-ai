@@ -109,22 +109,12 @@ export async function completeQuest(
     throw completionError;
   }
 
-  // 3. Dolicz punkty + przelicz poziom (po potwierdzeniu INSERT quest_completions)
-  const { data: attendee } = await supabase
-    .from("attendees")
-    .select("points")
-    .eq("id", params.attendeeId)
-    .single();
-
-  const oldPoints = ((attendee as { points: number } | null)?.points) ?? 0;
-  const oldLevel = computeLevel(oldPoints);
-  const newPoints = oldPoints + params.pointsAwarded;
+  // 3. Dolicz punkty + przelicz poziom (po potwierdzeniu INSERT quest_completions).
+  //    Jedno atomowe UPDATE w bazie (points = points + delta), więc równoległe zaliczenia
+  //    różnych questów nie nadpisują się nawzajem.
+  const { newPoints } = await addAttendeePoints(params.attendeeId, params.pointsAwarded);
+  const oldLevel = computeLevel(newPoints - params.pointsAwarded);
   const newLevel = computeLevel(newPoints);
-
-  await supabase
-    .from("attendees")
-    .update({ points: newPoints, level: newLevel })
-    .eq("id", params.attendeeId);
 
   return {
     ok: true,
@@ -132,6 +122,25 @@ export async function completeQuest(
     newLevel,
     levelUp: newLevel !== oldLevel,
   };
+}
+
+/**
+ * Atomowo dolicza punkty uczestnikowi i przelicza poziom (RPC add_attendee_points).
+ * Zwraca stan po zmianie. Progi poziomów w funkcji SQL odpowiadają computeLevel().
+ */
+export async function addAttendeePoints(
+  attendeeId: string,
+  delta: number,
+): Promise<{ newPoints: number; newLevel: GamificationLevel }> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.rpc("add_attendee_points", {
+    p_attendee_id: attendeeId,
+    p_delta: delta,
+  });
+  if (error) throw error;
+  const row = (Array.isArray(data) ? data[0] : data) as { new_points: number } | null | undefined;
+  const newPoints = row?.new_points ?? delta;
+  return { newPoints, newLevel: computeLevel(newPoints) };
 }
 
 async function isGamificationEnabled(eventId: string): Promise<boolean> {

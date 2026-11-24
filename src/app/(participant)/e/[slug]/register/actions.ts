@@ -10,8 +10,7 @@ import {
   sendAttendeePendingApprovalEmail,
 } from "@/lib/email/attendee-confirmation";
 import {
-  ATTENDEE_TOKEN_COOKIE,
-  ATTENDEE_TOKEN_MAX_AGE_SECONDS,
+  setAttendeeSessionCookie,
 } from "@/lib/attendee-session";
 import { getRegistrationUnavailableReason, type Event } from "@/lib/events";
 import { ATTENDEE_LIMIT_MESSAGE, isAttendeeLimitReached } from "@/lib/entitlements";
@@ -152,13 +151,7 @@ export async function registerAttendee(
   }
 
   const cookieStore = await cookies();
-  cookieStore.set(ATTENDEE_TOKEN_COOKIE, attendee.qr_code_token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: ATTENDEE_TOKEN_MAX_AGE_SECONDS,
-  });
+  setAttendeeSessionCookie(cookieStore, event.id, attendee.qr_code_token);
 
   // Uwaga: cookie ustawiamy też dla statusu 'pending' — getCurrentAttendee()
   // (Krok 2.3) i tak nie uzna takiego attendee za zalogowanego, dopóki

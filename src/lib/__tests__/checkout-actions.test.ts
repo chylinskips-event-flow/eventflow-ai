@@ -11,6 +11,8 @@ const p24 = {
   registerTransaction: vi.fn(async () => ({ ok: true, data: { token: "tok" } })),
 };
 const duplicate = { message: null as string | null };
+const cookieSets: { name: string; value: string }[] = [];
+const limitCalls: unknown[] = [];
 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => db.client }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
@@ -21,7 +23,10 @@ vi.mock("@/lib/email/attendee-confirmation", () => ({
 vi.mock("@/lib/entitlements", () => ({
   ATTENDEE_LIMIT_MESSAGE: "limit",
   hasFeature: async () => true,
-  isAttendeeLimitReached: async () => false,
+  isAttendeeLimitReached: async (_event: unknown, options?: unknown) => {
+    limitCalls.push(options);
+    return false;
+  },
 }));
 vi.mock("@/lib/duplicate-registration", () => ({ handleDuplicateRegistration: async () => duplicate.message }));
 vi.mock("@/lib/p24", () => ({
@@ -31,7 +36,9 @@ vi.mock("@/lib/p24", () => ({
 }));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ origin: "https://eventro.pl" }),
-  cookies: async () => ({ set: () => {} }),
+  cookies: async () => ({
+    set: (name: string, value: string) => void cookieSets.push({ name, value }),
+  }),
 }));
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
@@ -212,6 +219,17 @@ describe("bilet płatny przez Przelewy24", () => {
     expect(db.inserts("orders")[0]).toMatchObject({ status: "pending", total_amount: 4999, discount_code_id: null });
   });
 
+  it("przeglądarka rozpoczynająca płatność dostaje ciasteczko sesji; limit liczy trwające płatności", async () => {
+    cookieSets.length = 0;
+    limitCalls.length = 0;
+    await catchRedirect(startPaidCheckout("ev1", "konf", "tt1", { status: "idle" }, form()));
+    const sessionId = (db.inserts("orders")[0] as { p24_session_id: string }).p24_session_id;
+    expect(cookieSets).toContainEqual(
+      expect.objectContaining({ name: "eventflow_checkout_session", value: sessionId }),
+    );
+    expect(limitCalls).toContainEqual({ includePendingOrders: true });
+  });
+
   it("limit kodu uwzględnia trwające płatności z tym kodem", async () => {
     discountCode = { ...discountCode!, max_uses: 2, uses_count: 1 };
     db.results["orders:select"] = () => ({ data: null, error: null, count: 1 });
@@ -227,7 +245,7 @@ describe("bilet płatny przez Przelewy24", () => {
     const { result } = await catchRedirect(
       startPaidCheckout("ev1", "konf", "tt1", { status: "idle" }, form({ discount_code: "lato" })),
     );
-    expect((result as { message: string }).message).toMatch(/nie sa skonfigurowane/);
+    expect((result as { message: string }).message).toMatch(/nie są skonfigurowane/);
     expect(db.inserts("orders")).toHaveLength(0);
   });
 });

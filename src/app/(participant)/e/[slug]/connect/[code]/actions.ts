@@ -9,6 +9,7 @@ import { getOrigin } from "@/lib/request-origin";
 import { buildEventInternalPath } from "@/lib/event-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkNetworkingQuestProgress } from "@/lib/gamification";
+import { planQrConnect, type PairContactRow } from "@/lib/contact-connect";
 
 export type ConnectActionState = {
   status: "error";
@@ -54,33 +55,53 @@ export async function connectViaCode(
 
   const supabase = createAdminClient();
 
-  // Istniejący wiersz w DOWOLNYM kierunku (skaner→owner LUB owner→skaner) —
-  // UNIQUE jest kierunkowy, więc sprawdzamy obie strony.
-  const { data: existing } = await supabase
+  // Istniejące wiersze w OBU kierunkach (skaner→owner i owner→skaner) —
+  // UNIQUE jest kierunkowy, więc para może mieć dwa wiersze (np. prośby wysłane
+  // jednocześnie przez obie osoby).
+  const { data: existingRows, error: readError } = await supabase
     .from("contact_requests")
-    .select("id")
+    .select("id, requester_id, recipient_id, status, requester_note, recipient_note, created_at")
     .eq("event_id", scanner.event_id)
     .or(
       `and(requester_id.eq.${scanner.id},recipient_id.eq.${owner.id}),` +
         `and(requester_id.eq.${owner.id},recipient_id.eq.${scanner.id})`,
-    )
-    .maybeSingle();
+    );
+
+  if (readError) {
+    return {
+      status: "error",
+      message: "Nie udało się nawiązać kontaktu. Spróbuj ponownie.",
+    };
+  }
 
   const now = new Date().toISOString();
+  const rows = (existingRows ?? []) as PairContactRow[];
 
-  if (existing) {
+  if (rows.length > 0) {
     // Upgrade dowolnego stanu (pending LUB declined) → accepted. Patrz komentarz
-    // funkcji: skan nadpisuje odmowę.
+    // funkcji: skan nadpisuje odmowę. Przy wierszach w obu kierunkach zostaje jeden —
+    // ten sam niezależnie od tego, która osoba skanuje.
+    const plan = planQrConnect(rows, now);
     const { error } = await supabase
       .from("contact_requests")
-      .update({ status: "accepted", responded_at: now })
-      .eq("id", existing.id);
+      .update(plan.update)
+      .eq("id", plan.keepId);
 
     if (error) {
       return {
         status: "error",
         message: "Nie udało się nawiązać kontaktu. Spróbuj ponownie.",
       };
+    }
+
+    if (plan.deleteIds.length > 0) {
+      const { error: deleteError } = await supabase
+        .from("contact_requests")
+        .delete()
+        .eq("event_id", scanner.event_id)
+        .in("id", plan.deleteIds);
+      // Kontakt już jest nawiązany — nadmiarowy wiersz zostanie usunięty przy kolejnym skanie.
+      if (deleteError) console.error("[connect] duplicate contact cleanup failed:", deleteError.message);
     }
   } else {
     const { error } = await supabase.from("contact_requests").insert({

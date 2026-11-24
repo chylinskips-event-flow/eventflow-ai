@@ -1,13 +1,20 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
-import { Check, Printer, Undo2, QrCode, Search, Users } from "lucide-react";
+import { useState, useTransition, useMemo, useCallback } from "react";
+import { AlertCircle, Check, Printer, Undo2, QrCode, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QrScanner } from "@/components/qr-scanner";
 import { BadgeLabelDialog } from "@/components/badge-label-dialog";
 import type { BadgeLabelResult } from "@/lib/badge-label-core";
 import type { ReceptionAttendee, CheckInResult } from "@/lib/reception";
+import {
+  isLinkInactive,
+  RECEPTION_ACTION_ERROR_MESSAGE,
+  RECEPTION_LINK_INACTIVE_MESSAGE,
+  RECEPTION_LINK_INACTIVE_TITLE,
+  type UndoCheckInResult,
+} from "@/lib/reception-feedback";
 
 type Filter = "all" | "present" | "absent";
 
@@ -15,7 +22,8 @@ interface ReceptionPanelProps {
   attendees: ReceptionAttendee[];
   checkInByQrAction: (checkInToken: string) => Promise<CheckInResult>;
   checkInByIdAction: (attendeeId: string) => Promise<CheckInResult>;
-  undoCheckInAction: (attendeeId: string) => Promise<void>;
+  /** Link obsługi zwraca wynik (np. link nieaktywny); panel organizatora — void. */
+  undoCheckInAction: (attendeeId: string) => Promise<void | UndoCheckInResult>;
   /** Druk etykiety; brak = plan bez identyfikatorów, przycisk niewidoczny. */
   badgeLabelAction?: (attendeeId: string) => Promise<BadgeLabelResult>;
   /** Klasa CSS `top-*` dla przyklejonego nagłówka; domyślnie "top-0" */
@@ -45,6 +53,9 @@ export function ReceptionPanel({
   const [pending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [labelFor, setLabelFor] = useState<string | null>(null);
+  // Link obsługi wyłączony w trakcie zmiany — komunikat i blokada dalszych akcji.
+  const [linkInactive, setLinkInactive] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const checkedIn = attendees.filter((a) => a.checked_in_at !== null).length;
   const total = attendees.length;
@@ -62,21 +73,40 @@ export function ReceptionPanel({
     });
   }, [attendees, filter, search]);
 
-  function handleCheckIn(attendeeId: string) {
+  // Błąd akcji nie może trafić do granicy błędu (cała strona znika) — pokazujemy komunikat.
+  function runAction(attendeeId: string, action: () => Promise<unknown>) {
+    if (linkInactive) return;
     setBusyId(attendeeId);
+    setActionError(null);
     startTransition(async () => {
-      await checkInByIdAction(attendeeId);
-      setBusyId(null);
+      try {
+        const result = await action();
+        if (isLinkInactive(result)) setLinkInactive(true);
+      } catch {
+        setActionError(RECEPTION_ACTION_ERROR_MESSAGE);
+      } finally {
+        setBusyId(null);
+      }
     });
   }
 
-  function handleUndo(attendeeId: string) {
-    setBusyId(attendeeId);
-    startTransition(async () => {
-      await undoCheckInAction(attendeeId);
-      setBusyId(null);
-    });
+  function handleCheckIn(attendeeId: string) {
+    runAction(attendeeId, () => checkInByIdAction(attendeeId));
   }
+
+  function handleUndo(attendeeId: string) {
+    runAction(attendeeId, () => undoCheckInAction(attendeeId));
+  }
+
+  // Skaner pokazuje własny komunikat; panel dodatkowo blokuje listę po zamknięciu skanera.
+  const handleScan = useCallback(
+    async (checkInToken: string): Promise<CheckInResult> => {
+      const result = await checkInByQrAction(checkInToken);
+      if (isLinkInactive(result)) setLinkInactive(true);
+      return result;
+    },
+    [checkInByQrAction],
+  );
 
   return (
     <div>
@@ -103,6 +133,7 @@ export function ReceptionPanel({
               size="sm"
               variant="outline"
               onClick={() => setScannerOpen(true)}
+              disabled={linkInactive}
             >
               <QrCode className="mr-1.5 size-4" />
               Skanuj QR
@@ -110,6 +141,24 @@ export function ReceptionPanel({
             {receptionLinkSlot}
           </div>
         </div>
+
+        {linkInactive && (
+          <div
+            role="alert"
+            className="mx-4 mb-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800"
+          >
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold">{RECEPTION_LINK_INACTIVE_TITLE}</p>
+              <p className="text-xs">{RECEPTION_LINK_INACTIVE_MESSAGE}</p>
+            </div>
+          </div>
+        )}
+        {!linkInactive && actionError && (
+          <p role="alert" className="mx-4 mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+            {actionError}
+          </p>
+        )}
 
         {/* Pasek postępu */}
         {total > 0 && (
@@ -201,7 +250,7 @@ export function ReceptionPanel({
                   variant="ghost"
                   size="sm"
                   onClick={() => handleUndo(a.id)}
-                  disabled={isBusy}
+                  disabled={isBusy || linkInactive}
                   className="shrink-0 text-muted-foreground"
                   aria-label="Cofnij zameldowanie"
                 >
@@ -212,7 +261,7 @@ export function ReceptionPanel({
                 <Button
                   size="sm"
                   onClick={() => handleCheckIn(a.id)}
-                  disabled={isBusy}
+                  disabled={isBusy || linkInactive}
                   className="shrink-0 bg-green-600 text-white hover:bg-green-700"
                 >
                   <Check className="mr-1.5 size-4" />
@@ -235,7 +284,7 @@ export function ReceptionPanel({
       {/* Overlay skanera QR */}
       {scannerOpen && (
         <QrScanner
-          onScan={checkInByQrAction}
+          onScan={handleScan}
           onClose={() => setScannerOpen(false)}
         />
       )}

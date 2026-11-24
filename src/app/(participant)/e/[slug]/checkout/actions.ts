@@ -10,14 +10,14 @@ import {
   sendAttendeePendingApprovalEmail,
 } from "@/lib/email/attendee-confirmation";
 import {
-  ATTENDEE_TOKEN_COOKIE,
-  ATTENDEE_TOKEN_MAX_AGE_SECONDS,
+  setAttendeeSessionCookie,
 } from "@/lib/attendee-session";
 import { getRegistrationUnavailableReason, type Event } from "@/lib/events";
 import { getPaymentConfig, registerTransaction, getP24BaseUrl } from "@/lib/p24";
 import { randomUUID } from "crypto";
 import { ATTENDEE_LIMIT_MESSAGE, hasFeature, isAttendeeLimitReached } from "@/lib/entitlements";
 import { handleDuplicateRegistration } from "@/lib/duplicate-registration";
+import { CHECKOUT_SESSION_COOKIE, CHECKOUT_SESSION_MAX_AGE_SECONDS } from "@/lib/checkout-return";
 import {
   PENDING_ORDER_TTL_MINUTES,
   computeDiscountAmount,
@@ -81,7 +81,7 @@ export async function completeFreeCheckout(
   });
   if (duplicateMessage) return { status: "already_registered", message: duplicateMessage };
 
-  if (await isAttendeeLimitReached(event))
+  if (await isAttendeeLimitReached(event, { includePendingOrders: true }))
     return { status: "error", message: ATTENDEE_LIMIT_MESSAGE };
 
   const { data: tt } = await supabase
@@ -176,7 +176,7 @@ async function issueFreeTicket(params: {
         p_quantity: 1,
       });
     }
-    return { status: "error", message: "Nie udalo sie zarejestrowac. Sprobuj ponownie." };
+    return { status: "error", message: "Nie udało się zarejestrować. Spróbuj ponownie." };
   }
 
   // 4. Create order (free → immediately paid)
@@ -209,7 +209,7 @@ async function issueFreeTicket(params: {
       });
     }
     await supabase.from("attendees").delete().eq("id", attendee.id);
-    return { status: "error", message: "Nie udalo sie zarejestrowac. Sprobuj ponownie." };
+    return { status: "error", message: "Nie udało się zarejestrować. Spróbuj ponownie." };
   }
 
   // 5. Create order item
@@ -255,13 +255,7 @@ async function issueFreeTicket(params: {
 
   // 8. Set cookie
   const cookieStore = await cookies();
-  cookieStore.set(ATTENDEE_TOKEN_COOKIE, attendee.qr_code_token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: ATTENDEE_TOKEN_MAX_AGE_SECONDS,
-  });
+  setAttendeeSessionCookie(cookieStore, eventId, attendee.qr_code_token);
 
   // Oczekujący na zatwierdzenie: ta sama strona co po zwykłej rejestracji z zatwierdzaniem.
   redirect(buildEventInternalPath(
@@ -302,10 +296,10 @@ async function validateDiscountCode(
     .eq("enabled", true)
     .maybeSingle();
 
-  if (!dc) return "Nieprawidlowy kod rabatowy.";
+  if (!dc) return "Nieprawidłowy kod rabatowy.";
   const validity = isWithinWindow(dc.valid_from, dc.valid_until);
   if (validity === "before") return "Kod rabatowy jeszcze nieaktywny.";
-  if (validity === "after") return "Kod rabatowy wygasl.";
+  if (validity === "after") return "Kod rabatowy wygasł.";
   if (dc.ticket_type_id && dc.ticket_type_id !== ticketTypeId)
     return "Kod nie dotyczy wybranego typu biletu.";
 
@@ -340,7 +334,7 @@ export async function startPaidCheckout(
   const discountCodeRaw = formData.get("discount_code");
 
   if (typeof firstName !== "string" || !firstName.trim())
-    return { status: "error", message: "Podaj imie." };
+    return { status: "error", message: "Podaj imię." };
   if (typeof lastName !== "string" || !lastName.trim())
     return { status: "error", message: "Podaj nazwisko." };
   if (typeof email !== "string" || !EMAIL_PATTERN.test(email.trim()))
@@ -366,7 +360,7 @@ export async function startPaidCheckout(
   if (paidUnavailable) return { status: "error", message: paidUnavailable };
   if (!(await hasFeature(event.organization_id, "tickets_paid")))
     return { status: "error", message: "Sprzedaż biletów płatnych jest niedostępna dla tego wydarzenia." };
-  if (await isAttendeeLimitReached(event))
+  if (await isAttendeeLimitReached(event, { includePendingOrders: true }))
     return { status: "error", message: ATTENDEE_LIMIT_MESSAGE };
 
   // 2. Verify ticket type server-side (price never from client)
@@ -378,11 +372,11 @@ export async function startPaidCheckout(
     .eq("enabled", true)
     .maybeSingle();
 
-  if (!tt) return { status: "error", message: "Typ biletu niedostepny." };
-  if (tt.price === 0) return { status: "error", message: "Uzyj formularza dla biletow darmowych." };
+  if (!tt) return { status: "error", message: "Typ biletu niedostępny." };
+  if (tt.price === 0) return { status: "error", message: "Użyj formularza dla biletów darmowych." };
   const salesWindow = isWithinWindow(tt.sales_start, tt.sales_end);
-  if (salesWindow === "before") return { status: "error", message: "Sprzedaz jeszcze nie rozpoczeta." };
-  if (salesWindow === "after") return { status: "error", message: "Sprzedaz zakonczona." };
+  if (salesWindow === "before") return { status: "error", message: "Sprzedaż jeszcze nie rozpoczęta." };
+  if (salesWindow === "after") return { status: "error", message: "Sprzedaż zakończona." };
 
   // 3. Discount code (server-side validation)
   let discountAmount = 0;
@@ -428,7 +422,7 @@ export async function startPaidCheckout(
   // 5. Payment config (tylko gdy jest co płacić)
   const cfg = await getPaymentConfig(event.organization_id);
   if (!cfg || !cfg.enabled)
-    return { status: "error", message: "Platnosci nie sa skonfigurowane dla tego wydarzenia." };
+    return { status: "error", message: "Płatności nie są skonfigurowane dla tego wydarzenia." };
 
   // 6. Atomic quantity reservation
   if (tt.quantity_total !== null) {
@@ -436,7 +430,7 @@ export async function startPaidCheckout(
       p_ticket_type_id: ticketTypeId,
       p_quantity: 1,
     });
-    if (!reserved) return { status: "error", message: "Brak dostepnych miejsc." };
+    if (!reserved) return { status: "error", message: "Brak dostępnych miejsc." };
   }
 
   // 7. Create pending order (imię, nazwisko i zgoda marketingowa trafią na bilet po płatności)
@@ -490,7 +484,7 @@ export async function startPaidCheckout(
     if (tt.quantity_total !== null) {
       await supabase.rpc("unreserve_ticket_quantity", { p_ticket_type_id: ticketTypeId, p_quantity: 1 });
     }
-    return { status: "error", message: "Nie udalo sie utworzyc zamowienia. Sprobuj ponownie." };
+    return { status: "error", message: "Nie udało się utworzyć zamówienia. Spróbuj ponownie." };
   }
 
   // 7. Create order item (price snapshot)
@@ -527,7 +521,7 @@ export async function startPaidCheckout(
     if (tt.quantity_total !== null) {
       await supabase.rpc("unreserve_ticket_quantity", { p_ticket_type_id: ticketTypeId, p_quantity: 1 });
     }
-    return { status: "error", message: `Blad rejestracji platnosci: ${p24Result.error}` };
+    return { status: "error", message: `Błąd rejestracji płatności: ${p24Result.error}` };
   }
 
   // 10. Save token on order
@@ -536,7 +530,18 @@ export async function startPaidCheckout(
     .update({ p24_token: p24Result.data.token })
     .eq("id", order.id);
 
-  // 11. Redirect to P24 payment page
+  // 11. Ta przeglądarka rozpoczęła płatność: po jej potwierdzeniu strona powrotu może ją
+  // zalogować jako uczestnika (checkout/return/panel), jak przy bilecie darmowym.
+  const cookieStore = await cookies();
+  cookieStore.set(CHECKOUT_SESSION_COOKIE, sessionId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: CHECKOUT_SESSION_MAX_AGE_SECONDS,
+  });
+
+  // 12. Redirect to P24 payment page
   const base = getP24BaseUrl(cfg.sandbox);
   redirect(`${base}/trnRequest/${p24Result.data.token}`);
 }

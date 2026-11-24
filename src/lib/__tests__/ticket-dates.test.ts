@@ -74,6 +74,7 @@ describe("akcje biletów zapisują daty w UTC wg strefy wydarzenia", () => {
   });
 
   it("edycja typu biletu: to samo przeliczenie", async () => {
+    db.results["ticket_types:select"] = () => ({ data: { price: 4999 }, error: null });
     const res = await actions.updateTicketType(
       "ev1",
       "tt1",

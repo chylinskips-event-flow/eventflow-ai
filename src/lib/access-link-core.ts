@@ -48,8 +48,20 @@ export type AccessLinkAttendee = {
 export type AccessLinkDeps = {
   findEvent: (slug: string) => Promise<AccessLinkEvent | null>;
   isSuspended: (slug: string) => Promise<boolean>;
-  countRecent: (p: { emailHash: string; ipHash: string; since: Date }) => Promise<{ email: number; ip: number }>;
-  record: (p: { eventId: string; emailHash: string; ipHash: string; purgeBefore: Date }) => Promise<void>;
+  /**
+   * Sprawdza limit i zapisuje prośbę ATOMOWO (jedna operacja w bazie) — równoległe prośby
+   * nie mogą razem przekroczyć limitu. true = zapisano; false = limit wyczerpany.
+   */
+  tryRecord: (p: {
+    eventId: string;
+    emailHash: string;
+    ipHash: string;
+    since: Date;
+    maxPerEmail: number;
+    maxPerIp: number;
+  }) => Promise<boolean>;
+  /** Usuwa stare wiersze limitu; błąd nie blokuje prośby. */
+  purge: (before: Date) => Promise<void>;
   /** Wszyscy zatwierdzeni uczestnicy tego wydarzenia z danym adresem (od najstarszej rejestracji). */
   findApprovedAttendees: (eventId: string, email: string) => Promise<AccessLinkAttendee[]>;
   /** Jeden mail na prośbę — przy kilku rekordach z listą linków. */
@@ -101,24 +113,27 @@ export async function requestAccessLinkCore(
   const now = deps.now().getTime();
 
   try {
-    const recent = await deps.countRecent({
-      emailHash,
-      ipHash,
-      since: new Date(now - ACCESS_LINK_WINDOW_MINUTES * 60_000),
-    });
-    if (recent.email >= ACCESS_LINK_MAX_PER_EMAIL || recent.ip >= ACCESS_LINK_MAX_PER_IP) {
-      return { status: "rate_limited", message: ACCESS_LINK_RATE_LIMITED_MESSAGE };
-    }
-    await deps.record({
+    const recorded = await deps.tryRecord({
       eventId: ev.id,
       emailHash,
       ipHash,
-      purgeBefore: new Date(now - ACCESS_LINK_RETENTION_HOURS * 3_600_000),
+      since: new Date(now - ACCESS_LINK_WINDOW_MINUTES * 60_000),
+      maxPerEmail: ACCESS_LINK_MAX_PER_EMAIL,
+      maxPerIp: ACCESS_LINK_MAX_PER_IP,
     });
+    if (!recorded) {
+      return { status: "rate_limited", message: ACCESS_LINK_RATE_LIMITED_MESSAGE };
+    }
   } catch (error) {
     // Bez działającego limitu nie wysyłamy (np. brak tabeli przed migracją) — głośno w logach.
     console.error("[access-link] rate limit storage failed:", error);
     return { status: "error", message: ACCESS_LINK_ERROR_MESSAGE };
+  }
+
+  try {
+    await deps.purge(new Date(now - ACCESS_LINK_RETENTION_HOURS * 3_600_000));
+  } catch (error) {
+    console.warn("[access-link] purge failed:", error);
   }
 
   deps.schedule(async () => {

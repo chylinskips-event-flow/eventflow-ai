@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { AVATAR_BUCKET, storagePathFromPublicUrl } from "@/lib/avatar-storage";
+import { AVATAR_BUCKET, avatarPathsFor } from "@/lib/avatar-storage";
 
 /**
  * Trwałe, całkowite usunięcie danych uczestnika: rekord w attendees + avatar
@@ -10,6 +10,11 @@ import { AVATAR_BUCKET, storagePathFromPublicUrl } from "@/lib/avatar-storage";
  * Wspólne dla samoobsługi (uczestnik z cookie) i panelu organizatora. Używa
  * service_role — tożsamość/uprawnienia MUSZĄ być zweryfikowane przez wywołującego
  * PRZED wejściem tutaj (getCurrentAttendee albo getOwnEvent + kontrola event_id).
+ *
+ * Bilety uczestnika w tym wydarzeniu są anulowane, a miejsca wracają do puli w tej samej
+ * transakcji co usunięcie rekordu (delete_attendee_releasing_tickets) — inaczej usunięta osoba
+ * trwale zajmowałaby miejsce, a nieudane usunięcie zostawiłoby istniejącego uczestnika bez
+ * ważnych biletów. Błąd samego zwolnienia nie blokuje usunięcia danych osobowych.
  *
  * Kolejność: najpierw kasujemy rekord (operacja autorytatywna), potem plik.
  * Gdyby usunięcie pliku zawiodło, zostaje najwyżej osierocony obiekt w bucketcie
@@ -22,24 +27,22 @@ export async function deleteAttendeeCompletely(
 
   const { data: attendee } = await supabase
     .from("attendees")
-    .select("avatar_url")
+    .select("event_id")
     .eq("id", attendeeId)
     .maybeSingle();
 
-  const { error } = await supabase
-    .from("attendees")
-    .delete()
-    .eq("id", attendeeId);
+  const { error } = await supabase.rpc("delete_attendee_releasing_tickets", {
+    p_attendee_id: attendeeId,
+  });
 
   if (error) {
     return { error: error.message };
   }
 
-  if (attendee?.avatar_url) {
-    const path = storagePathFromPublicUrl(attendee.avatar_url);
-    if (path) {
-      await supabase.storage.from(AVATAR_BUCKET).remove([path]);
-    }
+  // Kasujemy pliki wyłącznie spod ścieżek tego uczestnika ("<event_id>/<id>.<ext>"),
+  // wyznaczonych z identyfikatorów w bazie — nie z treści avatar_url.
+  if (attendee?.event_id) {
+    await supabase.storage.from(AVATAR_BUCKET).remove(avatarPathsFor(attendee.event_id, attendeeId));
   }
 
   return { error: null };

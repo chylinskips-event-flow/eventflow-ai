@@ -8,6 +8,7 @@ import { getOwnEvent } from "@/lib/events";
 import { featureGate } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Attendee } from "@/lib/attendees";
+import { dedupeById, fetchAllRows } from "@/lib/paginate";
 import { BadgesPdf } from "./badge-pdf";
 
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "eventro.pl";
@@ -36,28 +37,36 @@ export async function GET(
   const customTitle = searchParams.get("title") ?? undefined;
 
   const admin = createAdminClient();
-  let query = admin
-    .from("attendees")
-    .select("*")
-    .eq("event_id", eventId);
+  // Stronami — PostgREST zwraca maks. 1000 wierszy na zapytanie. Nowe zapytanie na każdą
+  // stronę (builder PostgREST kumuluje parametry).
+  const { data, error } = await fetchAllRows<Attendee>((from, to) => {
+    let query = admin
+      .from("attendees")
+      .select("*")
+      .eq("event_id", eventId);
 
-  if (filter === "approved") {
-    query = query.eq("status", "approved");
-  } else if (filter === "checkedin") {
-    query = (query as typeof query).not("checked_in_at", "is", null);
-  }
-  // filter === "all" → no additional constraint
+    if (filter === "approved") {
+      query = query.eq("status", "approved");
+    } else if (filter === "checkedin") {
+      query = (query as typeof query).not("checked_in_at", "is", null);
+    }
+    // filter === "all" → no additional constraint
 
-  const { data, error } = await query
-    .order("last_name", { ascending: true })
-    .order("first_name", { ascending: true });
+    // id na końcu: stały porządek przy równych nazwiskach.
+    return query
+      .order("last_name", { ascending: true })
+      .order("first_name", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to);
+  });
 
   if (error) {
-    console.error("[badges] DB error:", error.message);
+    console.error("[badges] DB error:", (error as { message?: string }).message);
     return new Response("Database error", { status: 500 });
   }
 
-  const attendees = (data ?? []) as Attendee[];
+  // Strony mogą się nakładać przy zapisach w trakcie pobierania — jeden identyfikator na osobę.
+  const attendees = dedupeById((data ?? []) as Attendee[]);
   if (attendees.length === 0) {
     return new Response("No attendees found for this filter", { status: 404 });
   }

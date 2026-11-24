@@ -33,15 +33,35 @@ export function isHeicBuffer(buf: Buffer): boolean {
 async function decodeHeic(buf: Buffer): Promise<sharp.Sharp> {
   // Import dynamiczny: duży moduł WASM ładujemy tylko dla plików HEIC.
   const { default: decode } = await import("heic-decode");
+  const readError = () => new PhotoProcessingError("Nie udało się odczytać pliku HEIC.");
+  const tooLarge = () => new PhotoProcessingError("Zdjęcie ma zbyt dużą rozdzielczość.");
+  // Najpierw sam kontener (wymiary z nagłówka, bez pikseli) — limit rozdzielczości sprawdzamy
+  // PRZED dekodowaniem, które alokuje pełny bufor RGBA (4 B na piksel).
+  let images: Awaited<ReturnType<typeof decode.all>>;
+  try {
+    images = await decode.all({ buffer: buf });
+  } catch {
+    throw readError();
+  }
   let image: { width: number; height: number; data: Uint8ClampedArray };
   try {
-    image = await decode({ buffer: buf });
-  } catch {
-    throw new PhotoProcessingError("Nie udało się odczytać pliku HEIC.");
+    const first = images[0];
+    if (!first || !(first.width > 0) || !(first.height > 0)) throw readError();
+    if (first.width * first.height > MAX_INPUT_PIXELS) throw tooLarge();
+    try {
+      image = await first.decode();
+    } catch {
+      throw readError();
+    }
+  } finally {
+    try {
+      images.dispose?.();
+    } catch {
+      // zwolnienie pamięci WASM nie może przesłonić właściwego wyniku
+    }
   }
-  if (image.width * image.height > MAX_INPUT_PIXELS) {
-    throw new PhotoProcessingError("Zdjęcie ma zbyt dużą rozdzielczość.");
-  }
+  // Kontrola zapasowa po dekodowaniu.
+  if (image.width * image.height > MAX_INPUT_PIXELS) throw tooLarge();
   // libheif stosuje już obrót z kontenera — nie obracamy drugi raz.
   return sharp(Buffer.from(image.data.buffer, image.data.byteOffset, image.data.byteLength), {
     raw: { width: image.width, height: image.height, channels: 4 },

@@ -77,7 +77,7 @@ export function CheckoutForm({
       <form action={formAction} className="space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label htmlFor="co-first">Imie *</Label>
+            <Label htmlFor="co-first">Imię *</Label>
             <Input
               id="co-first"
               name="first_name"
@@ -113,7 +113,7 @@ export function CheckoutForm({
             onChange={(e) => setEmail(e.target.value)}
           />
           <p className="text-xs text-muted-foreground">
-            Na ten adres wyslemy bilet z kodem QR.
+            Na ten adres wyślemy bilet z kodem QR.
           </p>
         </div>
 
@@ -148,8 +148,17 @@ export function CheckoutForm({
               onCheckedChange={(v) => setGdpr(Boolean(v))}
             />
             <Label htmlFor="co-gdpr" className="font-normal leading-relaxed">
-              Wyrazam zgode na przetwarzanie moich danych osobowych przez organizatora
-              w celu uczestnictwa w wydarzeniu. *
+              Wyrażam zgodę na przetwarzanie moich danych osobowych przez organizatora
+              w celu uczestnictwa w wydarzeniu zgodnie z RODO oraz{" "}
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline"
+              >
+                Polityką prywatności
+              </a>
+              . *
             </Label>
           </div>
           <div className="flex items-start gap-3">
@@ -162,7 +171,7 @@ export function CheckoutForm({
               onCheckedChange={(v) => setMarketing(Boolean(v))}
             />
             <Label htmlFor="co-marketing" className="font-normal leading-relaxed">
-              Wyrazam zgode na przesylanie informacji marketingowych przez organizatora.
+              Wyrażam zgodę na przesyłanie informacji marketingowych przez organizatora.
             </Label>
           </div>
         </div>
@@ -183,8 +192,8 @@ export function CheckoutForm({
           {isPending
             ? "Przetwarzanie..."
             : isFree
-            ? "Zarejestruj sie bezplatnie"
-            : `Przejdz do platnosci — ${formatPrice(ticket.price)}`}
+            ? "Zarejestruj się bezpłatnie"
+            : `Przejdź do płatności — ${formatPrice(ticket.price)}`}
         </Button>
 
         {!isFree && (

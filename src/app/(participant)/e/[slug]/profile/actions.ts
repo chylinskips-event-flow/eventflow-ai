@@ -1,17 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   getCurrentAttendee,
-  ATTENDEE_TOKEN_COOKIE,
+  clearAttendeeSession,
 } from "@/lib/attendee-session";
 import { getOrigin } from "@/lib/request-origin";
 import { buildEventInternalPath } from "@/lib/event-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkProfileQuestProgress } from "@/lib/gamification";
-import { AVATAR_BUCKET, storagePathFromPublicUrl } from "@/lib/avatar-storage";
+import { AVATAR_BUCKET, ownedAvatarPath } from "@/lib/avatar-storage";
 import { deleteAttendeeCompletely } from "@/lib/attendee-deletion";
 import { IMAGE_SANITIZE_ERROR, stripImageMetadata } from "@/lib/image-sanitize";
 
@@ -186,9 +186,9 @@ export async function uploadAttendeeAvatar(
   }
 
   // Sprzątamy poprzedni plik, jeśli miał inne rozszerzenie (png -> webp) —
-  // inaczej zostałby osierocony w bucketcie.
+  // inaczej zostałby osierocony w bucketcie. Tylko plik tego uczestnika.
   if (attendee.avatar_url) {
-    const oldPath = storagePathFromPublicUrl(attendee.avatar_url);
+    const oldPath = ownedAvatarPath(attendee.avatar_url, attendee.event_id, attendee.id);
     if (oldPath && oldPath !== path) {
       await supabase.storage.from(AVATAR_BUCKET).remove([oldPath]);
     }
@@ -233,7 +233,8 @@ export async function removeAttendeeAvatar(
   const supabase = createAdminClient();
 
   if (attendee.avatar_url) {
-    const path = storagePathFromPublicUrl(attendee.avatar_url);
+    // Tylko plik tego uczestnika ("<event_id>/<id>.<ext>").
+    const path = ownedAvatarPath(attendee.avatar_url, attendee.event_id, attendee.id);
     if (path) {
       await supabase.storage.from(AVATAR_BUCKET).remove([path]);
     }
@@ -278,8 +279,7 @@ export async function deleteMyAttendeeData(slug: string): Promise<void> {
     throw new Error("Nie udało się usunąć danych. Spróbuj ponownie.");
   }
 
-  const cookieStore = await cookies();
-  cookieStore.delete({ name: ATTENDEE_TOKEN_COOKIE, path: "/" });
+  await clearAttendeeSession(attendee.event_id, attendee.qr_code_token);
 
   const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
   redirect(`${eventRoot}?deleted=1`);

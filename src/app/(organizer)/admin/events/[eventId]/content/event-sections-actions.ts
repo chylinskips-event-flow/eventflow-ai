@@ -12,6 +12,7 @@ import {
 import sharp from "sharp";
 import { featureGate } from "@/lib/entitlements";
 import { ORGANIZER_IMAGE_MAX_BYTES } from "@/lib/upload-validation";
+import { MAX_INPUT_PIXELS } from "@/lib/gallery-core";
 
 const STORAGE_BUCKET = "event-sections";
 const MAX_IMAGE_BYTES = ORGANIZER_IMAGE_MAX_BYTES;
@@ -165,14 +166,31 @@ export async function uploadGaleriaImage(
   if (file.size > MAX_IMAGE_BYTES)
     return { ok: false, error: "Plik nie może być większy niż 4 MB." };
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const webpBuffer = await sharp(buffer)
-    .resize({ width: 1920, withoutEnlargement: true })
-    .webp({ quality: 80 })
-    .toBuffer();
+  const supabase = createAdminClient();
+
+  // Sekcja musi istnieć w tym wydarzeniu, zanim cokolwiek trafi do Storage.
+  const { data: section } = await supabase
+    .from("event_sections")
+    .select("content")
+    .eq("id", sectionId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+
+  if (!section) return { ok: false, error: "Sekcja nie istnieje." };
+
+  // Uszkodzony albo nie-obrazowy plik (mimo poprawnego typu) → czytelny komunikat zamiast wyjątku.
+  let webpBuffer: Buffer;
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    webpBuffer = await sharp(buffer, { limitInputPixels: MAX_INPUT_PIXELS })
+      .resize({ width: 1920, withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toBuffer();
+  } catch {
+    return { ok: false, error: "Nie udało się odczytać obrazu. Plik może być uszkodzony — wybierz inny plik JPG, PNG lub WebP." };
+  }
 
   const path = `${eventId}/${sectionId}/${Date.now()}.webp`;
-  const supabase = createAdminClient();
 
   const { error: uploadError } = await supabase.storage
     .from(STORAGE_BUCKET)
@@ -184,28 +202,25 @@ export async function uploadGaleriaImage(
     .from(STORAGE_BUCKET)
     .getPublicUrl(path);
 
-  // Append to content.images
-  const { data: section } = await supabase
-    .from("event_sections")
-    .select("content")
-    .eq("id", sectionId)
-    .eq("event_id", eventId)
-    .maybeSingle();
-
-  if (!section) return { ok: false, error: "Sekcja nie istnieje." };
-
-  const existingImages = Array.isArray((section.content as Record<string, unknown>).images)
+  const existingImages = Array.isArray((section.content as Record<string, unknown>)?.images)
     ? ((section.content as Record<string, unknown>).images as { storage_path: string; alt?: string }[])
     : [];
 
-  await supabase
+  const { data: updated, error: updateError } = await supabase
     .from("event_sections")
     .update({
       content: { ...(section.content as Record<string, unknown>), images: [...existingImages, { storage_path: path, alt: "" }] },
       updated_at: new Date().toISOString(),
     })
     .eq("id", sectionId)
-    .eq("event_id", eventId);
+    .eq("event_id", eventId)
+    .select("id");
+
+  if (updateError || !Array.isArray(updated) || updated.length === 0) {
+    // Zdjęcie nie trafiło do sekcji — nie zostawiamy pliku bez odwołania.
+    await supabase.storage.from(STORAGE_BUCKET).remove([path]);
+    return { ok: false, error: "Nie udało się zapisać zdjęcia w sekcji. Spróbuj ponownie." };
+  }
 
   revalidatePath(`/admin/events/${eventId}/content`);
   return { ok: true, storage_path: path, public_url: publicUrl };

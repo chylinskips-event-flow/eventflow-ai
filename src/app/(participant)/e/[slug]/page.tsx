@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { getOrigin } from "@/lib/request-origin";
 import { buildEventApexUrl, buildEventInternalPath } from "@/lib/event-url";
 import type { LucideIcon } from "lucide-react";
@@ -31,10 +32,12 @@ import {
   getPublicTicketTypes,
   formatPrice,
   isTicketTypeSoldOut,
+  isTicketTypeSellable,
   availableQuantity,
 } from "@/lib/tickets";
+import { hasFeature } from "@/lib/entitlements";
 import { computeLevel, computeNextLevelThreshold, LEVEL_LABELS } from "@/lib/gamification";
-import { formatDate, formatDateTimeRange, pluralizePl } from "@/lib/format";
+import { formatDate, formatDateTimeRange, formatLastSeats, pluralizePl } from "@/lib/format";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -118,17 +121,8 @@ export default async function ParticipantEventPage({
     ) : null;
   const event = await getEventBySlugForRegistration(slug);
 
-  if (!event) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4">
-        <Card className="w-full max-w-sm">
-          <CardHeader>
-            <CardTitle>Wydarzenie nie zostało znalezione</CardTitle>
-          </CardHeader>
-        </Card>
-      </main>
-    );
-  }
+  // Nieistniejący slug → HTTP 404 (komunikat w not-found.tsx tego segmentu).
+  if (!event) notFound();
 
   // Tryb podglądu: tylko właściciel eventu i tylko z jawnym ?preview=1. Param
   // sam w sobie nic nie robi bez własności. W podglądzie ignorujemy cookie
@@ -423,7 +417,7 @@ export default async function ParticipantEventPage({
 
   // Zawsze service_role: dostęp jest już ustalony wyżej (published/live albo podgląd właściciela).
   // Publicznych polityk RLS na tych tabelach nie ma — wystawiały kolumny z tokenami.
-  const [sections, sessions, speakers, eventSections, publicTicketTypes, partners, usesTickets] =
+  const [sections, sessions, speakers, eventSections, publicTicketTypes, partners, usesTickets, paidTicketsAllowed] =
     await Promise.all([
       getEventContentSectionsForPreview(event.id),
       getEventSessionsForParticipant(event.id),
@@ -432,6 +426,7 @@ export default async function ParticipantEventPage({
       getPublicTicketTypes(event.id),
       getEventPartnersForParticipant(event.id),
       eventUsesTickets(event.id),
+      hasFeature(event.organization_id, "tickets_paid"),
     ]);
 
   const hasTickets = publicTicketTypes.length > 0;
@@ -615,12 +610,13 @@ export default async function ParticipantEventPage({
             <div className="grid gap-4 sm:grid-cols-2">
               {publicTicketTypes.map((tt) => {
                 const soldOut = isTicketTypeSoldOut(tt);
+                const sellable = isTicketTypeSellable(tt, paidTicketsAllowed);
                 const avail = availableQuantity(tt);
                 return (
                   <div
                     key={tt.id}
                     className={`rounded-xl border bg-background p-5 shadow-sm ${
-                      soldOut ? "opacity-60" : ""
+                      soldOut || !sellable ? "opacity-60" : ""
                     }`}
                   >
                     <div className="mb-1 text-lg font-semibold">{tt.name}</div>
@@ -632,12 +628,16 @@ export default async function ParticipantEventPage({
                     <div className="mb-4 text-2xl font-bold">
                       {formatPrice(tt.price)}
                     </div>
-                    {avail !== null && !soldOut && avail <= 10 && (
+                    {sellable && avail !== null && !soldOut && avail <= 10 && (
                       <p className="mb-2 text-xs text-amber-600 font-medium">
-                        Ostatnie {avail} {avail === 1 ? "miejsce" : "miejsca"}
+                        {formatLastSeats(avail)}
                       </p>
                     )}
-                    {soldOut ? (
+                    {!sellable ? (
+                      <Button disabled className="w-full">
+                        Niedostępny
+                      </Button>
+                    ) : soldOut ? (
                       <Button disabled className="w-full">
                         Wyprzedany
                       </Button>

@@ -81,6 +81,38 @@ describe("mail potwierdzenia rejestracji", () => {
     expect(mail.html).toContain(">Otwórz mój panel<");
   });
 
+  it("temat to zwykły tekst: & i < bez encji HTML, treść nadal escapowana", async () => {
+    const mail = await send({
+      firstName: "Ola <Admin>",
+      event: { id: "ev1", slug: "rock", name: 'Rock & Roll <Live> "2026"' } as never,
+    });
+    expect(mail.subject).toBe('Potwierdzenie rejestracji – Rock & Roll <Live> "2026"');
+    expect(mail.subject).not.toContain("&amp;");
+    expect(mail.html).toContain("Rock &amp; Roll &lt;Live&gt;");
+    expect(mail.html).not.toContain("<Live>");
+    expect(mail.html).toContain("Witaj, Ola &lt;Admin&gt;!");
+  });
+
+  it("temat oczekiwania i odrzucenia też bez encji HTML", async () => {
+    const { sendAttendeePendingApprovalEmail, sendAttendeeRejectedEmail } = await import(
+      "../email/attendee-confirmation"
+    );
+    const ev = { id: "ev1", slug: "rock", name: "Rock & Roll" } as never;
+    await sendAttendeePendingApprovalEmail({ to: "a@example.com", firstName: "A", event: ev });
+    await sendAttendeeRejectedEmail({ to: "a@example.com", firstName: "A", event: ev });
+    expect(sent.map((m) => m.subject)).toEqual([
+      "Zgłoszenie oczekuje na zatwierdzenie – Rock & Roll",
+      "Rejestracja nie została zatwierdzona – Rock & Roll",
+    ]);
+  });
+
+  it("temat własnego szablonu: zmienne bez escapowania, bez nowych linii", async () => {
+    const { applySubjectVariables } = await import("@/lib/message-templates");
+    expect(applySubjectVariables("{imię}, bilet na {nazwa_eventu}", { imię: "Jan", nazwa_eventu: "A&B\r\nC" })).toBe(
+      "Jan, bilet na A&B C",
+    );
+  });
+
   it("własny szablon HTML organizatora z cid:qr-code też dostaje obraz", async () => {
     ctx.customTemplate = {
       subject: "Bilet",
