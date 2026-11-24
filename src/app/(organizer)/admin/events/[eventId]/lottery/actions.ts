@@ -106,7 +106,7 @@ export async function excludeLotteryAttendee(
     .from("lottery_exclusions")
     .upsert(
       { event_id: eventId, attendee_id: attendeeId },
-      { onConflict: "event_id,attendee_id", ignoreDuplicates: true },
+      { onConflict: "attendee_id", ignoreDuplicates: true },
     );
   if (error) return { status: "error", message: "Nie udało się zapisać wykluczenia." };
 

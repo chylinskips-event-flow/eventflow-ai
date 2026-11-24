@@ -109,6 +109,14 @@ describe("migracja claim_quiz_attempt", () => {
     expect(MIGRATION).toMatch(/ALTER TABLE public\.lottery_exclusions ENABLE ROW LEVEL SECURITY/);
     expect(MIGRATION).not.toMatch(/CREATE POLICY/i);
   });
+
+  it("lottery_exclusions: klucz główny tylko attendee_id (bez tabeli łączącej attendees↔events w PostgREST)", () => {
+    const table = /CREATE TABLE IF NOT EXISTS public\.lottery_exclusions \(([\s\S]*?)\n\);/.exec(MIGRATION)?.[1] ?? "";
+    expect(table).toMatch(/attendee_id uuid PRIMARY KEY REFERENCES public\.attendees/);
+    // Klucz złożony z event_id i attendee_id (PK albo UNIQUE) czyni osadzenia attendees → events niejednoznacznymi.
+    expect(table).not.toMatch(/PRIMARY KEY\s*\(/i);
+    expect(table).not.toMatch(/UNIQUE\s*\(/i);
+  });
 });
 
 describe("quizAttemptRejection — powód odrzucenia próby", () => {

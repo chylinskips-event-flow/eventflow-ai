@@ -76,16 +76,19 @@ GRANT EXECUTE ON FUNCTION public.claim_quiz_attempt(uuid, uuid, integer, integer
 -- ---------------------------------------------------------------------------
 -- 3. Wykluczenia z loterii
 -- ---------------------------------------------------------------------------
+-- Klucz główny tylko attendee_id (uczestnik należy do jednego wydarzenia). Klucz złożony
+-- (event_id, attendee_id) z kluczami obcymi do events i attendees PostgREST uznaje za tabelę
+-- łączącą many-to-many, przez co osadzenia attendees → events (np. events!inner(slug))
+-- stają się niejednoznaczne (PGRST201) w całej aplikacji.
 CREATE TABLE IF NOT EXISTS public.lottery_exclusions (
+  attendee_id uuid PRIMARY KEY REFERENCES public.attendees (id) ON DELETE CASCADE,
   event_id uuid NOT NULL REFERENCES public.events (id) ON DELETE CASCADE,
-  attendee_id uuid NOT NULL REFERENCES public.attendees (id) ON DELETE CASCADE,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (event_id, attendee_id)
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Indeks pod kaskadę usuwania uczestnika (RODO) — spójnie z resztą tabel.
-CREATE INDEX IF NOT EXISTS idx_lottery_exclusions_attendee_id
-  ON public.lottery_exclusions (attendee_id);
+-- Indeks pod odczyt i reset wykluczeń wydarzenia.
+CREATE INDEX IF NOT EXISTS idx_lottery_exclusions_event_id
+  ON public.lottery_exclusions (event_id);
 
 ALTER TABLE public.lottery_exclusions ENABLE ROW LEVEL SECURITY;
 -- Brak polityk = deny-all dla anon/authenticated; dodatkowo bez uprawnień tabelowych.
