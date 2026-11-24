@@ -30,7 +30,11 @@ export type Session = {
 };
 
 // Jeden round-trip: join robi Postgres na indeksach zamiast JS.
-const SESSION_SELECT = "*, session_speakers(role, position, speakers(*))";
+// Jawna lista kolumn sesji (nie "*"): obiekty Session trafiają do komponentów klienckich,
+// a tabela ma kolumny-sekrety (qa_present_token — dostęp do rzutnika Q&A), które nie mogą
+// znaleźć się w danych strony uczestnika ani panelu moderatora.
+export const SESSION_COLUMNS = "id, event_id, title, description, track, room, starts_at, ends_at, created_at, updated_at";
+const SESSION_SELECT = `${SESSION_COLUMNS}, session_speakers(role, position, speakers(*))`;
 
 type SessionRow = Omit<Session, "speakers"> & {
   session_speakers: {

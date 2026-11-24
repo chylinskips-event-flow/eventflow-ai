@@ -31,8 +31,11 @@ vi.mock("@/lib/booth-requests", () => ({
 
 const { decideBoothItem, approveBoothItemsInPackage } = await import("../booth-actions");
 const idle = { status: "idle" as const };
+// Formularz decyzji zawsze wysyła ilość widzianą przez organizatora (ukryte pole seen_qty).
 const fd = (fields: Record<string, string>) => {
   const f = new FormData();
+  f.set("seen_qty", "4");
+  f.set("seen_updated_at", "2026-11-20T10:00:00.000001+00:00");
   for (const [k, v] of Object.entries(fields)) f.set(k, v);
   return f;
 };

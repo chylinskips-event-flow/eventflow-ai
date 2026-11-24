@@ -59,7 +59,7 @@ const CATALOG_COLUMNS = "id, name, unit, description, active, sort_order, includ
 const REQUEST_COLUMNS =
   "id, partner_id, crew_count, setup_start, setup_end, teardown_start, teardown_end, setup_note, teardown_note, vehicle, vehicle_note, vehicle_plate, vehicle_type, submitted_at, late_change_at, times_need_fix";
 const ITEM_COLUMNS =
-  "id, request_id, catalog_item_id, label, unit, qty, note, status, approved_qty, decision_note, reviewed_at, created_at";
+  "id, request_id, catalog_item_id, label, unit, qty, note, status, approved_qty, decision_note, reviewed_at, created_at, updated_at";
 
 export async function getLogisticsSettings(eventId: string): Promise<LogisticsSettings> {
   const { data, error } = await createAdminClient()

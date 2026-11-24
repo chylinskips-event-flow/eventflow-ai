@@ -7,7 +7,7 @@ import { featureGate } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrigin } from "@/lib/request-origin";
 import { BOOTH_LOAD_ERROR, getBoothRequest, getCatalog, getPartnerRecipientEmails, loadBoothData } from "@/lib/booth-requests";
-import { DECISION_NOTE_MAX_LENGTH, inPackagePendingIds, parseApprovedQty } from "@/lib/booth-requests-core";
+import { DECISION_NOTE_MAX_LENGTH, inPackagePendingIds, parseApprovedQty, parseSeenQty, parseSeenVersion } from "@/lib/booth-requests-core";
 import { sendBoothDecisionEmail } from "@/lib/email/booth-request";
 
 // #10 Faza A2 — decyzje organizatora w sprawie zapotrzebowania partnera na stoisko.
@@ -92,20 +92,18 @@ export async function decideBoothItem(
     return { status: "error", message: `Uwaga może mieć najwyżej ${DECISION_NOTE_MAX_LENGTH} znaków.` };
   }
 
+  // Ilość, którą organizator widział na stronie — decyzja dotyczy tylko jej.
+  const requestedQty = parseSeenQty(formData.get("seen_qty"));
+  // Wersja pozycji ze strony — obejmuje też opis („Inne potrzeby” mają zawsze ilość 1).
+  const seenVersion = parseSeenVersion(formData.get("seen_updated_at"));
+  if (requestedQty === null || seenVersion === null) {
+    return { status: "error", message: "Odśwież stronę i spróbuj ponownie." };
+  }
+
   const admin = createAdminClient();
   let status: "approved" | "changed" | "rejected" = decision === "approve" ? "approved" : "rejected";
   let approvedQty: number | null = null;
-  let requestedQty: number | null = null;
   if (decision === "change") {
-    const { data: current } = await admin
-      .from("partner_booth_request_items")
-      .select("qty")
-      .eq("id", itemId)
-      .eq("partner_id", partnerId)
-      .eq("event_id", eventId)
-      .maybeSingle();
-    if (!current) return { status: "error", message: "Pozycja nie istnieje — odśwież stronę." };
-    requestedQty = current.qty as number;
     const parsed = parseApprovedQty(formData.get("approved_qty"), requestedQty);
     if (!parsed.ok) return { status: "error", message: parsed.error };
     // Ilość równa wnioskowanej to zwykłe zatwierdzenie, nie „inna ilość”.
@@ -116,15 +114,16 @@ export async function decideBoothItem(
     }
   }
 
-  let update = admin
+  // Partner mógł w międzyczasie zmienić ilość lub opis — decyzja dotyczy wersji widzianej przez organizatora.
+  const { data, error } = await admin
     .from("partner_booth_request_items")
     .update({ status, approved_qty: approvedQty, decision_note: note || null, reviewed_at: new Date().toISOString() })
     .eq("id", itemId)
     .eq("partner_id", partnerId)
-    .eq("event_id", eventId);
-  // Partner mógł w międzyczasie zmienić ilość — decyzja dotyczy tej, którą widział organizator.
-  if (requestedQty !== null) update = update.eq("qty", requestedQty);
-  const { data, error } = await update.select("id");
+    .eq("event_id", eventId)
+    .eq("qty", requestedQty)
+    .eq("updated_at", seenVersion)
+    .select("id");
   if (error) return { status: "error", message: "Nie udało się zapisać decyzji." };
   if (!data?.length) return { status: "error", message: "Pozycja zmieniła się w międzyczasie — odśwież stronę." };
 

@@ -304,12 +304,13 @@ export function DraftSection({
                 <Button
                   className="w-fit"
                   disabled={isPending}
-                  onClick={() => run(() => approvePartnerDraft(eventId, partnerId))}
+                  onClick={() => run(() => approvePartnerDraft(eventId, partnerId, draft.submitted_at))}
                 >
                   <Check className="size-4" />
                   Akceptuj i opublikuj
                 </Button>
                 <form action={rejectAction} className="flex flex-col gap-2">
+                  <input type="hidden" name="seen_submitted_at" value={draft.submitted_at} />
                   <Label htmlFor="reject-note">Albo odrzuć z uwagą dla partnera</Label>
                   <Textarea id="reject-note" name="note" rows={2} maxLength={1000} placeholder="Np. Prosimy o logo na przezroczystym tle." />
                   <Button type="submit" variant="outline" className="w-fit" disabled={rejecting}>
