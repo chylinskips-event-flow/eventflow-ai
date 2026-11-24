@@ -217,14 +217,21 @@ export async function createSubscriptionCheckout(
   });
 
   let session: Stripe.Checkout.Session;
+  let keyed = true;
   try {
     session = await stripe.checkout.sessions.create(params, { idempotencyKey });
   } catch (err) {
     // Ten sam klucz z innymi parametrami (np. inny adres powrotu) — zwykła nowa sesja.
     if ((err as { type?: string } | null)?.type !== "StripeIdempotencyError") throw err;
     session = await stripe.checkout.sessions.create(params);
+    keyed = false;
   }
-  // Klucz z okna czasu może zwrócić sesję już zamkniętą (wygaszoną/zakończoną) — wtedy nowa.
+  // Przy powtórzonym kluczu Stripe odtwarza zapisaną PIERWSZĄ odpowiedź (status "open",
+  // stary url), nawet jeśli sesja została potem wygaszona. Aktualny stan — z retrieve.
+  if (keyed) {
+    session = await stripe.checkout.sessions.retrieve(session.id);
+  }
+  // Sesja z klucza okna czasu jest już zamknięta (wygaszona/zakończona) — wtedy nowa.
   if (session.status !== "open" || !session.url) {
     session = await stripe.checkout.sessions.create(params);
   }

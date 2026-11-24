@@ -13,6 +13,8 @@ const stripeState = {
   sessions: [] as Sess[],
   created: [] as { params: Record<string, unknown>; key?: string }[],
   expired: [] as string[],
+  retrieved: [] as string[],
+  replays: 0,
   idempotent: new Map<string, Sess>(),
   seq: 0,
 };
@@ -42,7 +44,12 @@ vi.mock("stripe", () => ({
           opts?: { idempotencyKey?: string },
         ) => {
           const key = opts?.idempotencyKey;
-          if (key && stripeState.idempotent.has(key)) return stripeState.idempotent.get(key);
+          // Jak w Stripe: powtórzony klucz odtwarza zapisaną pierwszą odpowiedź (migawkę),
+          // a nie aktualny stan sesji.
+          if (key && stripeState.idempotent.has(key)) {
+            stripeState.replays++;
+            return structuredClone(stripeState.idempotent.get(key));
+          }
           stripeState.created.push({ params, key });
           const id = `cs_${++stripeState.seq}`;
           const s: Sess = {
@@ -54,8 +61,14 @@ vi.mock("stripe", () => ({
             metadata: params.metadata as Record<string, string>,
           };
           stripeState.sessions.push(s);
-          if (key) stripeState.idempotent.set(key, s);
-          return s;
+          if (key) stripeState.idempotent.set(key, Object.freeze(structuredClone(s)));
+          return structuredClone(s);
+        },
+        retrieve: async (id: string) => {
+          stripeState.retrieved.push(id);
+          const s = stripeState.sessions.find((x) => x.id === id);
+          if (!s) throw new Error(`no such session ${id}`);
+          return structuredClone(s);
         },
       },
     };
@@ -83,6 +96,8 @@ beforeEach(() => {
   stripeState.sessions = [];
   stripeState.created = [];
   stripeState.expired = [];
+  stripeState.retrieved = [];
+  stripeState.replays = 0;
   stripeState.idempotent.clear();
   stripeState.seq = 0;
 });
@@ -222,5 +237,30 @@ describe("createSubscriptionCheckout", () => {
     const open = stripeState.sessions.filter((s) => s.status === "open");
     expect(open).toHaveLength(1);
     expect(c).toEqual({ kind: "redirect", url: open[0].url });
+  });
+
+  it("odtworzona odpowiedź klucza (status open) dla wygaszonej sesji nie jest używana", async () => {
+    // Miesięczny → roczny → miesięczny w jednym oknie czasu.
+    const a = await createSubscriptionCheckout(input);
+    const b = await createSubscriptionCheckout({
+      ...input,
+      planKey: "pro_y",
+      priceId: "price_pro_y",
+    });
+    const c = await createSubscriptionCheckout(input);
+    // Klucz pierwszego planu został odtworzony (migawka sesji A ze statusem "open") …
+    expect(stripeState.replays).toBe(1);
+    // … ale A i B są wygaszone, więc użytkownik dostaje nową, otwartą sesję.
+    expect(stripeState.expired).toEqual(["cs_1", "cs_2"]);
+    expect(c).not.toEqual(a);
+    expect(c).not.toEqual(b);
+    const open = stripeState.sessions.filter((s) => s.status === "open");
+    expect(open).toHaveLength(1);
+    expect(c).toEqual({ kind: "redirect", url: open[0].url });
+  });
+
+  it("sesja z klucza jest weryfikowana przez retrieve przed użyciem", async () => {
+    await createSubscriptionCheckout(input);
+    expect(stripeState.retrieved).toEqual(["cs_1"]);
   });
 });
