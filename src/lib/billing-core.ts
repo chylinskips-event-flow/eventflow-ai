@@ -117,3 +117,80 @@ export function shouldApplySubscription(
 export function toIso(seconds: number | null | undefined): string | null {
   return typeof seconds === "number" ? new Date(seconds * 1000).toISOString() : null;
 }
+
+// ── Checkout subskrypcji: ochrona przed drugą subskrypcją ─────────────────────
+
+/**
+ * Statusy subskrypcji Stripe, przy których kolejny Checkout dałby organizacji drugą,
+ * równolegle naliczaną subskrypcję (w tym jeszcze nieopłacone i wstrzymane).
+ */
+const BLOCKING_STRIPE_STATUSES = new Set([
+  "trialing",
+  "active",
+  "past_due",
+  "unpaid",
+  "incomplete",
+  "paused",
+]);
+
+/** Czy klient Stripe ma już subskrypcję, która blokuje nowy Checkout. */
+export function hasBlockingStripeSubscription(
+  subscriptions: { status: string }[],
+): boolean {
+  return subscriptions.some((s) => BLOCKING_STRIPE_STATUSES.has(s.status));
+}
+
+export type CheckoutSessionLike = {
+  id: string;
+  status: string | null;
+  url: string | null;
+  expires_at: number;
+  metadata: Record<string, string> | null;
+};
+
+/** Minimalny zapas ważności sesji, żeby nie odesłać do Checkoutu, który zaraz wygaśnie (s). */
+const SESSION_REUSE_MARGIN_S = 5 * 60;
+
+/**
+ * Otwarte sesje Checkout organizacji: tę z tą samą ceną można ponownie użyć,
+ * pozostałe (inny plan/okres) należy wygasić — w danej chwili najwyżej jedna otwarta.
+ */
+export function planOpenCheckoutSessions(
+  sessions: CheckoutSessionLike[],
+  target: { organizationId: string; priceId: string; nowS: number },
+): { reuse: CheckoutSessionLike | null; expire: string[] } {
+  let reuse: CheckoutSessionLike | null = null;
+  const expire: string[] = [];
+  for (const s of sessions) {
+    if (s.status !== "open") continue;
+    if (s.metadata?.organization_id !== target.organizationId) continue;
+    const reusable =
+      !reuse &&
+      s.metadata?.price_id === target.priceId &&
+      Boolean(s.url) &&
+      s.expires_at > target.nowS + SESSION_REUSE_MARGIN_S;
+    if (reusable) reuse = s;
+    else expire.push(s.id);
+  }
+  return { reuse, expire };
+}
+
+/** Okno klucza idempotencji Checkoutu — sklejone równoległe kliknięcia/karty (ms). */
+export const CHECKOUT_IDEMPOTENCY_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * Klucz idempotencji tworzenia sesji Checkout: ta sama organizacja + cena + trial
+ * w tym samym oknie czasu dostaje tę samą sesję zamiast nowej.
+ */
+export function checkoutIdempotencyKey(input: {
+  organizationId: string;
+  priceId: string;
+  trialDays: number;
+  nowMs: number;
+  windowMs?: number;
+}): string {
+  const bucket = Math.floor(
+    input.nowMs / (input.windowMs ?? CHECKOUT_IDEMPOTENCY_WINDOW_MS),
+  );
+  return `eventro-checkout-${input.organizationId}-${input.priceId}-t${input.trialDays}-${bucket}`;
+}
