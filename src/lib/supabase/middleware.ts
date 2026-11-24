@@ -50,6 +50,8 @@ export async function updateSession(request: NextRequest) {
       .from("organizations")
       .select("id")
       .eq("owner_user_id", user.id)
+      // limit(1): dwie organizacje jednego konta nie mogą odcinać od /admin (maybeSingle → błąd).
+      .limit(1)
       .maybeSingle();
 
     if (!organization) {

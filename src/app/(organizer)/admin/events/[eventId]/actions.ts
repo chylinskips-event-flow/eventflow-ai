@@ -10,6 +10,8 @@ import { checkEventSlug, suggestEventSlug, takenSlugMessage } from "@/lib/event-
 import { addDomain, removeDomain, getDomainStatus } from "@/lib/vercel-domains";
 import { getPaidOrderCount } from "@/lib/orders";
 import { featureGate, hasFeature } from "@/lib/entitlements";
+import { IMAGE_SANITIZE_ERROR, stripImageMetadata } from "@/lib/image-sanitize";
+import { ORGANIZER_IMAGE_MAX_BYTES } from "@/lib/upload-validation";
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? "eventro.pl";
 const hasVercelConfig = () =>
@@ -384,7 +386,7 @@ export async function retrySubdomain(
 }
 
 const ALLOWED_LOGO_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_LOGO_SIZE_BYTES = ORGANIZER_IMAGE_MAX_BYTES;
 
 export async function uploadEventLogo(
   eventId: string,
@@ -408,17 +410,20 @@ export async function uploadEventLogo(
   if (file.size > MAX_LOGO_SIZE_BYTES) {
     return {
       status: "error",
-      message: "Logo nie może być większe niż 5MB.",
+      message: "Logo nie może być większe niż 4 MB.",
     };
   }
 
+  // Publiczny bucket: zapisujemy kopię bez metadanych (EXIF/GPS).
+  const clean = await stripImageMetadata(file);
+  if (!clean) return { status: "error", message: IMAGE_SANITIZE_ERROR };
+
   const supabase = await createClient();
-  const extension = file.name.split(".").pop() ?? "png";
-  const path = `${eventId}/logo-${Date.now()}.${extension}`;
+  const path = `${eventId}/logo-${Date.now()}.${clean.ext}`;
 
   const { error: uploadError } = await supabase.storage
     .from("event-logos")
-    .upload(path, file, { contentType: file.type, upsert: true });
+    .upload(path, clean.body, { contentType: clean.contentType, upsert: true });
 
   if (uploadError) {
     return {
@@ -469,7 +474,7 @@ export async function uploadEventBadgeBg(
   if (file.size > MAX_LOGO_SIZE_BYTES) {
     return {
       status: "error",
-      message: "Plik tła nie może być większy niż 5MB.",
+      message: "Plik tła nie może być większy niż 4 MB.",
     };
   }
 
@@ -482,12 +487,14 @@ export async function uploadEventBadgeBg(
   if (!ownEvent) return { status: "error", message: "Event nie znaleziony." };
   const gate = await featureGate(ownEvent.organization_id, "badges");
   if (!gate.ok) return { status: "error", message: gate.message };
-  const extension = file.name.split(".").pop() ?? "jpg";
-  const storagePath = `${eventId}/badge-bg-${Date.now()}.${extension}`;
+  // Publiczny bucket: zapisujemy kopię bez metadanych (EXIF/GPS).
+  const clean = await stripImageMetadata(file);
+  if (!clean) return { status: "error", message: IMAGE_SANITIZE_ERROR };
+  const storagePath = `${eventId}/badge-bg-${Date.now()}.${clean.ext}`;
 
   const { error: uploadError } = await supabase.storage
     .from("event-logos")
-    .upload(storagePath, file, { contentType: file.type, upsert: true });
+    .upload(storagePath, clean.body, { contentType: clean.contentType, upsert: true });
 
   if (uploadError) {
     return {

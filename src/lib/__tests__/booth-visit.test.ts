@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alreadyVisitedPointsLabel, partnersWithoutBoothQuest, visitResultView } from "@/lib/booth-visit";
+import { alreadyVisitedPointsLabel, partnersWithoutBoothQuest, pickBoothQuest, visitResultView } from "@/lib/booth-visit";
 import { PARTNER_LEADS_CONSENT, leadCardState } from "@/lib/partner-leads-core";
 
 describe("komunikat po wizycie przy stoisku", () => {
@@ -95,5 +95,24 @@ describe("powtórna wizyta stoiska", () => {
   it("brak punktów → bez linii z punktami", () => {
     expect(alreadyVisitedPointsLabel(0)).toBeNull();
     expect(alreadyVisitedPointsLabel(null)).toBeNull();
+  });
+});
+
+describe("kilka aktywnych questów jednego stoiska", () => {
+  const qs = [{ id: "a" }, { id: "b" }, { id: "c" }];
+
+  it("brak questów → null", () => {
+    expect(pickBoothQuest([], [])).toBeNull();
+  });
+
+  it("bieżący = pierwszy niezaliczony, niezależnie od pozostałych", () => {
+    expect(pickBoothQuest(qs, [])?.id).toBe("a");
+    expect(pickBoothQuest(qs, ["a"])?.id).toBe("b");
+    expect(pickBoothQuest(qs, ["a", "b"])?.id).toBe("c");
+    expect(pickBoothQuest(qs, ["b"])?.id).toBe("a");
+  });
+
+  it("wszystkie zaliczone → pierwszy (ekran „już odwiedzone”)", () => {
+    expect(pickBoothQuest(qs, ["a", "b", "c"])?.id).toBe("a");
   });
 });

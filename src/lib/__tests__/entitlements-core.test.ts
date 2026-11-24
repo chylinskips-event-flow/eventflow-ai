@@ -109,6 +109,56 @@ describe("computeEntitlements", () => {
     expect(e.source).toBe("override");
   });
 
+  it("override niższego planu nie obniża opłaconej subskrypcji", () => {
+    const e = computeEntitlements({
+      billingEnabled: true,
+      plans,
+      subscription: { plan_key: "business", status: "active" },
+      override: { plan_key: "pro", features: null, limits: null, expires_at: null },
+      now,
+    });
+    expect(e.planKey).toBe("business");
+    expect(e.source).toBe("subscription");
+    expect(e.features.business_mixer).toBe(true);
+    expect(e.limits.max_attendees_per_event).toBeNull();
+  });
+
+  it("override planu Free przy aktywnej subskrypcji → plan z subskrypcji", () => {
+    const e = computeEntitlements({
+      billingEnabled: true,
+      plans,
+      subscription: { plan_key: "pro", status: "trialing" },
+      override: { plan_key: "free", features: null, limits: null, expires_at: null },
+      now,
+    });
+    expect(e.planKey).toBe("pro");
+    expect(e.source).toBe("subscription");
+  });
+
+  it("ten sam plan w override i subskrypcji → źródłem jest subskrypcja", () => {
+    const e = computeEntitlements({
+      billingEnabled: true,
+      plans,
+      subscription: { plan_key: "pro", status: "active" },
+      override: { plan_key: "pro", features: null, limits: null, expires_at: null },
+      now,
+    });
+    expect(e.planKey).toBe("pro");
+    expect(e.source).toBe("subscription");
+  });
+
+  it("override planu działa, gdy subskrypcja nie jest aktywna (canceled)", () => {
+    const e = computeEntitlements({
+      billingEnabled: true,
+      plans,
+      subscription: { plan_key: "business", status: "canceled" },
+      override: { plan_key: "pro", features: null, limits: null, expires_at: null },
+      now,
+    });
+    expect(e.planKey).toBe("pro");
+    expect(e.source).toBe("override");
+  });
+
   it("punktowe override'y funkcji i limitów nakładają się na plan", () => {
     const e = computeEntitlements({
       billingEnabled: true,

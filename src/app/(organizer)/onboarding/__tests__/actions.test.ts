@@ -2,24 +2,42 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Rejestracja organizacji: jedno pole nazwy, slug generowany automatycznie, kolizje i wyścig
 // obsłużone ponowną próbą z kolejnym numerem; e-mail do rozliczeń z logowania.
+// Zapis idempotentny: konto z organizacją nie zakłada drugiej (podwójne wysłanie formularza).
 
 const inserts: Record<string, unknown>[] = [];
 const taken = new Set<string>();
-const state = { failOther: false };
+const state = { failOther: false, existingOrg: false, ownerConflict: false };
+const partner = { status: "none" as string };
 
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
     throw new Error(`REDIRECT:${url}`);
   },
 }));
-vi.mock("@/lib/partner-portal", () => ({ getPartnerAccountStatus: async () => "none" }));
+vi.mock("@/lib/partner-portal", () => ({ getPartnerAccountStatus: async () => partner.status }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: { id: "u1", email: "anna@firma.pl" } } }) },
     from: () => ({
+      select: () => ({
+        eq: () => ({
+          limit: () => ({
+            maybeSingle: async () => ({ data: state.existingOrg ? { id: "org1" } : null, error: null }),
+          }),
+        }),
+      }),
       insert: async (row: { slug: string }) => {
         inserts.push(row);
         if (state.failOther) return { error: { code: "42501", message: "permission denied" } };
+        if (state.ownerConflict) {
+          return {
+            error: {
+              code: "23505",
+              message: 'duplicate key value violates unique constraint "organizations_owner_user_id_unique"',
+              details: "Key (owner_user_id)=(u1) already exists.",
+            },
+          };
+        }
         if (taken.has(row.slug)) {
           return {
             error: {
@@ -48,6 +66,9 @@ beforeEach(() => {
   inserts.length = 0;
   taken.clear();
   state.failOther = false;
+  state.existingOrg = false;
+  state.ownerConflict = false;
+  partner.status = "none";
 });
 
 describe("createOrganization", () => {
@@ -84,5 +105,27 @@ describe("createOrganization", () => {
     f.set("slug", "cudzy-adres");
     await expect(createOrganization(idle, f)).rejects.toThrow("REDIRECT:/admin");
     expect(inserts[0].slug).toBe("acme");
+  });
+
+  it("konto ma już organizację (drugie wysłanie formularza) → /admin bez drugiego zapisu", async () => {
+    state.existingOrg = true;
+    await expect(createOrganization(idle, fd("Acme"))).rejects.toThrow("REDIRECT:/admin");
+    expect(inserts).toHaveLength(0);
+  });
+
+  it("równoległy zapis odrzucony przez unikalność właściciela → /admin, bez kolejnych prób", async () => {
+    state.ownerConflict = true;
+    await expect(createOrganization(idle, fd("Acme"))).rejects.toThrow("REDIRECT:/admin");
+    expect(inserts).toHaveLength(1);
+  });
+
+  it("dawny lub obecny partner może założyć organizację (bez przekierowania na /partner)", async () => {
+    for (const status of ["revoked", "active", "expired"]) {
+      partner.status = status;
+      inserts.length = 0;
+      taken.clear();
+      await expect(createOrganization(idle, fd("Acme"))).rejects.toThrow("REDIRECT:/admin");
+      expect(inserts).toHaveLength(1);
+    }
   });
 });

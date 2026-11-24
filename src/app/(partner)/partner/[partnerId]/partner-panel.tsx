@@ -7,6 +7,7 @@ import type { PartnerContact, PartnerMaterial, ProfileDraft } from "@/lib/partne
 import {
   MATERIAL_ACCEPT,
   MATERIAL_MAX_BYTES,
+  PARTNER_LOGO_MAX_BYTES,
   PARTNER_DESCRIPTION_MAX_LENGTH,
   PARTNER_OFFER_MAX_LENGTH,
   SOCIAL_KEYS,
@@ -15,7 +16,7 @@ import {
   validateMaterialFile,
   type ProfileFields,
 } from "@/lib/partner-portal-core";
-import { validateImageFile, MB } from "@/lib/upload-validation";
+import { validateImageFile } from "@/lib/upload-validation";
 import { Logo } from "@/components/logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -280,7 +281,7 @@ function ProfileForm({
           onSubmit={(e) => {
             const input = e.currentTarget.elements.namedItem("logo") as HTMLInputElement | null;
             const file = input?.files?.[0];
-            const err = file ? validateImageFile(file, 5 * MB) : null;
+            const err = file ? validateImageFile(file, PARTNER_LOGO_MAX_BYTES) : null;
             setClientError(err);
             if (err) e.preventDefault();
           }}
@@ -306,7 +307,7 @@ function ProfileForm({
                 <Label htmlFor="p-remove-logo" className="font-normal">Usuń logo</Label>
               </div>
             )}
-            <p className="text-xs text-muted-foreground">JPG, PNG lub WebP, do 5 MB. Najlepiej na przezroczystym tle.</p>
+            <p className="text-xs text-muted-foreground">JPG, PNG lub WebP, do 4 MB. Najlepiej na przezroczystym tle.</p>
           </div>
 
           <div className="flex flex-col gap-2">

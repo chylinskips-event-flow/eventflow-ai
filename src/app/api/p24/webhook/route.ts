@@ -8,6 +8,9 @@ import {
 } from "@/lib/p24";
 import { sendAttendeeConfirmationEmail } from "@/lib/email/attendee-confirmation";
 import type { Event } from "@/lib/events";
+import { buyerNameParts } from "@/lib/checkout-core";
+import { getOrganizerEmail } from "@/lib/booth-requests";
+import { sendOrderOverbookedEmail } from "@/lib/email/order-overbooked";
 
 type P24Notification = {
   merchantId: number;
@@ -52,7 +55,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // 1. Look up order by session_id (do NOT trust payload amount yet)
   const { data: order } = await supabase
     .from("orders")
-    .select("id, event_id, status, total_amount, buyer_name, buyer_email, p24_session_id")
+    .select(
+      "id, event_id, status, total_amount, currency, buyer_name, buyer_first_name, buyer_last_name, buyer_email, marketing_consent, p24_session_id, created_at",
+    )
     .eq("p24_session_id", sessionId)
     .maybeSingle();
 
@@ -61,8 +66,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ responseCode: 0 });
   }
 
-  // 2. Already fulfilled — idempotency guard
-  if (order.status !== "pending") {
+  // 2. Already fulfilled — idempotency guard. „cancelled” przechodzi dalej: rezerwacja mogła
+  // wygasnąć (cron / brak powiadomienia w 20 min), a płatność i tak dojść — wtedy nie wolno
+  // jej przemilczeć. Weryfikacja w P24 poniżej rozstrzyga, czy pieniądze faktycznie wpłynęły.
+  if (order.status !== "pending" && order.status !== "cancelled") {
     return NextResponse.json({ responseCode: 0 });
   }
 
@@ -150,20 +157,43 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ responseCode: 0 });
   }
 
-  // 8. Idempotent fulfillment: atomically mark order paid only if still pending
-  const { data: updated, error: updateError } = await supabase
-    .from("orders")
-    .update({
-      status: "paid",
-      p24_order_id: String(orderId),
-      paid_at: new Date().toISOString(),
-    })
-    .eq("id", order.id)
-    .eq("status", "pending") // guard — ensures exactly-once
-    .select("id")
-    .maybeSingle();
+  // 8. Idempotent fulfillment (SQL, atomowo): 'paid' gdy miejsce jest (aktywna rezerwacja albo
+  // wolna pula po jej wygaśnięciu), 'paid_overbooked' gdy puli już nie ma, 'noop' gdy zamówienie
+  // rozliczył równoległy webhook. Licznik kodu rabatowego rośnie tylko przy 'paid'.
+  const { data: outcome, error: confirmError } = await supabase.rpc("confirm_paid_order", {
+    p_order_id: order.id,
+    p_p24_order_id: String(orderId),
+  });
 
-  if (updateError || !updated) {
+  if (confirmError) {
+    // Płatność potwierdzona, zapis nieudany: 500, żeby P24 ponowiło powiadomienie.
+    console.error("[p24-webhook] confirm_paid_order failed:", confirmError.message);
+    return NextResponse.json({ error: "Confirm failed" }, { status: 500 });
+  }
+
+  if (outcome === "paid_overbooked") {
+    // Bez biletu i bez automatycznego zwrotu: organizator dostaje powiadomienie i decyduje.
+    console.error(`[p24-webhook] order ${order.id} paid after reservation expired; pool exhausted`);
+    try {
+      const to = await getOrganizerEmail(event.organization_id);
+      if (to) {
+        await sendOrderOverbookedEmail(to, {
+          eventName: event.name,
+          buyerName: order.buyer_name,
+          buyerEmail: order.buyer_email,
+          amount: order.total_amount,
+          currency: order.currency ?? "PLN",
+          sessionId: order.p24_session_id,
+          p24OrderId: String(orderId),
+        });
+      }
+    } catch (err) {
+      console.error("P24 webhook: failed to notify organizer:", err);
+    }
+    return NextResponse.json({ responseCode: 0 });
+  }
+
+  if (outcome !== "paid") {
     // Already fulfilled by a concurrent webhook or return-page callback
     return NextResponse.json({ responseCode: 0 });
   }
@@ -174,7 +204,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .select("ticket_type_id, quantity")
     .eq("order_id", order.id);
 
-  const buyerFirstName = order.buyer_name.split(" ")[0] ?? order.buyer_name;
+  // Dane z formularza kasy (imię, nazwisko, zgoda marketingowa) zapisane na zamówieniu.
+  const { firstName: buyerFirstName, lastName: buyerLastName } = buyerNameParts(order);
   let firstCheckInToken: string | null = null;
   let firstQrToken: string | null = null;
 
@@ -185,9 +216,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .insert({
           event_id: order.event_id,
           first_name: buyerFirstName,
-          last_name: order.buyer_name.slice(buyerFirstName.length).trim() || "-",
+          last_name: buyerLastName,
           email: order.buyer_email,
-          gdpr_consent_at: new Date().toISOString(),
+          gdpr_consent_at: order.created_at ?? new Date().toISOString(),
+          marketing_consent: order.marketing_consent === true,
           status: "approved",
         })
         .select("id, qr_code_token, check_in_token")

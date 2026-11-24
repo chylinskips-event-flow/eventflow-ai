@@ -106,7 +106,7 @@ export default async function PlatformOrganizationPage({
           <CardHeader>
             <CardTitle>{override ? "Zmień override" : "Nadaj override"}</CardTitle>
             <CardDescription>
-              Grandfathering / comp / trial. Wygrywa z subskrypcją Stripe; webhook go nie nadpisuje.
+              Grandfathering / comp / trial. Obowiązuje wyższy z planów: ręczny albo z subskrypcji Stripe (ręczny nie obniża opłaconego); webhook go nie nadpisuje.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">

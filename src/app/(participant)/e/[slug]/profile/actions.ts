@@ -13,6 +13,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { checkProfileQuestProgress } from "@/lib/gamification";
 import { AVATAR_BUCKET, storagePathFromPublicUrl } from "@/lib/avatar-storage";
 import { deleteAttendeeCompletely } from "@/lib/attendee-deletion";
+import { IMAGE_SANITIZE_ERROR, stripImageMetadata } from "@/lib/image-sanitize";
 
 /**
  * Przełącza widoczność uczestnika na liście networkingowej.
@@ -166,12 +167,16 @@ export async function uploadAttendeeAvatar(
     return { status: "error", message: "Zdjęcie nie może być większe niż 2MB." };
   }
 
+  // Publiczny bucket: zapisujemy kopię bez metadanych (EXIF/GPS).
+  const clean = await stripImageMetadata(file);
+  if (!clean) return { status: "error", message: IMAGE_SANITIZE_ERROR };
+
   const supabase = createAdminClient();
   const path = `${attendee.event_id}/${attendee.id}.${ext}`;
 
   const { error: uploadError } = await supabase.storage
     .from(AVATAR_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: true });
+    .upload(path, clean.body, { contentType: clean.contentType, upsert: true });
 
   if (uploadError) {
     return {

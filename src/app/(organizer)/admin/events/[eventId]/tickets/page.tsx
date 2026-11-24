@@ -6,16 +6,19 @@ import { CreateTicketTypeButton, EditTicketTypeButton } from "./ticket-type-form
 import { CreateDiscountCodeButton } from "./discount-code-form";
 import { TicketTypeToggle, DeleteTicketTypeButton, DeleteDiscountCodeButton } from "./ticket-row-actions";
 import { featureGate } from "@/lib/entitlements";
+import { DEFAULT_TIMEZONE } from "@/lib/timezones";
 import { UpgradeNotice } from "@/components/upgrade-notice";
 import { PageShell } from "@/components/page-shell";
 import { TabbedSections } from "@/components/tabbed-sections";
 import { resolveTabKey } from "@/lib/url-tabs";
 import { TICKETS_DEFAULT_TAB, TICKETS_TABS, TICKETS_TAB_KEYS } from "@/lib/organizer-tabs";
 
-function formatDateRange(start: string | null, end: string | null): string {
+// Daty w strefie wydarzenia (domyślnie Europe/Warsaw), nie w strefie serwera.
+function formatDateRange(start: string | null, end: string | null, timeZone: string | null): string {
   if (!start && !end) return "Bez okna";
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString("pl-PL", {
+      timeZone: timeZone || DEFAULT_TIMEZONE,
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -83,7 +86,7 @@ export default async function TicketsPage({
                       )}
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      <EditTicketTypeButton eventId={eventId} ticket={tt} />
+                      <EditTicketTypeButton eventId={eventId} ticket={tt} timeZone={event.timezone} />
                       <DeleteTicketTypeButton
                         eventId={eventId}
                         ticketTypeId={tt.id}
@@ -121,7 +124,7 @@ export default async function TicketsPage({
                     <div className="flex justify-between gap-2">
                       <span className="text-muted-foreground">Okno sprzedaży</span>
                       <span className="text-right text-xs text-muted-foreground">
-                        {formatDateRange(tt.sales_start, tt.sales_end)}
+                        {formatDateRange(tt.sales_start, tt.sales_end, event.timezone)}
                       </span>
                     </div>
                   </div>
@@ -209,7 +212,7 @@ export default async function TicketsPage({
                         )}
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {formatDateRange(tt.sales_start, tt.sales_end)}
+                        {formatDateRange(tt.sales_start, tt.sales_end, event.timezone)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <TicketTypeToggle
@@ -220,7 +223,7 @@ export default async function TicketsPage({
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          <EditTicketTypeButton eventId={eventId} ticket={tt} />
+                          <EditTicketTypeButton eventId={eventId} ticket={tt} timeZone={event.timezone} />
                           <DeleteTicketTypeButton
                             eventId={eventId}
                             ticketTypeId={tt.id}
@@ -297,7 +300,7 @@ export default async function TicketsPage({
                       {dc.max_uses !== null && ` / ${dc.max_uses}`}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {formatDateRange(dc.valid_from, dc.valid_until)}
+                      {formatDateRange(dc.valid_from, dc.valid_until, event.timezone)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <DeleteDiscountCodeButton

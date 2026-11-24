@@ -169,17 +169,24 @@ export function computeEntitlements(
   const findPlan = (key: string | null | undefined) =>
     key ? plans.find((p) => p.key === key) : undefined;
 
+  const overridePlan = override?.plan_key ? findPlan(override.plan_key) : undefined;
+  const subscriptionPlan =
+    subscription && ENTITLED_STATUSES.has(subscription.status)
+      ? findPlan(subscription.plan_key)
+      : undefined;
+
   let source: EntitlementSource = "default";
   let plan = findPlan(DEFAULT_PLAN_KEY);
-  if (override?.plan_key && findPlan(override.plan_key)) {
-    plan = findPlan(override.plan_key);
-    source = "override";
-  } else if (
-    subscription &&
-    ENTITLED_STATUSES.has(subscription.status) &&
-    findPlan(subscription.plan_key)
+  // Ręczny plan (grandfathering, gratis) może podnieść plan, ale nie obniża opłaconej
+  // subskrypcji — obowiązuje wyższy z dwóch (sort_order). Remis → subskrypcja.
+  if (
+    overridePlan &&
+    (!subscriptionPlan || overridePlan.sort_order > subscriptionPlan.sort_order)
   ) {
-    plan = findPlan(subscription.plan_key);
+    plan = overridePlan;
+    source = "override";
+  } else if (subscriptionPlan) {
+    plan = subscriptionPlan;
     source = "subscription";
   } else if (override) {
     // Override bez planu (same punktowe wyjątki) na planie domyślnym.

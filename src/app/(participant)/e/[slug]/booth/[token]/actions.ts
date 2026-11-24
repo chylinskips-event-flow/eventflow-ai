@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentAttendee } from "@/lib/attendee-session";
 import { getPartnerByTokenAndEventSlug } from "@/lib/partners";
 import { completeQuest } from "@/lib/gamification";
+import { getCurrentBoothQuest } from "@/lib/booth-quest";
 import { isPartnerLeadsEnabled } from "@/lib/partner-leads";
 
 const COOLDOWN_MS = 10 * 60 * 1000; // 10 minut
@@ -34,14 +35,30 @@ export async function submitBoothVisit(
 
   const supabase = createAdminClient();
 
-  // Pobierz questa z pełnym config (correct_id / password zostają tu — server only)
-  const { data: quest } = await supabase
-    .from("quests")
-    .select("id, type, title, points_value, config")
-    .eq("partner_id", partner.id)
-    .eq("event_id", partner.event_id)
-    .eq("is_active", true)
+  // Grywalizacja wyłączona → zwykły check-in bez punktów (jak na stronie stoiska)
+  const { data: eventRow } = await supabase
+    .from("events")
+    .select("gamification_enabled")
+    .eq("id", partner.event_id)
     .maybeSingle();
+  const gamificationEnabled = !!(eventRow as { gamification_enabled: boolean } | null)?.gamification_enabled;
+
+  // Bieżący quest z pełnym config (correct_id / password zostają tu — server only)
+  const quest = await getCurrentBoothQuest({
+    eventId: partner.event_id,
+    partnerId: partner.id,
+    attendeeId: attendee.id,
+    gamificationEnabled,
+  });
+
+  // Formularz był wyrenderowany dla konkretnego questa (ukryte quest_id; pusty = bez questa).
+  // Jeśli bieżący quest się zmienił (np. inny niezaliczony quest partnera), nie oceniamy
+  // odpowiedzi i nie zużywamy prób innego questa — uczestnik odświeża stronę.
+  const renderedQuestId = ((formData.get("quest_id") as string | null) ?? "").trim();
+  const currentQuestId = (quest?.id as string | undefined) ?? "";
+  if (renderedQuestId !== currentQuestId) {
+    return { status: "error", message: "Stoisko zmieniło zadanie — odśwież stronę." };
+  }
 
   // Przy włączonej Fazie B (PARTNER_LEADS_ENABLED) lead powstaje WYŁĄCZNIE z osobnej zgody
   // w karcie „Pytania od {partner}” — stary checkbox jest ignorowany także po stronie serwera

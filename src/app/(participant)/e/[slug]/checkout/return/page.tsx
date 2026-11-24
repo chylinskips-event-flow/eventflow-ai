@@ -65,6 +65,27 @@ export default async function CheckoutReturnPage({
     );
   }
 
+  if (status === "paid_overbooked") {
+    // Płatność doszła po wygaśnięciu rezerwacji, a miejsc już nie było: bez biletu, organizator
+    // dostał powiadomienie i skontaktuje się w sprawie zwrotu.
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-8 sm:px-8">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Clock className="size-16 text-amber-500" />
+          <h1 className="text-2xl font-bold">Płatność przyjęta, brak wolnych miejsc</h1>
+          <p className="max-w-sm text-muted-foreground">
+            Płatność dotarła po upływie czasu rezerwacji, a w tym czasie bilety się wyczerpały.
+            Bilet nie został wystawiony. Organizator otrzymał powiadomienie i skontaktuje się
+            z Tobą w sprawie zwrotu płatności.
+          </p>
+        </div>
+        <Button asChild>
+          <Link href={eventRoot}>Przejdź do strony wydarzenia</Link>
+        </Button>
+      </main>
+    );
+  }
+
   if (status === "failed" || status === "cancelled") {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-8 sm:px-8">

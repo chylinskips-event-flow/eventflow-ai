@@ -284,7 +284,6 @@ test.describe("grywalizacja", () => {
   });
 
   test("drugie wydanie tej samej nagrody tej samej osobie jest odrzucone", async ({ page }) => {
-    test.fail(true, "BŁĄD APLIKACJI: odrzucone ponowne wydanie nagrody zwiększa magazyn o 1 (cofnięcie dekrementacji ustawia stock = odczytany stan + 1 zamiast odczytanego stanu; rewards/actions.ts:247)");
     const { events } = state();
     const { data: reward, error } = await admin()
       .from("rewards")

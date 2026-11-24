@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { createPartner, updatePartner, type PartnerFormState } from "./actions";
 import type { Partner } from "@/lib/partners";
 import { PARTNER_TIERS } from "@/lib/partner-options";
-import { validateImageFile, MB } from "@/lib/upload-validation";
+import { validateImageFile, ORGANIZER_IMAGE_MAX_BYTES } from "@/lib/upload-validation";
 import { Button } from "@/components/ui/button";
 import { FileInput } from "@/components/ui/file-input";
 import { Input } from "@/components/ui/input";
@@ -56,7 +56,7 @@ export function PartnerFormDialog({
       const input = e.currentTarget.elements.namedItem("logo") as HTMLInputElement | null;
       const file = input?.files?.[0];
       if (file) {
-        const err = validateImageFile(file, 5 * MB);
+        const err = validateImageFile(file, ORGANIZER_IMAGE_MAX_BYTES);
         if (err) {
           e.preventDefault();
           setLogoClientError(err);

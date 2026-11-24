@@ -17,7 +17,7 @@ import {
 } from "./actions";
 import type { Event } from "@/lib/events";
 import { toDateTimeLocalValue } from "@/lib/format";
-import { validateImageFile, MB } from "@/lib/upload-validation";
+import { validateImageFile, ORGANIZER_IMAGE_MAX_BYTES } from "@/lib/upload-validation";
 import { EVENT_TYPE_OPTIONS, NO_EVENT_TYPE_VALUE } from "@/lib/event-options";
 import { slugify } from "@/lib/slug";
 import { EventAddressField } from "@/components/event-address-field";
@@ -126,7 +126,7 @@ export function EventEditForm({
     ) as HTMLInputElement | null;
     const file = input?.files?.[0];
     if (!file) return;
-    const error = validateImageFile(file, 5 * MB);
+    const error = validateImageFile(file, ORGANIZER_IMAGE_MAX_BYTES);
     if (error) {
       event.preventDefault();
       setLogoClientError(error);

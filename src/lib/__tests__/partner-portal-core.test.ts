@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   accessStatus,
   changedProfileFields,
+  MATERIAL_MAX_BYTES,
+  PARTNER_LOGO_MAX_BYTES,
   maskEmail,
   normalizeEmail,
   normalizeUrl,
@@ -94,6 +96,18 @@ describe("pliki", () => {
     expect(validateMaterialFile({ type: "application/x-msdownload", size: 100, name: "a.exe" })).toMatchObject({ ok: false });
     expect(validateMaterialFile({ type: "application/pdf", size: 6 * 1024 * 1024, name: "a.pdf" })).toMatchObject({ ok: false });
     expect(validateMaterialFile(null)).toMatchObject({ ok: false });
+  });
+
+  it("limit plików mieści się w limicie body funkcji Vercela (4,5 MB)", () => {
+    const MB = 1024 * 1024;
+    expect(MATERIAL_MAX_BYTES).toBeLessThanOrEqual(4 * MB);
+    expect(PARTNER_LOGO_MAX_BYTES).toBeLessThanOrEqual(4 * MB);
+    // Plik 4,6 MB (dawniej akceptowany, a odrzucany przez platformę) — czytelny błąd.
+    expect(validateMaterialFile({ type: "application/pdf", size: Math.round(4.6 * MB), name: "a.pdf" })).toEqual({
+      ok: false,
+      error: "Plik jest za duży — maksymalny rozmiar to 4 MB.",
+    });
+    expect(validateMaterialFile({ type: "application/pdf", size: 4 * MB, name: "a.pdf" })).toEqual({ ok: true });
   });
 });
 

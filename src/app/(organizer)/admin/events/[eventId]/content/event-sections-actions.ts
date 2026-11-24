@@ -11,9 +11,10 @@ import {
 } from "@/lib/event-sections";
 import sharp from "sharp";
 import { featureGate } from "@/lib/entitlements";
+import { ORGANIZER_IMAGE_MAX_BYTES } from "@/lib/upload-validation";
 
 const STORAGE_BUCKET = "event-sections";
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGE_BYTES = ORGANIZER_IMAGE_MAX_BYTES;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export async function createEventSection(
@@ -162,7 +163,7 @@ export async function uploadGaleriaImage(
   if (!ALLOWED_IMAGE_TYPES.includes(file.type))
     return { ok: false, error: "Dozwolone formaty: JPEG, PNG, WebP." };
   if (file.size > MAX_IMAGE_BYTES)
-    return { ok: false, error: "Plik nie może być większy niż 8 MB." };
+    return { ok: false, error: "Plik nie może być większy niż 4 MB." };
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const webpBuffer = await sharp(buffer)

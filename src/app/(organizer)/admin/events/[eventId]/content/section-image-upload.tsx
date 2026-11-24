@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { uploadSectionImage, removeSectionImage, type ContentFormState } from "./actions";
-import { validateImageFile, MB } from "@/lib/upload-validation";
+import { validateImageFile, ORGANIZER_IMAGE_MAX_BYTES } from "@/lib/upload-validation";
 import { Button } from "@/components/ui/button";
 import { FileInput } from "@/components/ui/file-input";
 import { Label } from "@/components/ui/label";
@@ -33,7 +33,7 @@ export function SectionImageUpload({
     ) as HTMLInputElement | null;
     const file = input?.files?.[0];
     if (!file) return;
-    const error = validateImageFile(file, 5 * MB);
+    const error = validateImageFile(file, ORGANIZER_IMAGE_MAX_BYTES);
     if (error) {
       event.preventDefault();
       setClientError(error);
