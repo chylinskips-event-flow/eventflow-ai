@@ -13,6 +13,7 @@ import {
   type PlanRow,
   type SubscriptionRow,
 } from "@/lib/entitlements-core";
+import { PENDING_ORDER_TTL_MINUTES } from "@/lib/checkout-core";
 
 export {
   FEATURE_KEYS,
@@ -151,14 +152,29 @@ export async function checkLimit(
 export const ATTENDEE_LIMIT_MESSAGE =
   "Rejestracja zamknięta — osiągnięto limit miejsc na to wydarzenie.";
 
+/** Czy zajęte miejsca (uczestnicy + trwające płatności) wyczerpują limit; `null` = bez limitu. */
+export function attendeeLimitExceeded(
+  limit: number | null,
+  attendees: number,
+  activePendingOrders = 0,
+): boolean {
+  if (limit == null) return false;
+  return attendees + Math.max(0, activePendingOrders) >= limit;
+}
+
 /**
  * Czy event osiągnął limit uczestników z planu organizatora (odrzuceni się nie liczą).
+ * `includePendingOrders`: wliczaj też trwające płatności (zamówienia oczekujące młodsze niż czas
+ * rezerwacji) — każda z nich po opłaceniu doda uczestnika, więc kasa nie może ich pominąć.
  * Przy wyłączonym billingu nie wykonuje żadnego zapytania.
  */
-export async function isAttendeeLimitReached(event: {
-  id: string;
-  organization_id: string;
-}): Promise<boolean> {
+export async function isAttendeeLimitReached(
+  event: {
+    id: string;
+    organization_id: string;
+  },
+  options: { includePendingOrders?: boolean } = {},
+): Promise<boolean> {
   const limit = await getLimit(event.organization_id, "max_attendees_per_event");
   if (limit == null) return false;
   const admin = createAdminClient();
@@ -171,5 +187,22 @@ export async function isAttendeeLimitReached(event: {
     console.error("[entitlements] attendee count failed:", error.message);
     return false;
   }
-  return (count ?? 0) >= limit;
+
+  let pending = 0;
+  if (options.includePendingOrders) {
+    const cutoff = new Date(Date.now() - PENDING_ORDER_TTL_MINUTES * 60 * 1000).toISOString();
+    const { count: pendingCount, error: pendingError } = await admin
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", event.id)
+      .eq("status", "pending")
+      .gte("created_at", cutoff);
+    if (pendingError) {
+      console.error("[entitlements] pending order count failed:", pendingError.message);
+    } else {
+      pending = pendingCount ?? 0;
+    }
+  }
+
+  return attendeeLimitExceeded(limit, count ?? 0, pending);
 }

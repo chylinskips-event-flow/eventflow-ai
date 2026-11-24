@@ -11,6 +11,10 @@ import { AVATAR_BUCKET, storagePathFromPublicUrl } from "@/lib/avatar-storage";
  * service_role — tożsamość/uprawnienia MUSZĄ być zweryfikowane przez wywołującego
  * PRZED wejściem tutaj (getCurrentAttendee albo getOwnEvent + kontrola event_id).
  *
+ * Przed usunięciem rekordu bilety uczestnika w tym wydarzeniu są anulowane, a miejsca wracają
+ * do puli (release_deleted_attendee_tickets) — inaczej usunięta osoba trwale zajmowałaby miejsce.
+ * Błąd zwolnienia nie blokuje usunięcia danych osobowych.
+ *
  * Kolejność: najpierw kasujemy rekord (operacja autorytatywna), potem plik.
  * Gdyby usunięcie pliku zawiodło, zostaje najwyżej osierocony obiekt w bucketcie
  * — nie blokuje to usunięcia danych osobowych, które jest tu celem nadrzędnym.
@@ -22,9 +26,19 @@ export async function deleteAttendeeCompletely(
 
   const { data: attendee } = await supabase
     .from("attendees")
-    .select("avatar_url")
+    .select("avatar_url, event_id")
     .eq("id", attendeeId)
     .maybeSingle();
+
+  if (attendee?.event_id) {
+    const { error: releaseError } = await supabase.rpc("release_deleted_attendee_tickets", {
+      p_event_id: attendee.event_id,
+      p_attendee_id: attendeeId,
+    });
+    if (releaseError) {
+      console.error("[attendee-deletion] ticket release failed:", releaseError.message);
+    }
+  }
 
   const { error } = await supabase
     .from("attendees")

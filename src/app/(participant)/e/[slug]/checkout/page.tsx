@@ -3,7 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { getEventBySlugForRegistration, getRegistrationUnavailableReason } from "@/lib/events";
 import { getOrigin } from "@/lib/request-origin";
 import { buildEventInternalPath } from "@/lib/event-url";
-import { getPublicTicketTypes } from "@/lib/tickets";
+import { getPublicTicketTypes, isTicketTypeSellable } from "@/lib/tickets";
+import { hasFeature } from "@/lib/entitlements";
 import { Calendar } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +44,13 @@ export default async function CheckoutPage({
   }
 
   const ticketTypes = await getPublicTicketTypes(event.id);
-  const ticket = ticketTypes.find((t) => t.id === ticketTypeId);
+  const found = ticketTypes.find((t) => t.id === ticketTypeId);
+  // Płatny bilet bez sprzedaży płatnych biletów w planie organizatora: niedostępny od razu,
+  // zamiast błędu dopiero po wypełnieniu formularza.
+  const ticket =
+    found && isTicketTypeSellable(found, found.price === 0 || (await hasFeature(event.organization_id, "tickets_paid")))
+      ? found
+      : undefined;
 
   if (!ticket) {
     return (
@@ -66,7 +73,7 @@ export default async function CheckoutPage({
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 py-8 sm:px-8">
       <div className="flex w-full max-w-2xl flex-col gap-2">
         <Badge variant="secondary" className="w-fit">
-          {ticket.price === 0 ? "REJESTRACJA — BILET BEZPLATNY" : "KUP BILET"}
+          {ticket.price === 0 ? "REJESTRACJA — BILET BEZPŁATNY" : "KUP BILET"}
         </Badge>
         <h1 className="text-2xl font-semibold">{event.name}</h1>
         {event.starts_at && (

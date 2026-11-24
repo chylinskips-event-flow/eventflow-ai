@@ -15,6 +15,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { toggleTicketType, deleteTicketType, deleteDiscountCode } from "./actions";
 
 export function TicketTypeToggle({
@@ -62,9 +63,9 @@ export function DeleteTicketTypeButton({
         <AlertDialogHeader>
           <AlertDialogTitle>Usuń typ biletu</AlertDialogTitle>
           <AlertDialogDescription>
-            Czy na pewno chcesz usunąć „{name}"? Operacja jest nieodwracalna.
-            Jeśli istnieją zamówienia powiązane z tym typem, usunięcie może być
-            zablokowane przez bazę danych.
+            Czy na pewno chcesz usunąć „{name}”? Operacja jest nieodwracalna.
+            Typu biletu, który ma zamówienia, nie można usunąć — wyłącz wtedy
+            jego sprzedaż. Kody rabatowe przypisane do tego typu zostaną wyłączone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -72,8 +73,9 @@ export function DeleteTicketTypeButton({
           <AlertDialogAction
             className="bg-destructive hover:bg-destructive/90"
             onClick={() => {
-              startTransition(() => {
-                deleteTicketType(eventId, ticketTypeId);
+              startTransition(async () => {
+                const result = await deleteTicketType(eventId, ticketTypeId);
+                if (!result.ok) toast.error(result.message);
               });
             }}
           >
@@ -107,7 +109,7 @@ export function DeleteDiscountCodeButton({
         <AlertDialogHeader>
           <AlertDialogTitle>Usuń kod rabatowy</AlertDialogTitle>
           <AlertDialogDescription>
-            Czy na pewno chcesz usunąć kod „{code}"?
+            Czy na pewno chcesz usunąć kod „{code}”?
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
