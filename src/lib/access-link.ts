@@ -35,25 +35,22 @@ export async function requestAccessLinkForEmail(params: {
     {
       findEvent: getEventBySlugForRegistration,
       isSuspended: isEventSuspended,
-      countRecent: async ({ emailHash, ipHash, since }) => {
-        const [byEmail, byIp] = await Promise.all([
-          supabase.from(TABLE).select("id", { count: "exact", head: true })
-            .eq("email_hash", emailHash).gte("created_at", since.toISOString()),
-          supabase.from(TABLE).select("id", { count: "exact", head: true })
-            .eq("ip_hash", ipHash).gte("created_at", since.toISOString()),
-        ]);
-        if (byEmail.error) throw byEmail.error;
-        if (byIp.error) throw byIp.error;
-        return { email: byEmail.count ?? 0, ip: byIp.count ?? 0 };
-      },
-      record: async ({ eventId, emailHash, ipHash, purgeBefore }) => {
-        const { error } = await supabase
-          .from(TABLE)
-          .insert({ event_id: eventId, email_hash: emailHash, ip_hash: ipHash });
+      // Sprawdzenie limitu i zapis w jednej transakcji (migracja 20261124120000).
+      tryRecord: async ({ eventId, emailHash, ipHash, since, maxPerEmail, maxPerIp }) => {
+        const { data, error } = await supabase.rpc("try_record_access_link_request", {
+          p_event_id: eventId,
+          p_email_hash: emailHash,
+          p_ip_hash: ipHash,
+          p_since: since.toISOString(),
+          p_max_email: maxPerEmail,
+          p_max_ip: maxPerIp,
+        });
         if (error) throw error;
-        // Sprzątanie starych wierszy — błąd nie blokuje prośby.
-        const purge = await supabase.from(TABLE).delete().lt("created_at", purgeBefore.toISOString());
-        if (purge.error) console.warn("[access-link] purge failed:", purge.error.message);
+        return data === true;
+      },
+      purge: async (before) => {
+        const { error } = await supabase.from(TABLE).delete().lt("created_at", before.toISOString());
+        if (error) throw error;
       },
       findApprovedAttendees: async (eventId, email) => {
         const { data, error } = await supabase
