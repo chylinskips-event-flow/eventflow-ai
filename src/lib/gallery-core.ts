@@ -14,15 +14,60 @@ export const THUMB_MAX_PX = 600;
 export const THUMB_QUALITY = 72;
 
 /**
- * Rezerwacja („uploading”) starsza niż 1 h jest porzucona: nie liczy się do budżetu
- * i jest sprzątana (wiersz + plik). Wysyłka jednego pliku ≤ 15 MB trwa minuty.
+ * Rezerwacja („uploading”) starsza niż 1 h jest porzucona: nie liczy się do budżetu.
+ * Wysyłka jednego pliku ≤ 15 MB trwa minuty.
  */
 export const STALE_UPLOAD_MS = 60 * 60 * 1000;
+/**
+ * Ważność podpisanego adresu wysyłki w Supabase Storage (stała po stronie Storage: 2 h,
+ * supabase-js nie pozwala jej skrócić).
+ */
+export const SIGNED_UPLOAD_TTL_MS = 2 * 60 * 60 * 1000;
+/**
+ * Porzucone rezerwacje (wiersz + plik) usuwamy dopiero po wygaśnięciu podpisanego adresu
+ * (z zapasem) — wcześniejsze usunięcie pozwalałoby wgrać plik, którego nic już nie śledzi.
+ */
+export const STALE_SWEEP_MS = SIGNED_UPLOAD_TTL_MS + 10 * 60 * 1000;
 /** Ile porzuconych rezerwacji sprzątamy w jednym przebiegu (wszystkie wydarzenia). */
 export const STALE_SWEEP_BATCH = 200;
 /** Limit zapytań na link fotografa: rezerwacje w oknie czasowym. */
 export const LINK_RATE_WINDOW_MS = 10 * 60 * 1000;
 export const LINK_RATE_MAX = 120;
+export const LINK_RATE_MESSAGE = "Zbyt wiele zdjęć naraz. Odczekaj kilka minut i spróbuj ponownie.";
+
+/**
+ * Za ile ms zwolni się miejsce w oknie limitu linku: najstarsza rezerwacja w oknie wypada
+ * z niego po LINK_RATE_WINDOW_MS. Zawsze w przedziale [15 s, okno].
+ */
+export function linkRateRetryAfterMs(oldestInWindowIso: string | null | undefined, now: number): number {
+  const min = 15_000;
+  const t = Date.parse(String(oldestInWindowIso ?? ""));
+  if (!Number.isFinite(t)) return LINK_RATE_WINDOW_MS;
+  return Math.min(LINK_RATE_WINDOW_MS, Math.max(min, t + LINK_RATE_WINDOW_MS - now + 1_000));
+}
+
+/** Ile razy kolejka w przeglądarce czeka i ponawia plik odrzucony limitem linku. */
+export const RATE_RETRY_MAX_ATTEMPTS = 6;
+
+/**
+ * Opóźnienie automatycznego ponowienia po odrzuceniu limitem linku: podpowiedź serwera
+ * (kiedy zwolni się miejsce), a bez niej narastająco 30 s, 60 s, 120 s… (maks. okno limitu).
+ * null = koniec prób (plik zostaje z błędem i przyciskiem „Ponów”).
+ */
+export function rateLimitRetryDelayMs(attempt: number, retryAfterMs?: number | null): number | null {
+  if (!Number.isInteger(attempt) || attempt < 0 || attempt >= RATE_RETRY_MAX_ATTEMPTS) return null;
+  const backoff = Math.min(LINK_RATE_WINDOW_MS, 30_000 * 2 ** attempt);
+  const hint = Number(retryAfterMs);
+  if (Number.isFinite(hint) && hint > 0) return Math.min(LINK_RATE_WINDOW_MS, Math.max(5_000, hint));
+  return backoff;
+}
+
+/** Komunikat dla pliku czekającego na automatyczne ponowienie. */
+export function rateLimitWaitMessage(delayMs: number): string {
+  const s = Math.max(1, Math.ceil(delayMs / 1000));
+  const human = s >= 60 ? `${Math.ceil(s / 60)} min` : `${s} s`;
+  return `Limit wysyłki dla linku — automatyczne wznowienie za ok. ${human}. Nie zamykaj strony.`;
+}
 
 /** Ważność podpisanych adresów (sekundy): podgląd/miniatury i pobranie. */
 export const SIGNED_VIEW_TTL_S = 15 * 60;

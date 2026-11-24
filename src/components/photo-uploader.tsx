@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Loader2, RotateCcw, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PHOTO_ACCEPT, validatePhotoFile } from "@/lib/gallery-core";
+import { PHOTO_ACCEPT, rateLimitRetryDelayMs, rateLimitWaitMessage, validatePhotoFile } from "@/lib/gallery-core";
 import type { FinalizeResult, PhotoMeta, StartUploadResult } from "@/lib/gallery";
 import { cn } from "@/lib/utils";
 
@@ -12,9 +12,11 @@ import { cn } from "@/lib/utils";
  * skrót SHA-256 w przeglądarce → rezerwacja (akcja serwera, zwraca podpisany adres) →
  * wysyłka pliku PROSTO do Supabase Storage (z pominięciem limitu 4,5 MB funkcji Vercela,
  * z paskiem postępu) → przetworzenie na serwerze. Po 3 pliki naraz; błędy z „Ponów”.
+ * Limit wysyłki linku fotografa: kolejka sama wstrzymuje się i ponawia (z komunikatem),
+ * zamiast oznaczać resztę plików jako błędy.
  */
 
-type ItemStatus = "queued" | "hashing" | "uploading" | "processing" | "done" | "skipped" | "error";
+type ItemStatus = "queued" | "hashing" | "waiting" | "uploading" | "processing" | "done" | "skipped" | "error";
 
 type Item = { key: string; file: File; status: ItemStatus; progress: number; message?: string };
 
@@ -34,7 +36,6 @@ function putToSignedUrl(url: string, file: File, contentType: string, onProgress
     body.append("", new Blob([file], { type: contentType }), file.name);
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
-    xhr.setRequestHeader("x-upsert", "true");
     const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (anon) xhr.setRequestHeader("apikey", anon);
     xhr.upload.onprogress = (e) => {
@@ -64,6 +65,20 @@ export function PhotoUploader({
   const [running, setRunning] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const seq = useRef(0);
+  // Wspólna pauza kolejki po odrzuceniu limitem linku (wszystkie wątki czekają do tej chwili).
+  const pausedUntil = useRef(0);
+  const [resumeAt, setResumeAt] = useState<number | null>(null);
+
+  const waitForPause = async () => {
+    for (;;) {
+      const ms = pausedUntil.current - Date.now();
+      if (ms <= 0) {
+        setResumeAt(null);
+        return;
+      }
+      await new Promise((r) => setTimeout(r, Math.min(ms, 1000)));
+    }
+  };
 
   const update = (key: string, patch: Partial<Item>) =>
     setItems((prev) => prev.map((i) => (i.key === key ? { ...i, ...patch } : i)));
@@ -77,12 +92,25 @@ export function PhotoUploader({
     try {
       update(item.key, { status: "hashing", progress: 0, message: undefined });
       const hash = await sha256Hex(item.file);
-      const res = await start({ name: item.file.name, type: item.file.type, size: item.file.size, hash });
+      let res: StartUploadResult;
+      for (let attempt = 0; ; attempt++) {
+        await waitForPause();
+        res = await start({ name: item.file.name, type: item.file.type, size: item.file.size, hash });
+        if (res.ok || !res.rateLimited) break;
+        const delay = rateLimitRetryDelayMs(attempt, res.retryAfterMs);
+        if (delay === null) break;
+        const until = Date.now() + delay;
+        if (until > pausedUntil.current) {
+          pausedUntil.current = until;
+          setResumeAt(until);
+        }
+        update(item.key, { status: "waiting", message: rateLimitWaitMessage(pausedUntil.current - Date.now()) });
+      }
       if (!res.ok) {
         update(item.key, { status: res.skipped ? "skipped" : "error", message: res.error });
         return false;
       }
-      update(item.key, { status: "uploading" });
+      update(item.key, { status: "uploading", message: undefined });
       try {
         await putToSignedUrl(res.signedUrl, item.file, res.contentType, (p) => update(item.key, { progress: p }));
       } catch {
@@ -115,6 +143,7 @@ export function PhotoUploader({
     };
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
     setRunning(false);
+    setResumeAt(null);
     if (uploaded > 0) onUploaded?.();
   }
 
@@ -135,7 +164,7 @@ export function PhotoUploader({
 
   const done = items.filter((i) => i.status === "done").length;
   const failed = items.filter((i) => i.status === "error").length;
-  const active = items.filter((i) => ["queued", "hashing", "uploading", "processing"].includes(i.status)).length;
+  const active = items.filter((i) => ["queued", "hashing", "waiting", "uploading", "processing"].includes(i.status)).length;
 
   return (
     <div className="flex flex-col gap-3">
@@ -163,6 +192,9 @@ export function PhotoUploader({
         <div className="flex flex-col gap-2" aria-live="polite">
           <p className="text-sm text-muted-foreground">
             {active > 0 ? `Wysyłanie… pozostało ${active}. ` : ""}
+            {active > 0 && resumeAt !== null
+              ? `Limit wysyłki dla linku — kolejka wznowi się sama ok. ${new Date(resumeAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}. `
+              : ""}
             Wgrane: {done}
             {failed > 0 ? ` · Błędy: ${failed}` : ""}
           </p>
