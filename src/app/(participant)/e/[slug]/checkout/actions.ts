@@ -10,8 +10,7 @@ import {
   sendAttendeePendingApprovalEmail,
 } from "@/lib/email/attendee-confirmation";
 import {
-  ATTENDEE_TOKEN_COOKIE,
-  ATTENDEE_TOKEN_MAX_AGE_SECONDS,
+  setAttendeeSessionCookie,
 } from "@/lib/attendee-session";
 import { getRegistrationUnavailableReason, type Event } from "@/lib/events";
 import { getPaymentConfig, registerTransaction, getP24BaseUrl } from "@/lib/p24";
@@ -255,13 +254,7 @@ async function issueFreeTicket(params: {
 
   // 8. Set cookie
   const cookieStore = await cookies();
-  cookieStore.set(ATTENDEE_TOKEN_COOKIE, attendee.qr_code_token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: ATTENDEE_TOKEN_MAX_AGE_SECONDS,
-  });
+  setAttendeeSessionCookie(cookieStore, slug, attendee.qr_code_token);
 
   // Oczekujący na zatwierdzenie: ta sama strona co po zwykłej rejestracji z zatwierdzaniem.
   redirect(buildEventInternalPath(

@@ -1,11 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   getCurrentAttendee,
-  ATTENDEE_TOKEN_COOKIE,
+  clearAttendeeSession,
 } from "@/lib/attendee-session";
 import { getOrigin } from "@/lib/request-origin";
 import { buildEventInternalPath } from "@/lib/event-url";
@@ -278,8 +278,7 @@ export async function deleteMyAttendeeData(slug: string): Promise<void> {
     throw new Error("Nie udało się usunąć danych. Spróbuj ponownie.");
   }
 
-  const cookieStore = await cookies();
-  cookieStore.delete({ name: ATTENDEE_TOKEN_COOKIE, path: "/" });
+  await clearAttendeeSession(slug, attendee.qr_code_token);
 
   const eventRoot = buildEventInternalPath(slug, "", origin) || "/";
   redirect(`${eventRoot}?deleted=1`);
