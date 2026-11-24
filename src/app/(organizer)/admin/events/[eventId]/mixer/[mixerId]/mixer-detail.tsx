@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Wand2, RotateCcw, Play, ChevronRight, Square, Info, ExternalLink, Lock, Unlock, AlertTriangle } from "lucide-react";
+import { Wand2, RotateCcw, Play, ChevronRight, Square, Info, ExternalLink, Lock, Unlock, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageShell } from "@/components/page-shell";
@@ -17,7 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { generatePlan, rerollPlan, startMixer, nextRound, resetLive, lockMixer, unlockMixer, recomputeRemaining } from "../actions";
+import { generatePlan, rerollPlan, startMixer, nextRound, resetLive, lockMixer, unlockMixer, recomputeRemaining, rotatePresentToken } from "../actions";
 import { ParticipantsPanel } from "./participants-panel";
 import { ParamsPanel } from "./params-panel";
 import { PlanPanel } from "./plan-panel";
@@ -245,6 +245,8 @@ export function MixerDetail({
   const [isRerolling, startReroll] = useTransition();
   const [isLocking, startLockTransition] = useTransition();
   const [isUnlocking, startUnlockTransition] = useTransition();
+  const [isRotating, startRotateTransition] = useTransition();
+  const [rotateError, setRotateError] = useState<string | null>(null);
 
   const [recomputeOpen, setRecomputeOpen] = useState(false);
   const [recomputeError, setRecomputeError] = useState<string | null>(null);
@@ -379,12 +381,30 @@ export function MixerDetail({
 
           {/* Rzutnik — widoczny gdy plan wygenerowany lub mixer aktywny */}
           {mixer.present_token && mixer.status !== "draft" && (
-            <Button variant="outline" size="sm" asChild>
-              <a href={`/p/${mixer.present_token}`} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="size-4" />
-                Rzutnik
-              </a>
-            </Button>
+            <>
+              <Button variant="outline" size="sm" asChild>
+                <a href={`/p/${mixer.present_token}`} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="size-4" />
+                  Rzutnik
+                </a>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                title="Generuj nowy link rzutnika (unieważnia stary)"
+                disabled={isRotating}
+                onClick={() =>
+                  startRotateTransition(async () => {
+                    const res = await rotatePresentToken(eventId, mixer.id);
+                    setRotateError(res.status === "error" ? (res.message ?? "Coś poszło nie tak.") : null);
+                  })
+                }
+              >
+                <RefreshCw className={`size-4 ${isRotating ? "animate-spin" : ""}`} />
+                Nowy link
+              </Button>
+              {rotateError && <span className="text-xs text-destructive">{rotateError}</span>}
+            </>
           )}
 
           {/* Przelicz pozostałe rundy — widoczny gdy są rezygnacje i rundy pending */}
