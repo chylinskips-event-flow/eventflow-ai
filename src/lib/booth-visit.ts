@@ -53,3 +53,30 @@ export function pickBoothQuest<Q extends { id: string }>(
   const done = new Set(completedQuestIds);
   return quests.find((q) => !done.has(q.id)) ?? quests[0];
 }
+
+/** Limit prób quizu / hasła stoiska i przerwa po pierwszej nieudanej próbie. */
+export const MAX_QUIZ_ATTEMPTS = 2;
+export const QUIZ_COOLDOWN_MS = 10 * 60 * 1000; // 10 minut
+
+export type QuizAttemptRejection =
+  | { status: "no_attempts" }
+  | { status: "error"; message: string };
+
+/**
+ * Komunikat, gdy baza odmówiła zarezerwowania kolejnej próby (claim_quiz_attempt zwróciło NULL):
+ * wyczerpany limit albo trwająca przerwa między próbami.
+ */
+export function quizAttemptRejection(
+  row: { attempts: number; last_attempt_at: string | null } | null,
+  now: number,
+): QuizAttemptRejection {
+  if (row && row.attempts >= MAX_QUIZ_ATTEMPTS) return { status: "no_attempts" };
+  const lastAt = row?.last_attempt_at ? new Date(row.last_attempt_at).getTime() : now;
+  // Przycięte do [0, przerwa] — zegar bazy i aplikacji mogą się nieco różnić.
+  const left = Math.min(Math.max(QUIZ_COOLDOWN_MS - (now - lastAt), 0), QUIZ_COOLDOWN_MS);
+  const minutesLeft = Math.max(Math.ceil(left / 60_000), 1);
+  return {
+    status: "error",
+    message: `Porozmawiaj z zespołem stoiska i spróbuj ponownie za ${minutesLeft} min.`,
+  };
+}

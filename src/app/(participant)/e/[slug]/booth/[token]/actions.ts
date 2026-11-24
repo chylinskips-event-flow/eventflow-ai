@@ -6,8 +6,8 @@ import { getPartnerByTokenAndEventSlug } from "@/lib/partners";
 import { completeQuest } from "@/lib/gamification";
 import { getCurrentBoothQuest } from "@/lib/booth-quest";
 import { isPartnerLeadsEnabled } from "@/lib/partner-leads";
+import { MAX_QUIZ_ATTEMPTS, QUIZ_COOLDOWN_MS, quizAttemptRejection } from "@/lib/booth-visit";
 
-const COOLDOWN_MS = 10 * 60 * 1000; // 10 minut
 const CONSENT_TEXT_VERSION = "v1-2026-09";
 
 export type BoothActionState =
@@ -115,34 +115,34 @@ export async function submitBoothVisit(
     return { status: "success", pointsAwarded: result.pointsAwarded, newLevel: result.newLevel, levelUp: result.levelUp };
   }
 
-  // booth_quiz / booth_password — sprawdź próby i cooldown
-  const { data: attemptsRow } = await supabase
-    .from("quiz_attempts")
-    .select("attempts, last_attempt_at")
-    .eq("quest_id", quest.id)
-    .eq("attendee_id", attendee.id)
-    .maybeSingle();
-
-  const attemptsUsed = (attemptsRow as { attempts: number } | null)?.attempts ?? 0;
-
-  if (attemptsUsed >= 2) {
-    return { status: "no_attempts" };
+  // booth_quiz / booth_password — zarezerwuj próbę atomowo w bazie (limit prób i przerwa
+  // sprawdzane w tym samym poleceniu, które zwiększa licznik), dopiero potem oceniaj.
+  const { data: claimed, error: claimError } = await supabase.rpc("claim_quiz_attempt", {
+    p_quest_id: quest.id,
+    p_attendee_id: attendee.id,
+    p_max_attempts: MAX_QUIZ_ATTEMPTS,
+    p_cooldown_seconds: QUIZ_COOLDOWN_MS / 1000,
+  });
+  if (claimError) {
+    return { status: "error", message: "Nie udało się zapisać odpowiedzi. Spróbuj ponownie." };
   }
 
-  // Cooldown: po pierwszej nieudanej próbie, odczekaj 10 min
-  if (attemptsUsed === 1) {
-    const lastAt = (attemptsRow as { last_attempt_at: string | null } | null)?.last_attempt_at;
-    if (lastAt) {
-      const elapsed = Date.now() - new Date(lastAt).getTime();
-      if (elapsed < COOLDOWN_MS) {
-        const minutesLeft = Math.ceil((COOLDOWN_MS - elapsed) / 60_000);
-        return {
-          status: "error",
-          message: `Porozmawiaj z zespołem stoiska i spróbuj ponownie za ${minutesLeft} min.`,
-        };
-      }
-    }
+  if (typeof claimed !== "number") {
+    // Próba odrzucona — ustal powód (wyczerpany limit albo trwająca przerwa)
+    const { data: attemptsRow } = await supabase
+      .from("quiz_attempts")
+      .select("attempts, last_attempt_at")
+      .eq("quest_id", quest.id)
+      .eq("attendee_id", attendee.id)
+      .maybeSingle();
+    return quizAttemptRejection(
+      attemptsRow as { attempts: number; last_attempt_at: string | null } | null,
+      Date.now(),
+    );
   }
+
+  // claimed = numer zarezerwowanej próby (1 = pierwsza); attemptsUsed = próby przed nią
+  const attemptsUsed = claimed - 1;
 
   // Oceń odpowiedź — WYŁĄCZNIE server-side, correct_id/password nie wychodzą z akcji
   let isCorrect = false;
@@ -158,21 +158,10 @@ export async function submitBoothVisit(
     isCorrect = password.toLowerCase() === submitted;
   }
 
-  // Zainkrementuj próby (UPSERT — unique quest_id+attendee_id)
-  await supabase.from("quiz_attempts").upsert(
-    {
-      quest_id: quest.id,
-      attendee_id: attendee.id,
-      attempts: attemptsUsed + 1,
-      last_attempt_at: new Date().toISOString(),
-    },
-    { onConflict: "quest_id,attendee_id" },
-  );
-
-  const newAttemptsUsed = attemptsUsed + 1;
+  const newAttemptsUsed = claimed;
 
   if (!isCorrect) {
-    if (newAttemptsUsed >= 2) {
+    if (newAttemptsUsed >= MAX_QUIZ_ATTEMPTS) {
       // Wyczerpano próby — zapisz ukończenie z 0 punktami
       await completeQuest({
         attendeeId: attendee.id,

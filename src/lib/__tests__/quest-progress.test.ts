@@ -5,7 +5,15 @@ import { createDbMock, type DbCall } from "@/lib/__tests__/helpers/db-mock";
 // (wcześniej drugi quest tego typu wyłączał zaliczanie wszystkich).
 
 const db = createDbMock();
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => db.client }));
+// Punkty doliczane atomowo przez RPC add_attendee_points (points = points + delta).
+let points = 0;
+const rpcCalls: { fn: string; args: Record<string, unknown> }[] = [];
+const rpc = async (fn: string, args: Record<string, unknown>) => {
+  rpcCalls.push({ fn, args });
+  points += args.p_delta as number;
+  return { data: [{ new_points: points, new_level: "explorer" }], error: null };
+};
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ ...db.client, rpc }) }));
 
 const { checkNetworkingQuestProgress, checkProfileQuestProgress } = await import("@/lib/gamification");
 
@@ -14,8 +22,7 @@ const completions = () =>
   db.calls
     .filter((c) => c.table === "quest_completions" && c.op === "insert")
     .map((c) => c.payload as { quest_id: string; points_awarded: number });
-const pointsUpdates = () =>
-  db.calls.filter((c) => c.table === "attendees" && c.op === "update").map((c) => (c.payload as { points: number }).points);
+const pointsUpdates = () => rpcCalls.map(() => points);
 
 function setup(opts: {
   enabled?: boolean;
@@ -25,7 +32,8 @@ function setup(opts: {
   profileComplete?: boolean;
 }) {
   db.reset();
-  let points = 0;
+  points = 0;
+  rpcCalls.length = 0;
   db.results["events:select"] = ok({ gamification_enabled: opts.enabled ?? true });
   db.results["quests:select"] = ok(opts.quests.map((q) => ({ target_value: null, ...q })));
   db.results["quest_completions:select"] = ok((opts.done ?? []).map((quest_id) => ({ quest_id })));
@@ -46,10 +54,6 @@ function setup(opts: {
           error: null,
         }
       : { data: null, error: null };
-  db.results["attendees:update"] = (c: DbCall) => {
-    points = (c.payload as { points: number }).points;
-    return { data: null, error: null };
-  };
 }
 
 beforeEach(() => db.reset());
