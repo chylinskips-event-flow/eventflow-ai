@@ -7,6 +7,7 @@ import QRCode from "qrcode";
 import { getOwnEvent } from "@/lib/events";
 import { featureGate } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAllRows } from "@/lib/fetch-all-rows";
 import type { Attendee } from "@/lib/attendees";
 import { BadgesPdf } from "./badge-pdf";
 
@@ -36,21 +37,30 @@ export async function GET(
   const customTitle = searchParams.get("title") ?? undefined;
 
   const admin = createAdminClient();
-  let query = admin
-    .from("attendees")
-    .select("*")
-    .eq("event_id", eventId);
+  // Nowe zapytanie na każdą stronę (builder PostgREST kumuluje parametry).
+  const pageQuery = (from: number, to: number) => {
+    let query = admin
+      .from("attendees")
+      .select("*")
+      .eq("event_id", eventId);
 
-  if (filter === "approved") {
-    query = query.eq("status", "approved");
-  } else if (filter === "checkedin") {
-    query = (query as typeof query).not("checked_in_at", "is", null);
-  }
-  // filter === "all" → no additional constraint
+    if (filter === "approved") {
+      query = query.eq("status", "approved");
+    } else if (filter === "checkedin") {
+      query = (query as typeof query).not("checked_in_at", "is", null);
+    }
+    // filter === "all" → no additional constraint
 
-  const { data, error } = await query
-    .order("last_name", { ascending: true })
-    .order("first_name", { ascending: true });
+    // id na końcu: stały porządek przy równych nazwiskach, więc strony się nie nakładają.
+    return query
+      .order("last_name", { ascending: true })
+      .order("first_name", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to);
+  };
+
+  // Wszystkie osoby, nie tylko pierwsze 1000 (limit wierszy odpowiedzi PostgREST).
+  const { data, error } = await fetchAllRows(pageQuery);
 
   if (error) {
     console.error("[badges] DB error:", error.message);
