@@ -11,7 +11,7 @@ import { sendPartnerLoginLink, type PartnerLoginState } from "../actions";
 
 const initial: PartnerLoginState = { status: "idle" };
 
-export function PartnerLoginForm({ defaultEmail }: { defaultEmail?: string }) {
+export function PartnerLoginForm({ defaultEmail, notice }: { defaultEmail?: string; notice?: string }) {
   const [state, formAction, isPending] = useActionState(sendPartnerLoginLink, initial);
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
@@ -22,6 +22,11 @@ export function PartnerLoginForm({ defaultEmail }: { defaultEmail?: string }) {
           <CardDescription>Logowanie bez hasła — wyślemy jednorazowy link na Twój adres e-mail.</CardDescription>
         </CardHeader>
         <CardContent>
+          {notice && state.status !== "sent" && (
+            <p role="alert" className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+              {notice}
+            </p>
+          )}
           {state.status === "sent" ? (
             <p className="text-sm text-muted-foreground">
               Jeśli ten adres ma dostęp do panelu partnera, za chwilę dostaniesz e-mail z linkiem
