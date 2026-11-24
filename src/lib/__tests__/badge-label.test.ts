@@ -31,6 +31,7 @@ const own = { event: null as null | Record<string, unknown> };
 vi.mock("@/lib/events", () => ({ getOwnEvent: async () => own.event }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ origin: "https://eventro.pl" }) }));
 
 const organizer = await import("@/app/(organizer)/admin/events/[eventId]/reception/actions");
 const staff = await import("@/app/(participant)/e/[slug]/recepcja/[token]/actions");

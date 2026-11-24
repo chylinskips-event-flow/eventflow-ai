@@ -3,7 +3,7 @@ import { Handshake, Users, Target } from "lucide-react";
 import { getOwnEvent } from "@/lib/events";
 import { getPaidOrderCount } from "@/lib/orders";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getDomainStatus } from "@/lib/vercel-domains";
+import { getDomainStatus, vercelDomainsConfigured } from "@/lib/vercel-domains";
 import { EventEditForm } from "./form";
 import { ChecklistRestoreButton, EventChecklist } from "./event-checklist";
 import { computeChecklist } from "@/lib/event-checklist";
@@ -38,7 +38,7 @@ export default async function EventDetailPage({
   const rootDomain = process.env.ROOT_DOMAIN ?? "eventro.pl";
   let subdomainInitialState: "active" | "activating" | "error" | "unknown" = "unknown";
 
-  if (isPublished && subdomainsGate.ok && process.env.VERCEL_API_TOKEN && process.env.VERCEL_PROJECT_ID) {
+  if (isPublished && subdomainsGate.ok && vercelDomainsConfigured()) {
     const domainStatus = await getDomainStatus(`${event.slug}.${rootDomain}`);
     if (domainStatus === "missing") {
       // Domeny nie ma w projekcie Vercel — subdomena celowo nieaktywna (neutralna linia, bez „Ponów”).

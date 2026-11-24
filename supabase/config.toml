@@ -21,9 +21,10 @@ max_rows = 1000
 # without explicit GRANTs. When unset, new entities are NOT auto-exposed, matching the new cloud
 # default. Set to `true` to keep the legacy behaviour of auto-exposing new entities; this is
 # deprecated and the field is removed on 2026-10-30 once the always-revoked behaviour is permanent.
-# Produkcja powstała przed zmianą domyślnych uprawnień i ma stare zachowanie; lokalnie odtwarzamy je,
-# żeby testy E2E widziały te same uprawnienia co produkcja. Migracje nie nadają GRANT-ów jawnie.
-auto_expose_new_tables = true
+# Lokalnie jak świeży projekt w chmurze (bez automatycznych uprawnień). Stare uprawnienia domyślne,
+# które produkcja ma od początku, nadaje migracja 20260619000000_baseline_default_privileges.sql —
+# musi zostać najwcześniejszym plikiem w supabase/migrations.
+auto_expose_new_tables = false
 
 [api.tls]
 # Enable HTTPS endpoints locally using a self-signed certificate.

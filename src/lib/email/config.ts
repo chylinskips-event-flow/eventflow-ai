@@ -45,6 +45,37 @@ export function getFromAddress(): string {
   return from;
 }
 
+export const EMAIL_REDIRECT_ENV = "EMAIL_REDIRECT_TO";
+
+/**
+ * Środowiska testowe (Preview): wszystkie maile aplikacji idą na jeden adres z EMAIL_REDIRECT_TO,
+ * a pierwotny odbiorca trafia do tematu. Na produkcji (VERCEL_ENV=production) zmienna jest
+ * ignorowana, żeby błędna konfiguracja nie przekierowała maili prawdziwych uczestników.
+ */
+export function applyEmailRedirect(
+  to: string,
+  subject: string,
+  env: { redirect?: string; vercelEnv?: string } = {
+    redirect: process.env[EMAIL_REDIRECT_ENV],
+    vercelEnv: process.env.VERCEL_ENV,
+  },
+): { to: string; subject: string } {
+  const redirect = env.redirect?.trim();
+  if (!redirect) {
+    // Preview bez adresu przekierowania nie wysyła nic — zamiast maili do prawdziwych odbiorców.
+    if (env.vercelEnv === "preview") fail(`${EMAIL_REDIRECT_ENV} must be set on Preview.`);
+    return { to, subject };
+  }
+  if (env.vercelEnv === "production") {
+    console.warn(`[email] ${EMAIL_REDIRECT_ENV} is ignored in production.`);
+    return { to, subject };
+  }
+  if (!/^[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+$/.test(redirect)) {
+    fail(`${EMAIL_REDIRECT_ENV} has invalid format (expected a single e-mail address).`);
+  }
+  return { to: redirect, subject: `[Preview → ${to}] ${subject}` };
+}
+
 export function getResendApiKey(): string {
   const key = process.env.RESEND_API_KEY?.trim();
   if (!key) fail(`RESEND_API_KEY is not set (VERCEL_ENV=${process.env.VERCEL_ENV ?? "local"}).`);

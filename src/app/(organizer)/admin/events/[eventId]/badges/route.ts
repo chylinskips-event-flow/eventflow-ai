@@ -10,8 +10,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { Attendee } from "@/lib/attendees";
 import { dedupeById, fetchAllRows } from "@/lib/paginate";
 import { BadgesPdf } from "./badge-pdf";
+import { buildEventApexUrl } from "@/lib/event-url";
+import { getOrigin } from "@/lib/request-origin";
 
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "eventro.pl";
 
 export async function GET(
   request: NextRequest,
@@ -72,8 +73,9 @@ export async function GET(
   }
 
   // Generate QR codes (contact exchange URL) for every attendee.
-  const contactUrl = (code: string) =>
-    `https://${ROOT_DOMAIN}/e/${event.slug}/connect/${code}`;
+  // Adres z NEXT_PUBLIC_ROOT_DOMAIN albo z adresu żądania (Preview, lokalnie) — nie zawsze produkcja.
+  const eventUrl = buildEventApexUrl(event.slug, getOrigin(request.headers));
+  const contactUrl = (code: string) => `${eventUrl}/connect/${code}`;
 
   const qrEntries = await Promise.all(
     attendees.map(async (a) => {
