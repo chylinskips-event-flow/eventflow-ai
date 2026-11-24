@@ -15,7 +15,13 @@ vi.mock("@/lib/p24", () => ({
   computeNotifySign: () => "sig",
   verifyTransaction: async () => ({ ok: true, data: { status: "success" } }),
 }));
-vi.mock("@/lib/entitlements", () => ({ isAttendeeLimitReached: async () => limit.reached }));
+const limitChecks = { count: 0 };
+vi.mock("@/lib/entitlements", () => ({
+  isAttendeeLimitReached: async () => {
+    limitChecks.count++;
+    return limit.reached;
+  },
+}));
 vi.mock("@/lib/email/attendee-confirmation", () => ({
   sendAttendeeConfirmationEmail: async () => void sent.confirmation++,
 }));
@@ -27,6 +33,7 @@ vi.mock("@/lib/email/order-overbooked", () => ({
 const webhook = await import("@/app/api/p24/webhook/route");
 const panel = await import("@/app/(participant)/e/[slug]/checkout/return/panel/route");
 const { isOwnCheckoutSession, CHECKOUT_SESSION_COOKIE } = await import("@/lib/checkout-return");
+const { orderReservationHeld } = await import("@/lib/checkout-core");
 const { attendeeLimitExceeded } = await vi.importActual<typeof import("@/lib/entitlements")>(
   "@/lib/entitlements",
 );
@@ -42,6 +49,7 @@ const notify = () =>
 beforeEach(() => {
   db.reset();
   limit.reached = false;
+  limitChecks.count = 0;
   sent.overbooked = [];
   sent.confirmation = 0;
   db.results["orders:select"] = () => ({
@@ -109,6 +117,54 @@ describe("webhook P24: limit uczestników przy potwierdzeniu", () => {
     const res = await notify();
     expect(res.status).toBe(500);
     spy.mockRestore();
+  });
+});
+
+describe("webhook P24: aktywna rezerwacja jest honorowana", () => {
+  const withOrder = (patch: Record<string, unknown>) => {
+    const base = db.results["orders:select"];
+    db.results["orders:select"] = (...args: unknown[]) => {
+      const r = (base as (...a: unknown[]) => { data: Record<string, unknown> })(...args);
+      return { ...r, data: { ...r.data, ...patch } } as never;
+    };
+  };
+
+  it("oczekujące zamówienie w czasie rezerwacji: bez ponownego sprawdzania limitu, bilet wydany", async () => {
+    limit.reached = true;
+    withOrder({ created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString() });
+    await notify();
+    expect(limitChecks.count).toBe(0);
+    expect(db.rpcCalls.map((c) => c.fn)).toEqual(["confirm_paid_order"]);
+    expect(db.inserts("tickets")).toHaveLength(1);
+    expect(sent.overbooked).toHaveLength(0);
+  });
+
+  it("rezerwacja wygasła: limit sprawdzany ponownie", async () => {
+    limit.reached = true;
+    withOrder({ created_at: new Date(Date.now() - 25 * 60 * 1000).toISOString() });
+    await notify();
+    expect(limitChecks.count).toBe(1);
+    expect(db.rpcCalls.map((c) => c.fn)).toEqual(["mark_order_overbooked"]);
+  });
+
+  it("zamówienie anulowane (nawet świeże): limit sprawdzany ponownie", async () => {
+    limit.reached = true;
+    withOrder({ status: "cancelled", created_at: new Date(Date.now() - 60 * 1000).toISOString() });
+    await notify();
+    expect(limitChecks.count).toBe(1);
+    expect(db.rpcCalls.map((c) => c.fn)).toEqual(["mark_order_overbooked"]);
+  });
+});
+
+describe("orderReservationHeld", () => {
+  const now = Date.parse("2026-11-24T12:00:00.000Z");
+  it("tylko oczekujące zamówienie młodsze niż czas rezerwacji", () => {
+    expect(orderReservationHeld({ status: "pending", created_at: "2026-11-24T11:45:00.000Z" }, now)).toBe(true);
+    expect(orderReservationHeld({ status: "pending", created_at: "2026-11-24T11:40:00.000Z" }, now)).toBe(true);
+    expect(orderReservationHeld({ status: "pending", created_at: "2026-11-24T11:39:59.000Z" }, now)).toBe(false);
+    expect(orderReservationHeld({ status: "cancelled", created_at: "2026-11-24T11:59:00.000Z" }, now)).toBe(false);
+    expect(orderReservationHeld({ status: "pending", created_at: null }, now)).toBe(false);
+    expect(orderReservationHeld({ status: "pending", created_at: "nie-data" }, now)).toBe(false);
   });
 });
 

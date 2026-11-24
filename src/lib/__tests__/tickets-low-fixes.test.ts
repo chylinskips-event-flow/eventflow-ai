@@ -35,30 +35,56 @@ beforeEach(() => {
 });
 
 describe("usunięcie uczestnika zwalnia jego bilety", () => {
-  it("przed usunięciem rekordu wołana jest funkcja zwalniająca bilety w obrębie wydarzenia", async () => {
-    db.results["attendees:select"] = () => ({ data: { avatar_url: null, event_id: "ev1" }, error: null });
+  it("zwolnienie biletów i usunięcie rekordu w jednej funkcji SQL (transakcji)", async () => {
+    db.results["attendees:select"] = () => ({ data: { avatar_url: null }, error: null });
     const res = await deleteAttendeeCompletely("att1");
     expect(res.error).toBeNull();
     expect(db.rpcCalls).toEqual([
-      { fn: "release_deleted_attendee_tickets", args: { p_event_id: "ev1", p_attendee_id: "att1" } },
+      { fn: "delete_attendee_releasing_tickets", args: { p_attendee_id: "att1" } },
     ]);
-    const del = db.calls.find((c) => c.table === "attendees" && c.op === "delete");
-    expect(del?.filters).toContainEqual(["eq:id", "att1"]);
+    // Bez osobnego DELETE poza transakcją.
+    expect(db.calls.some((c) => c.table === "attendees" && c.op === "delete")).toBe(false);
   });
 
-  it("błąd zwolnienia nie blokuje usunięcia danych", async () => {
-    db.results["attendees:select"] = () => ({ data: { avatar_url: null, event_id: "ev1" }, error: null });
-    db.rpcResults.release_deleted_attendee_tickets = () => ({ data: null, error: { message: "x" } });
-    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("nieudane usunięcie: błąd zwracany, avatar nieusuwany", async () => {
+    const removed: string[][] = [];
+    (db.client as Record<string, unknown>).storage = {
+      from: () => ({ remove: async (paths: string[]) => void removed.push(paths) }),
+    };
+    db.results["attendees:select"] = () => ({
+      data: { avatar_url: "https://x.supabase.co/storage/v1/object/public/avatars/a/b.webp" },
+      error: null,
+    });
+    db.rpcResults.delete_attendee_releasing_tickets = () => ({ data: null, error: { message: "timeout" } });
     const res = await deleteAttendeeCompletely("att1");
-    expect(res.error).toBeNull();
-    expect(db.calls.some((c) => c.table === "attendees" && c.op === "delete")).toBe(true);
-    spy.mockRestore();
+    expect(res.error).toBe("timeout");
+    expect(removed).toHaveLength(0);
+    delete (db.client as Record<string, unknown>).storage;
+  });
+});
+
+describe("migracja atomowego usunięcia uczestnika", () => {
+  const sql = readFileSync(
+    join(process.cwd(), "supabase", "migrations", "20261124130003_delete_attendee_with_ticket_release.sql"),
+    "utf8",
+  ).toLowerCase();
+  const fn = sql.slice(sql.indexOf("function public.delete_attendee_releasing_tickets"), sql.indexOf("revoke all"));
+
+  it("zwolnienie biletów przed usunięciem rekordu, w tej samej funkcji", () => {
+    const release = fn.indexOf("release_deleted_attendee_tickets(v_event_id, p_attendee_id)");
+    const del = fn.indexOf("delete from public.attendees where id = p_attendee_id");
+    expect(release).toBeGreaterThan(-1);
+    expect(del).toBeGreaterThan(release);
+    expect(fn).toMatch(/for update/);
   });
 
-  it("nieistniejący uczestnik: brak zwalniania", async () => {
-    await deleteAttendeeCompletely("att-x");
-    expect(db.rpcCalls).toHaveLength(0);
+  it("błąd zwolnienia wycofuje tylko blok zwalniania, nie usunięcie danych", () => {
+    expect(fn).toMatch(/exception when others then/);
+  });
+
+  it("wykonanie tylko dla service_role", () => {
+    expect(sql).toMatch(/revoke all on function public\.delete_attendee_releasing_tickets\(uuid\) from public, anon, authenticated/);
+    expect(sql).toMatch(/grant execute on function public\.delete_attendee_releasing_tickets\(uuid\) to service_role/);
   });
 });
 

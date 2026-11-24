@@ -8,7 +8,7 @@ import {
 } from "@/lib/p24";
 import { sendAttendeeConfirmationEmail } from "@/lib/email/attendee-confirmation";
 import type { Event } from "@/lib/events";
-import { buyerNameParts } from "@/lib/checkout-core";
+import { buyerNameParts, orderReservationHeld } from "@/lib/checkout-core";
 import { getOrganizerEmail } from "@/lib/booth-requests";
 import { sendOrderOverbookedEmail } from "@/lib/email/order-overbooked";
 import { isAttendeeLimitReached } from "@/lib/entitlements";
@@ -158,13 +158,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ responseCode: 0 });
   }
 
-  // 8. Limit uczestników z planu organizatora sprawdzony ponownie przy potwierdzeniu (kasa liczy
-  // trwające płatności, ale rezerwacja mogła wygasnąć, a miejsca zająć inni). Przy osiągniętym
-  // limicie: ta sama ścieżka co brak miejsc w puli — bez biletu, powiadomienie organizatora.
+  // 8. Limit uczestników z planu organizatora sprawdzony ponownie przy potwierdzeniu tylko wtedy,
+  // gdy rezerwacja już nie trzyma miejsca (zamówienie anulowane albo starsze niż czas rezerwacji —
+  // inni mogli zająć miejsca). Aktywna rezerwacja została wliczona do limitu w kasie i jest
+  // honorowana. Przy osiągniętym limicie: ta sama ścieżka co brak miejsc w puli — bez biletu,
+  // powiadomienie organizatora.
   // 9. W przeciwnym razie idempotentne potwierdzenie (SQL, atomowo): 'paid' gdy miejsce jest
   // (aktywna rezerwacja albo wolna pula po jej wygaśnięciu), 'paid_overbooked' gdy puli już nie
   // ma, 'noop' gdy zamówienie rozliczył równoległy webhook. Licznik kodu rośnie tylko przy 'paid'.
-  const limitReached = await isAttendeeLimitReached(event);
+  const limitReached = orderReservationHeld(order) ? false : await isAttendeeLimitReached(event);
   const { data: outcome, error: confirmError } = limitReached
     ? await supabase.rpc("mark_order_overbooked", {
         p_order_id: order.id,
