@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { getOrigin } from "@/lib/request-origin";
 import { buildEventApexUrl, buildEventInternalPath } from "@/lib/event-url";
 import type { LucideIcon } from "lucide-react";
@@ -34,7 +35,7 @@ import {
   availableQuantity,
 } from "@/lib/tickets";
 import { computeLevel, computeNextLevelThreshold, LEVEL_LABELS } from "@/lib/gamification";
-import { formatDate, formatDateTimeRange, pluralizePl } from "@/lib/format";
+import { formatDate, formatDateTimeRange, formatLastSeats, pluralizePl } from "@/lib/format";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -118,17 +119,8 @@ export default async function ParticipantEventPage({
     ) : null;
   const event = await getEventBySlugForRegistration(slug);
 
-  if (!event) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4">
-        <Card className="w-full max-w-sm">
-          <CardHeader>
-            <CardTitle>Wydarzenie nie zostało znalezione</CardTitle>
-          </CardHeader>
-        </Card>
-      </main>
-    );
-  }
+  // Nieistniejący slug → HTTP 404 (komunikat w not-found.tsx tego segmentu).
+  if (!event) notFound();
 
   // Tryb podglądu: tylko właściciel eventu i tylko z jawnym ?preview=1. Param
   // sam w sobie nic nie robi bez własności. W podglądzie ignorujemy cookie
@@ -634,7 +626,7 @@ export default async function ParticipantEventPage({
                     </div>
                     {avail !== null && !soldOut && avail <= 10 && (
                       <p className="mb-2 text-xs text-amber-600 font-medium">
-                        Ostatnie {avail} {avail === 1 ? "miejsce" : "miejsca"}
+                        {formatLastSeats(avail)}
                       </p>
                     )}
                     {soldOut ? (
