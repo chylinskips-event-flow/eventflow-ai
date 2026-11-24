@@ -215,6 +215,7 @@ function ItemRow({ eventId, partnerId, item }: { eventId: string; partnerId: str
       ) : (
         <form action={formAction} className="flex flex-col gap-2">
           <input type="hidden" name="seen_qty" value={item.qty} />
+          <input type="hidden" name="seen_updated_at" value={item.updated_at ?? ""} />
           <Input
             name="decision_note"
             maxLength={DECISION_NOTE_MAX_LENGTH}

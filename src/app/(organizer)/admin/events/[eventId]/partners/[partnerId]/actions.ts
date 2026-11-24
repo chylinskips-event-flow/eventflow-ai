@@ -206,14 +206,21 @@ export async function rejectPartnerDraft(
 
   const raw = formData.get("note");
   const note = typeof raw === "string" ? raw.trim().slice(0, REVIEW_NOTE_MAX_LENGTH) : "";
+  // Odrzucamy tylko wersję, którą organizator oglądał — nowszy szkic zostaje do akceptacji.
+  const rawSeen = formData.get("seen_submitted_at");
+  const seen = typeof rawSeen === "string" ? rawSeen.trim() : "";
+  if (!seen || seen.length > 64 || Number.isNaN(Date.parse(seen))) {
+    return { status: "error", message: DRAFT_CHANGED };
+  }
   const { data, error } = await createAdminClient()
     .from("partner_profile_drafts")
     .update({ status: "rejected", review_note: note || null, reviewed_at: new Date().toISOString() })
     .eq("partner_id", partnerId)
     .eq("status", "pending")
+    .eq("submitted_at", seen)
     .select("partner_id");
   if (error) return { status: "error", message: "Nie udało się zapisać decyzji." };
-  if (!data?.length) return { status: "error", message: "Brak zmian do akceptacji." };
+  if (!data?.length) return { status: "error", message: DRAFT_CHANGED };
 
   revalidate(eventId, partnerId);
   return { status: "success", message: "Zmiany odrzucone — partner zobaczy uwagę w panelu." };
@@ -249,7 +256,8 @@ export async function reviewPartnerMaterial(
 const QUESTION_CHANGED = "Pytanie zmieniło się w międzyczasie — odśwież stronę.";
 
 /**
- * Decyzja organizatora o pytaniu partnera. `seenStatus` — status widoczny na stronie organizatora;
+ * Decyzja organizatora o pytaniu partnera. `seenStatus` i `seenUpdatedAt` — status i wersja
+ * (updated_at) widoczne na stronie organizatora;
  * jeśli pytanie zmieniło się w międzyczasie (np. partner je wycofał), decyzja nie jest zapisywana.
  * Pytania wycofanego przez partnera nie da się ponownie zaakceptować.
  */
@@ -260,6 +268,7 @@ export async function reviewPartnerQuestion(
   decision: "approved" | "rejected",
   note?: string,
   seenStatus?: "pending" | "approved" | "rejected",
+  seenUpdatedAt?: string,
 ): Promise<PortalAdminState> {
   if (!isPartnerLeadsEnabled()) return { status: "error", message: "Ta funkcja jest niedostępna." };
   const ctx = await organizerContext(eventId, partnerId);
@@ -283,15 +292,21 @@ export async function reviewPartnerQuestion(
   if (seenStatus && current.status !== seenStatus) {
     return { status: "error", message: QUESTION_CHANGED };
   }
+  // Wersja ze strony: wykrywa też zmianę treści, po której status wrócił do tej samej wartości.
+  const seen = (seenUpdatedAt ?? "").trim();
+  const seenTime = Date.parse(seen);
+  if (!seen || Number.isNaN(seenTime) || seenTime !== Date.parse(current.updated_at as string)) {
+    return { status: "error", message: QUESTION_CHANGED };
+  }
 
-  // Zapis tylko, gdy wiersz nie zmienił się od odczytu (np. wycofanie przez partnera w tej chwili).
+  // Zapis tylko, gdy wiersz nie zmienił się od wersji widzianej na stronie.
   const { data, error } = await admin
     .from("partner_questions")
     .update({ status: decision, review_note: reviewNote, reviewed_at: new Date().toISOString() })
     .eq("id", questionId)
     .eq("partner_id", partnerId)
     .eq("status", current.status as string)
-    .eq("updated_at", current.updated_at as string)
+    .eq("updated_at", seen)
     .select("id, prompt");
   if (error) return { status: "error", message: "Nie udało się zapisać decyzji." };
   if (!data?.length) return { status: "error", message: QUESTION_CHANGED };

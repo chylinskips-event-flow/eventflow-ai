@@ -7,7 +7,7 @@ import { featureGate } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrigin } from "@/lib/request-origin";
 import { BOOTH_LOAD_ERROR, getBoothRequest, getCatalog, getPartnerRecipientEmails, loadBoothData } from "@/lib/booth-requests";
-import { DECISION_NOTE_MAX_LENGTH, inPackagePendingIds, parseApprovedQty, parseSeenQty } from "@/lib/booth-requests-core";
+import { DECISION_NOTE_MAX_LENGTH, inPackagePendingIds, parseApprovedQty, parseSeenQty, parseSeenVersion } from "@/lib/booth-requests-core";
 import { sendBoothDecisionEmail } from "@/lib/email/booth-request";
 
 // #10 Faza A2 — decyzje organizatora w sprawie zapotrzebowania partnera na stoisko.
@@ -94,7 +94,11 @@ export async function decideBoothItem(
 
   // Ilość, którą organizator widział na stronie — decyzja dotyczy tylko jej.
   const requestedQty = parseSeenQty(formData.get("seen_qty"));
-  if (requestedQty === null) return { status: "error", message: "Odśwież stronę i spróbuj ponownie." };
+  // Wersja pozycji ze strony — obejmuje też opis („Inne potrzeby” mają zawsze ilość 1).
+  const seenVersion = parseSeenVersion(formData.get("seen_updated_at"));
+  if (requestedQty === null || seenVersion === null) {
+    return { status: "error", message: "Odśwież stronę i spróbuj ponownie." };
+  }
 
   const admin = createAdminClient();
   let status: "approved" | "changed" | "rejected" = decision === "approve" ? "approved" : "rejected";
@@ -110,7 +114,7 @@ export async function decideBoothItem(
     }
   }
 
-  // Partner mógł w międzyczasie zmienić ilość — decyzja dotyczy tej, którą widział organizator.
+  // Partner mógł w międzyczasie zmienić ilość lub opis — decyzja dotyczy wersji widzianej przez organizatora.
   const { data, error } = await admin
     .from("partner_booth_request_items")
     .update({ status, approved_qty: approvedQty, decision_note: note || null, reviewed_at: new Date().toISOString() })
@@ -118,6 +122,7 @@ export async function decideBoothItem(
     .eq("partner_id", partnerId)
     .eq("event_id", eventId)
     .eq("qty", requestedQty)
+    .eq("updated_at", seenVersion)
     .select("id");
   if (error) return { status: "error", message: "Nie udało się zapisać decyzji." };
   if (!data?.length) return { status: "error", message: "Pozycja zmieniła się w międzyczasie — odśwież stronę." };

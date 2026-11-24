@@ -99,6 +99,8 @@ export type RequestItem = {
   approved_qty: number | null;
   decision_note: string | null;
   reviewed_at: string | null;
+  /** Wersja pozycji z bazy (zmienia się przy każdej zmianie ilości lub opisu). */
+  updated_at?: string;
 };
 
 export type BoothRequestInfo = {
@@ -527,6 +529,16 @@ export function parseSeenQty(raw: unknown): number | null {
   if (!/^\d{1,3}$/.test(value)) return null;
   const n = Number(value);
   return n >= 1 ? n : null;
+}
+
+/**
+ * Wersja pozycji widziana przez organizatora (ukryte pole `seen_updated_at` = `updated_at` z bazy).
+ * Zwraca oryginalny tekst — porównanie w bazie jest dokładne co do mikrosekundy.
+ */
+export function parseSeenVersion(raw: unknown): string | null {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (!value || value.length > 64 || Number.isNaN(Date.parse(value))) return null;
+  return value;
 }
 
 /** Ilość zatwierdzona (0 dla oczekujących i odrzuconych). */

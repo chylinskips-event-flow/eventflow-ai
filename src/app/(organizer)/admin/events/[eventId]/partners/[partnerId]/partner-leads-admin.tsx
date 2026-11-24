@@ -98,7 +98,7 @@ function QuestionReviewRow({ eventId, partnerId, question }: { eventId: string; 
 
   const run = (decision: "approved" | "rejected") =>
     startTransition(async () => {
-      const res = await reviewPartnerQuestion(eventId, partnerId, question.id, decision, note, question.status);
+      const res = await reviewPartnerQuestion(eventId, partnerId, question.id, decision, note, question.status, question.updated_at);
       if (res.status === "error") toast.error(res.message ?? "Coś poszło nie tak.");
       else {
         if (res.message) toast.success(res.message);
