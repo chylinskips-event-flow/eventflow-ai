@@ -63,7 +63,9 @@ vi.mock("@/lib/email/attendee-confirmation", () => ({
 vi.mock("@/lib/entitlements", () => ({ ATTENDEE_LIMIT_MESSAGE: "limit", isAttendeeLimitReached: async () => false }));
 
 const { registerAttendee } = await import("../actions");
-const { DUPLICATE_REGISTRATION_MESSAGE } = await import("@/lib/duplicate-registration");
+const { DUPLICATE_REGISTRATION_MESSAGE, DUPLICATE_PENDING_REGISTRATION_MESSAGE } = await import(
+  "@/lib/duplicate-registration"
+);
 
 function form(email: string) {
   const fd = new FormData();
@@ -109,10 +111,27 @@ describe("rejestracja — duplikaty adresu w jednym wydarzeniu", () => {
     expect(inserted).toHaveLength(0);
   });
 
-  it("uczestnik oczekujący też blokuje ponowną rejestrację", async () => {
+  it("uczestnik oczekujący też blokuje ponowną rejestrację — komunikat o oczekiwaniu, bez obietnicy linku", async () => {
     db.attendees = [{ id: "a0", event_id: "ev1", email: "ania@example.com", status: "pending" }];
-    expect((await register("ev1", "expo", "ania@example.com")).status).toBe("already_registered");
+    expect(await register("ev1", "expo", "ania@example.com")).toEqual({
+      status: "already_registered",
+      message: DUPLICATE_PENDING_REGISTRATION_MESSAGE,
+    });
+    expect(DUPLICATE_PENDING_REGISTRATION_MESSAGE).not.toMatch(/Wysłaliśmy/);
     expect(inserted).toHaveLength(0);
+    expect(requestAccessLinkForEmail).not.toHaveBeenCalled();
+  });
+
+  it("zatwierdzony i oczekujący rekord na ten sam adres: link do panelu (zatwierdzonego)", async () => {
+    db.attendees = [
+      { id: "a0", event_id: "ev1", email: "ania@example.com", status: "pending" },
+      { id: "a1", event_id: "ev1", email: "Ania@example.com", status: "approved" },
+    ];
+    expect(await register("ev1", "expo", "ania@example.com")).toEqual({
+      status: "already_registered",
+      message: DUPLICATE_REGISTRATION_MESSAGE,
+    });
+    expect(requestAccessLinkForEmail).toHaveBeenCalledTimes(1);
   });
 
   it("odrzucony uczestnik może zarejestrować się ponownie (jak dotąd)", async () => {
