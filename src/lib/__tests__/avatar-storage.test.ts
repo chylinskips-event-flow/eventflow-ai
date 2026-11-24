@@ -56,6 +56,8 @@ vi.mock("@/lib/supabase/admin", () => ({
       };
       return chain;
     },
+    // Usunięcie rekordu (ze zwolnieniem biletów) idzie przez jedno RPC.
+    rpc: async () => ({ data: null, error: null }),
     storage: {
       from: () => ({
         remove: async (paths: string[]) => {
